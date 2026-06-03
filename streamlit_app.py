@@ -14,8 +14,9 @@ from datetime import datetime as dt
 def _load_db_module():
     try:
         import streamlit as _st
-        _st.secrets["database"]["url"]
-        return "pg"
+        _url = _st.secrets.get("database", {}).get("url", "")
+        if _url:
+            return "pg"
     except Exception:
         pass
     if os.environ.get("DATABASE_URL"):
