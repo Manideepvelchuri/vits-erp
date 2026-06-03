@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Streamlit secrets — NEVER commit this
+.streamlit/secrets.toml
+
+# Local SQLite database — too large for GitHub, use Supabase instead
+*.db
+*.db-shm
+*.db-wal
+*.db.bak
+
+# Backups (local only)
+backups/
+csv_backups/
+
+# Backup files
+*.bak
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

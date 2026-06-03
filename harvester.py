@@ -1,0 +1,426 @@
+"""
+harvester.py — Smart portal attendance scraper.
+Semester-aware. Scheduler-safe. Logs every run.
+"""
+import os, io, sys, logging, time
+from datetime import datetime, timedelta
+import pandas as pd
+import requests
+from database import get_db_connection, CLASSES, get_portal_yr_br
+
+logger = logging.getLogger('harvester')
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    h = logging.StreamHandler()
+    h.setFormatter(logging.Formatter('[%(levelname)s] %(asctime)s — %(message)s'))
+    logger.addHandler(h)
+
+BASE_DIR        = os.path.dirname(__file__)
+CSV_BACKUP_DIR  = os.path.join(BASE_DIR, 'csv_backups')
+
+PORTAL_LOGIN  = 'http://103.52.36.11/Attendance/Validate.php'
+PORTAL_REPORT = 'http://103.52.36.11/Attendance/Crprint.php'
+PORTAL_USER   = os.environ.get('PORTAL_USERNAME', '848')
+PORTAL_PASS   = os.environ.get('PORTAL_PASSWORD', 'vits')
+
+SKIP_COLS = {'S.No.', 'H.T No.', 'Student Name', 'Total', 'Percentage(%)', 'Section'}
+
+
+def _make_session():
+    s = requests.Session()
+    s.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Content-Type': 'application/x-www-form-urlencoded'
+    })
+    return s
+
+
+def _login(session):
+    session.post(PORTAL_LOGIN,
+                 data={'uname': PORTAL_USER, 'pass': PORTAL_PASS},
+                 timeout=15)
+
+
+def _fetch_df(session, sc, semester, fdt, tdt, max_retries=3):
+    """Fetch attendance DataFrame from portal."""
+    yr, br = get_portal_yr_br(sc, semester)
+    payload = {'br': br, 'yr': yr, 'sc': sc,
+               'fdt': fdt, 'tdt': tdt, 'Submit': 'Submit'}
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            _login(session)
+            resp = session.post(PORTAL_REPORT, data=payload, timeout=(10, 180))
+            if resp.status_code != 200:
+                raise ValueError(f'HTTP {resp.status_code}')
+            html = resp.text
+            if 'uname' in html and 'pass' in html:
+                raise ValueError('Portal session expired')
+
+            tables = pd.read_html(io.StringIO(html))
+            if not tables:
+                raise ValueError('No HTML tables found')
+
+            df = None
+            for t in tables:
+                if not t.empty and 'H.T No.' in t.columns:
+                    df = t
+                    break
+
+            if df is None:
+                for t in tables:
+                    if t.empty:
+                        continue
+                    if t.iloc[0].astype(str).str.contains('H.T No.').any():
+                        t.columns = t.iloc[0]
+                        t = t[1:].reset_index(drop=True)
+                        if 'H.T No.' in t.columns:
+                            df = t
+                            break
+
+            if df is None:
+                raise ValueError('No attendance table with H.T No. found')
+            if len(df) < 2:
+                raise ValueError('Table has no student rows')
+
+            if 'Section' not in df.columns:
+                df.insert(0, 'Section', sc)
+            return df
+        except Exception as e:
+            logger.error(f'[{sc}] Attempt {attempt} failed: {e}')
+            if attempt < max_retries:
+                time.sleep(2 ** attempt)
+            else:
+                raise
+
+
+def scrape_portal(start_date=None, end_date=None, section=None,
+                  semester='Sem 2', dynamic_conn=None, max_retries=3):
+    """Main scrape function. Returns (success, message)."""
+    from database import get_config_map
+    conn_cfg = get_db_connection()
+    cfg      = get_config_map(conn_cfg)
+    conn_cfg.close()
+
+    fdt = start_date or cfg.get('start_date', '2026-01-27')
+    tdt = end_date   or datetime.now().strftime('%Y-%m-%d')
+    sc  = section    or 'ECE_B'
+
+    logger.info(f'Scraping {sc} | {semester} | {fdt} → {tdt}')
+
+    session       = _make_session()
+    conn          = dynamic_conn if dynamic_conn is not None else get_db_connection()
+    cursor        = conn.cursor()
+
+    # Check if section has history. If it does, only scrape today's date to keep it 5x faster.
+    has_history = False
+    try:
+        has_history = cursor.execute('''
+            SELECT COUNT(*) FROM attendance_history 
+            WHERE roll_no IN (SELECT roll_no FROM students WHERE section = ?)
+        ''', (sc,)).fetchone()[0] > 0
+    except Exception:
+        pass
+
+    target_dates = []
+    if has_history:
+        target_dates = [tdt]
+    else:
+        try:
+            base  = datetime.strptime(tdt, '%Y-%m-%d').date()
+            start = datetime.strptime(fdt, '%Y-%m-%d').date()
+            # Fetch weekly snapshots to build initial history
+            for offset in [28, 21, 14, 7, 0]:
+                d = base - timedelta(days=offset)
+                if d >= start:
+                    target_dates.append(d.strftime('%Y-%m-%d'))
+        except Exception:
+            target_dates = [tdt]
+
+    if tdt not in target_dates:
+        target_dates.append(tdt)
+    success_dates = []
+    student_count = 0
+    last_df       = None
+    t_start       = time.time()
+
+    for target_date in target_dates:
+        try:
+            df = _fetch_df(session, sc, semester, fdt, target_date, max_retries)
+            conducted_row = df.iloc[0]
+            subjects = [c for c in df.columns
+                        if c not in SKIP_COLS and not str(c).startswith('Unnamed')]
+
+            for sub in subjects:
+                cursor.execute('''
+                    INSERT OR IGNORE INTO subjects(subject_code,subject_name,semester,section)
+                    VALUES(?,?,?,?)
+                ''', (sub, sub, semester, sc))
+
+            branch = sc.split('_')[0] if '_' in sc else sc
+
+            for idx in range(1, len(df)):
+                row     = df.iloc[idx]
+                roll_no = str(row.get('H.T No.', '')).strip().upper()
+                name    = str(row.get('Student Name', '')).strip()
+
+                if not roll_no or roll_no.lower() in ('nan', 'none', ''):
+                    continue
+
+                cursor.execute('SELECT COUNT(*) FROM students WHERE roll_no=?', (roll_no,))
+                if not cursor.fetchone()[0]:
+                    cursor.execute('''
+                        INSERT INTO students(roll_no,name,dob,email,semester,department,section,branch)
+                        VALUES(?,?,?,?,?,?,?,?)
+                    ''', (roll_no, name, '2007-01-01',
+                          f'{roll_no.lower()}@vits.edu', 2, branch, sc, branch))
+                    student_count += 1
+                elif target_date == tdt:
+                    cursor.execute('''
+                        UPDATE students SET name=?,section=?,department=?,branch=?
+                        WHERE roll_no=?
+                    ''', (name, sc, branch, branch, roll_no))
+
+                for sub in subjects:
+                    try:
+                        cond_v = pd.to_numeric(conducted_row[sub], errors='coerce')
+                        att_v  = pd.to_numeric(row[sub],           errors='coerce')
+                        if pd.isna(cond_v) or pd.isna(att_v):
+                            continue
+                        cond, att = int(cond_v), int(att_v)
+
+                        if target_date == tdt:
+                            cursor.execute('''
+                                INSERT INTO attendance(roll_no,subject,semester,hours_attended,hours_conducted)
+                                VALUES(?,?,?,?,?)
+                                ON CONFLICT(roll_no,subject,semester) DO UPDATE SET
+                                    hours_attended=excluded.hours_attended,
+                                    hours_conducted=excluded.hours_conducted
+                            ''', (roll_no, sub, semester, att, cond))
+
+                        pct = round(att / cond * 100, 2) if cond > 0 else 0.0
+                        cursor.execute('''
+                            INSERT INTO attendance_history
+                                (snapshot_date,roll_no,subject_code,running_attended,running_conducted,percentage)
+                            VALUES(?,?,?,?,?,?)
+                            ON CONFLICT(roll_no,subject_code,snapshot_date) DO UPDATE SET
+                                running_attended=excluded.running_attended,
+                                running_conducted=excluded.running_conducted,
+                                percentage=excluded.percentage
+                        ''', (target_date, roll_no, sub, att, cond, pct))
+                    except Exception:
+                        continue
+
+            success_dates.append(target_date)
+            if target_date == tdt:
+                last_df = df
+        except Exception as e:
+            logger.error(f'[{sc}] Failed for {target_date}: {e}')
+
+    # Interpolate attendance gaps dynamically to populate daily records for the last 30 days
+    try:
+        fill_attendance_history_gaps(conn, sc, fdt, tdt)
+    except Exception as fill_e:
+        logger.warning(f'Failed to interpolate attendance history: {fill_e}')
+
+    duration = round(time.time() - t_start, 2)
+    status   = 'success' if success_dates else 'failed'
+    now      = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    try:
+        cursor.execute("UPDATE config SET value=? WHERE key='last_scraped_at'", (now,))
+        cursor.execute("UPDATE config SET value=? WHERE key='start_date'",      (fdt,))
+        cursor.execute("UPDATE config SET value=? WHERE key='end_date'",        (tdt,))
+        cursor.execute('''
+            INSERT INTO scrape_log(scraped_at,section,students,status,duration)
+            VALUES(?,?,?,?,?)
+        ''', (now, sc, student_count, status, duration))
+    except Exception as log_e:
+        logger.error(f'Failed to write scrape log: {log_e}')
+
+    if dynamic_conn is None:
+        try:
+            conn.commit()
+        finally:
+            conn.close()
+
+    # Save per-section CSV backup
+    if last_df is not None:
+        try:
+            os.makedirs(CSV_BACKUP_DIR, exist_ok=True)
+            last_df.to_csv(os.path.join(CSV_BACKUP_DIR, f'attendance_{sc}.csv'), index=False)
+        except Exception as e:
+            logger.warning(f'CSV backup failed: {e}')
+
+    if not success_dates:
+        return False, f'[{sc}] Failed to scrape any data.'
+    return True, f'[{sc}] Synced {student_count} students | {len(success_dates)} snapshots | {duration}s'
+
+
+def bulk_scrape_all(semester='Sem 2', start_date=None, end_date=None):
+    """Scrape all sections independently."""
+    results = []
+    for sec in CLASSES:
+        ok, msg = scrape_portal(
+            start_date=start_date, end_date=end_date,
+            section=sec, semester=semester, dynamic_conn=None
+        )
+        results.append({'section': sec, 'ok': ok, 'msg': msg})
+        logger.info(msg)
+    return results
+
+
+def start_scheduler(app):
+    """Start APScheduler — only in main worker, not Flask reloader."""
+    if app.debug and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        logger.info('[Scheduler] Skipping in Flask reloader process')
+        return None
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from database import get_config_map, backup_db
+
+        def _daily_job():
+            with app.app_context():
+                conn_cfg = get_db_connection()
+                cfg      = get_config_map(conn_cfg)
+                conn_cfg.close()
+                sem = cfg.get('active_semester', 'Sem 2')
+                logger.info(f'[Scheduler] Daily auto-scrape | {sem}')
+                results = bulk_scrape_all(semester=sem)
+                ok      = sum(1 for r in results if r['ok'])
+                logger.info(f'[Scheduler] {ok}/{len(results)} sections synced')
+                bp = backup_db()
+                if bp:
+                    logger.info(f'[Scheduler] Backup: {bp}')
+
+        scheduler = BackgroundScheduler(timezone='Asia/Kolkata')
+        scheduler.add_job(_daily_job, 'cron', hour=18, minute=0, id='daily_scrape')
+        scheduler.start()
+        logger.info('[Scheduler] Daily scrape scheduled at 18:00 IST')
+        return scheduler
+    except ImportError:
+        logger.warning('[Scheduler] apscheduler not installed — daily scrape disabled')
+        return None
+
+
+def fill_attendance_history_gaps(conn, section, fdt, tdt):
+    import sqlite3
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    # Get all students in this section
+    students = [r['roll_no'] for r in cursor.execute(
+        'SELECT roll_no FROM students WHERE section=?', (section,)
+    ).fetchall()]
+    
+    # Get all subjects for this section
+    subjects = [r['subject_code'] for r in cursor.execute(
+        'SELECT DISTINCT subject_code FROM subjects WHERE section=?', (section,)
+    ).fetchall()]
+    
+    if not students or not subjects:
+        return
+        
+    start_date = datetime.strptime(fdt, '%Y-%m-%d').date()
+    end_date = datetime.strptime(tdt, '%Y-%m-%d').date()
+    
+    # Generate list of all calendar dates
+    delta = (end_date - start_date).days
+    all_dates = [start_date + timedelta(days=i) for i in range(delta + 1)]
+    all_dates_str = [d.strftime('%Y-%m-%d') for d in all_dates]
+    
+    # Fetch all history snapshots for students in this section in one single query
+    placeholders = ','.join('?' for _ in students)
+    history_rows = cursor.execute(f'''
+        SELECT roll_no, subject_code, snapshot_date, running_attended, running_conducted
+        FROM attendance_history
+        WHERE snapshot_date BETWEEN ? AND ? AND roll_no IN ({placeholders})
+        ORDER BY snapshot_date ASC
+    ''', (fdt, tdt, *students)).fetchall()
+    
+    # Group history by (roll_no, subject_code)
+    history_by_student_subject = {}
+    for r in history_rows:
+        key = (r['roll_no'], r['subject_code'])
+        history_by_student_subject.setdefault(key, []).append(r)
+        
+    insert_data = []
+    
+    for roll in students:
+        for sub in subjects:
+            key = (roll, sub)
+            rows = history_by_student_subject.get(key, [])
+            
+            if not rows:
+                continue
+                
+            # Build a map of date -> (attended, conducted)
+            existing_map = {}
+            for r in rows:
+                existing_map[r['snapshot_date']] = (r['running_attended'], r['running_conducted'])
+                
+            # If we only have 1 snapshot, forward fill it to all dates
+            if len(rows) == 1:
+                att, cond = rows[0]['running_attended'], rows[0]['running_conducted']
+                pct = round(att / cond * 100, 2) if cond > 0 else 0.0
+                for d_str in all_dates_str:
+                    if d_str not in existing_map:
+                        insert_data.append((d_str, roll, sub, att, cond, pct))
+                continue
+                
+            # Linear interpolation for gaps
+            sorted_dates = sorted(existing_map.keys())
+            
+            for idx, d_str in enumerate(all_dates_str):
+                if d_str in existing_map:
+                    continue
+                    
+                # Find preceding and succeeding dates
+                prev_date_str = None
+                next_date_str = None
+                for sd in sorted_dates:
+                    if sd < d_str:
+                        prev_date_str = sd
+                    elif sd > d_str and next_date_str is None:
+                        next_date_str = sd
+                        
+                # Interpolate or extrapolate
+                if prev_date_str is None:
+                    # Extrapolate backward (copy from first available)
+                    att, cond = existing_map[sorted_dates[0]]
+                elif next_date_str is None:
+                    # Extrapolate forward (copy from last available)
+                    att, cond = existing_map[sorted_dates[-1]]
+                else:
+                    # Linear interpolation
+                    att_p, cond_p = existing_map[prev_date_str]
+                    att_n, cond_n = existing_map[next_date_str]
+                    
+                    p_date = datetime.strptime(prev_date_str, '%Y-%m-%d').date()
+                    n_date = datetime.strptime(next_date_str, '%Y-%m-%d').date()
+                    curr_date = datetime.strptime(d_str, '%Y-%m-%d').date()
+                    
+                    total_days = (n_date - p_date).days
+                    curr_days = (curr_date - p_date).days
+                    
+                    fraction = curr_days / total_days if total_days > 0 else 0.0
+                    
+                    cond = int(cond_p + fraction * (cond_n - cond_p))
+                    att = int(att_p + fraction * (att_n - att_p))
+                    
+                pct = round(att / cond * 100, 2) if cond > 0 else 0.0
+                insert_data.append((d_str, roll, sub, att, cond, pct))
+                
+    if insert_data:
+        cursor.executemany('''
+            INSERT OR REPLACE INTO attendance_history
+                (snapshot_date, roll_no, subject_code, running_attended, running_conducted, percentage)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', insert_data)
+
+
+if __name__ == '__main__':
+    sec = sys.argv[1] if len(sys.argv) > 1 else 'ECE_B'
+    sem = sys.argv[2] if len(sys.argv) > 2 else 'Sem 2'
+    ok, msg = scrape_portal(section=sec, semester=sem)
+    logger.info(msg)
+    sys.exit(0 if ok else 1)
