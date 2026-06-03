@@ -96,8 +96,11 @@ class _RowWrapper:
     """Makes psycopg2 RealDictRow behave like sqlite3.Row (dict + index access)."""
     def __init__(self, d):
         self._d = dict(d)
+        self._vals = list(self._d.values())  # for integer index access
     def __getitem__(self, key):
-        return self._d[key]
+        if isinstance(key, int):
+            return self._vals[key]   # fetchone()[0] style
+        return self._d[key]          # fetchone()['column'] style
     def __contains__(self, key):
         return key in self._d
     def keys(self):
