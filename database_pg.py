@@ -144,7 +144,16 @@ class _PGConn:
         self._conn.commit()
 
     def close(self):
-        self._conn.close()
+        # Return to pool if available, otherwise close
+        pool = getattr(self, '_pool', None)
+        if pool:
+            try:
+                self._conn.commit()  # commit any pending tx before returning
+            except Exception:
+                self._conn.rollback()
+            pool.putconn(self._conn)
+        else:
+            self._conn.close()
 
     def __enter__(self):
         return self
@@ -196,18 +205,54 @@ class _CursorProxy:
         return [_RowWrapper(r) for r in self._cur.fetchall()]
 
 
-def get_db_connection():
+def _make_conn():
+    """Create a single raw psycopg2 connection (used by pool)."""
     url = _get_pg_url()
-    # Try with sslmode=require first (works for Session Pooler + Direct)
     try:
-        conn = psycopg2.connect(url, sslmode='require', connect_timeout=10)
-        conn.autocommit = False
-        return _PGConn(conn)
+        c = psycopg2.connect(url, sslmode='require', connect_timeout=15)
+        c.autocommit = False
+        return c
     except psycopg2.OperationalError:
-        # Fallback: try without explicit sslmode (URL may already contain it)
-        conn = psycopg2.connect(url, connect_timeout=10)
-        conn.autocommit = False
-        return _PGConn(conn)
+        c = psycopg2.connect(url, connect_timeout=15)
+        c.autocommit = False
+        return c
+
+
+@st.cache_resource
+def _get_pool():
+    """
+    Create a ThreadedConnectionPool once per app session.
+    Cached by Streamlit so it survives reruns — connections are REUSED.
+    minconn=2, maxconn=8 is safe for Supabase free tier (max 20 connections).
+    """
+    from psycopg2 import pool as pg_pool
+    url = _get_pg_url()
+    try:
+        p = pg_pool.ThreadedConnectionPool(
+            minconn=2, maxconn=8,
+            dsn=url, sslmode='require', connect_timeout=15
+        )
+        return p
+    except Exception:
+        p = pg_pool.ThreadedConnectionPool(
+            minconn=2, maxconn=8,
+            dsn=url, connect_timeout=15
+        )
+        return p
+
+
+def get_db_connection():
+    """
+    Get a connection from the pool. Always call conn.close() when done —
+    this returns the connection to the pool rather than closing it.
+    """
+    pool = _get_pool()
+    raw = pool.getconn()
+    raw.autocommit = False
+    conn = _PGConn(raw)
+    conn._pool = pool   # store reference so close() can return to pool
+    return conn
+
 
 
 # ── Schema (PostgreSQL syntax) ──────────────────────────────────────
