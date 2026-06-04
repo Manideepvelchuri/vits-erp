@@ -446,6 +446,20 @@ table.premium-table tr:last-child td { border-bottom: none !important; }
     border-radius: 18px; padding: 20px 24px; margin: 16px 0;
     backdrop-filter: blur(15px); font-family: 'Inter', sans-serif;
 }
+
+/* ── Mobile: prevent single-finger chart zoom ─────────────── */
+div[data-testid="stPlotlyChart"] {
+    touch-action: pan-y !important;
+}
+div[data-testid="stPlotlyChart"] > div {
+    touch-action: pan-y !important;
+}
+div[data-testid="stPlotlyChart"] iframe {
+    touch-action: pan-y !important;
+}
+.js-plotly-plot, .plot-container, .svg-container {
+    touch-action: pan-y !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -983,7 +997,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
             )
-            st.plotly_chart(fig_donut, use_container_width=True)
+            st.plotly_chart(fig_donut, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": False})
 
             # Best vs Worst mini cards
             st.markdown(f"""
@@ -1050,7 +1064,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                           margin=dict(t=10, b=10))
         fig.update_coloraxes(showscale=False)
         apply_premium_plotly_theme(fig)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": False})
 
     # Grades table – full width
     st.markdown("### 📝 Exam & Assignment Grades")
@@ -1163,7 +1177,7 @@ def show_attendance_page(roll, sem, att_rows):
     fig.add_hline(y=65, line_dash="dash", line_color="orange", annotation_text="65% min")
     fig.update_layout(height=400, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
     fig.update_coloraxes(showscale=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": False})
 
     st.markdown("### 📊 Subject-wise Details + Intelligence")
     for idx, row in df.iterrows():
@@ -1222,7 +1236,7 @@ def show_marks_page(sem, marks_rows):
         fig = px.line(pd.DataFrame(trend_data), x='Exam', y='Score', color='Subject', markers=True, render_mode='svg')
         fig.update_traces(line_shape='spline', line=dict(width=3))
         apply_premium_plotly_theme(fig)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": False})
 
     for et in [f"{sem} Final Examinations", 'Mid 1', 'Mid 2', 'Lab Internals']:
         st.markdown(f"### {et}")
@@ -1349,7 +1363,7 @@ def show_analytics_page(roll, sem):
     fig.add_hline(y=75, line_dash="dash", line_color="#00D8C6")
     fig.add_hline(y=65, line_dash="dash", line_color="#F59E0B")
     apply_premium_plotly_theme(fig)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": False})
 
     st.markdown("### 🔥 Absenteeism Heatmap")
     pivot = df.pivot_table(index='subject_code', columns='snapshot_date',
@@ -1359,7 +1373,7 @@ def show_analytics_page(roll, sem):
         colorscale=[[0, '#1E293B'], [0.5, '#EF4444'], [0.75, '#F59E0B'], [1, '#00D8C6']],
         zmin=0, zmax=100, xgap=4, ygap=4, colorbar={'title': '%'}))
     apply_premium_plotly_theme(fig2)
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": False})
 
     # Attendance forecast (NEW — feature #12)
     st.markdown("### 🔮 Attendance Forecast")
@@ -2104,7 +2118,7 @@ def admin_analytics():
         fig.add_hline(y=75, line_dash="dash", line_color="green")
         fig.update_layout(height=400, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
         fig.update_coloraxes(showscale=False)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": False})
 
     cc1, cc2 = st.columns(2)
     with cc1:
