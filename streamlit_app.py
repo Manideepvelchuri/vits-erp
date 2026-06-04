@@ -122,7 +122,7 @@ def ensure_admin_pwd():
     row = conn.execute("SELECT value FROM config WHERE key='admin_pwd_hash'").fetchone()
     if not row:
         default = os.environ.get('ADMIN_PASSWORD', 'vits@admin123')
-        conn.execute("INSERT OR IGNORE INTO config(key,value) VALUES('admin_pwd_hash',?)",
+        conn.execute("INSERT INTO config(key,value) VALUES('admin_pwd_hash',?) ON CONFLICT(key) DO NOTHING",
                      (_hash_pwd(default),))
         conn.commit()
     conn.close()
@@ -1148,14 +1148,15 @@ def show_analytics_page(roll, sem):
         st.info("ℹ️ Attendance trends are only available for scraped semesters (Sem 2+). Sem 1 shows results only.")
         return
 
-    # FIXED: query actual subjects in history (no subject-name mismatch)
+    import datetime as dt_mod
+    cutoff_date = (dt_mod.date.today() - dt_mod.timedelta(days=days)).strftime('%Y-%m-%d')
     conn = get_db_connection()
     rows = conn.execute('''
         SELECT snapshot_date, subject_code, percentage, running_attended, running_conducted
         FROM attendance_history
-        WHERE roll_no=? AND snapshot_date >= date('now', ?)
+        WHERE roll_no=? AND snapshot_date >= ?
         ORDER BY snapshot_date ASC
-    ''', (roll, f'-{days} days')).fetchall()
+    ''', (roll, cutoff_date)).fetchall()
     conn.close()
 
     if not rows:
@@ -1948,9 +1949,9 @@ def admin_settings():
         total_hours = st.number_input("Total Semester Hours (Default)", min_value=1, value=int(cfg.get('total_semester_hours', '600')))
         if st.form_submit_button("💾 Save Config"):
             conn = get_db_connection()
-            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('active_semester', ?)", (active,))
-            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('start_date', ?)", (sd.strftime('%Y-%m-%d'),))
-            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('total_semester_hours', ?)", (str(total_hours),))
+            conn.execute("INSERT INTO config (key, value) VALUES ('active_semester', ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (active,))
+            conn.execute("INSERT INTO config (key, value) VALUES ('start_date', ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (sd.strftime('%Y-%m-%d'),))
+            conn.execute("INSERT INTO config (key, value) VALUES ('total_semester_hours', ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (str(total_hours),))
             conn.commit(); conn.close()
             st.success("Configuration saved.")
 

@@ -153,8 +153,9 @@ def scrape_portal(start_date=None, end_date=None, section=None,
 
             for sub in subjects:
                 cursor.execute('''
-                    INSERT OR IGNORE INTO subjects(subject_code,subject_name,semester,section)
+                    INSERT INTO subjects(subject_code,subject_name,semester,section)
                     VALUES(?,?,?,?)
+                    ON CONFLICT(subject_code, semester, section) DO NOTHING
                 ''', (sub, sub, semester, sc))
 
             branch = sc.split('_')[0] if '_' in sc else sc
@@ -412,9 +413,13 @@ def fill_attendance_history_gaps(conn, section, fdt, tdt):
                 
     if insert_data:
         cursor.executemany('''
-            INSERT OR REPLACE INTO attendance_history
+            INSERT INTO attendance_history
                 (snapshot_date, roll_no, subject_code, running_attended, running_conducted, percentage)
             VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(roll_no, subject_code, snapshot_date) DO UPDATE SET
+                running_attended = EXCLUDED.running_attended,
+                running_conducted = EXCLUDED.running_conducted,
+                percentage = EXCLUDED.percentage
         ''', insert_data)
 
 

@@ -109,6 +109,48 @@ class _RowWrapper:
         return self._d.get(key, default)
 
 
+# ── Transparent Caching Mechanism ──
+import time
+_QUERY_CACHE = {}  # (sql_query, tuple_params): (expiry_timestamp, list_of_RowWrappers)
+
+def _clear_cache():
+    global _QUERY_CACHE
+    _QUERY_CACHE.clear()
+
+
+class _CachedCursor:
+    def __init__(self, rows):
+        self._rows = rows
+        self._idx = 0
+
+    def fetchone(self):
+        if self._idx < len(self._rows):
+            r = self._rows[self._idx]
+            self._idx += 1
+            return r
+        return None
+
+    def fetchall(self):
+        res = self._rows[self._idx:]
+        self._idx = len(self._rows)
+        return res
+
+    def __getitem__(self, idx):
+        if not self._rows:
+            return None
+        # Allow conn.execute(sql)[0] style access
+        return self._rows[0][idx]
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        row = self.fetchone()
+        if row is None:
+            raise StopIteration
+        return row
+
+
 class _PGConn:
     """
     Thin wrapper around a psycopg2 connection that mimics the sqlite3 interface
@@ -127,12 +169,41 @@ class _PGConn:
         return sql.replace('?', '%s')
 
     def execute(self, sql, params=()):
-        sql = self._adapt_sql(sql)
+        sql_upper = sql.strip().upper()
+        # Check if it's a read query
+        is_read = sql_upper.startswith('SELECT') or sql_upper.startswith('WITH')
+        
+        # If it's a write query, invalidate the cache!
+        if not is_read:
+            _clear_cache()
+            
+        # Check query cache for reads
+        if is_read:
+            cache_key = (sql, tuple(params) if params else ())
+            now = time.time()
+            if cache_key in _QUERY_CACHE:
+                expiry, cached_rows = _QUERY_CACHE[cache_key]
+                if now < expiry:
+                    return _CachedCursor(cached_rows)
+
+        adapted_sql = self._adapt_sql(sql)
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute(sql, params)
-        return _CursorWrapper(cur)
+        cur.execute(adapted_sql, params)
+        wrapper = _CursorWrapper(cur)
+
+        # Cache results if it's a read query
+        if is_read:
+            cache_key = (sql, tuple(params) if params else ())
+            # Fetch all rows into RowWrappers
+            rows = wrapper.fetchall()
+            _QUERY_CACHE[cache_key] = (time.time() + 300, rows)  # cache for 5 minutes
+            return _CachedCursor(rows)
+
+        return wrapper
 
     def executemany(self, sql, seq):
+        # Any bulk execute is a write, clear cache
+        _clear_cache()
         sql = self._adapt_sql(sql)
         cur = self._conn.cursor()
         cur.executemany(sql, seq)
@@ -150,7 +221,10 @@ class _PGConn:
             try:
                 self._conn.commit()  # commit any pending tx before returning
             except Exception:
-                self._conn.rollback()
+                try:
+                    self._conn.rollback()
+                except Exception:
+                    pass
             pool.putconn(self._conn)
         else:
             self._conn.close()
@@ -181,6 +255,15 @@ class _CursorWrapper:
         vals = list(dict(row).values())
         return vals[idx]
 
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        row = self.fetchone()
+        if row is None:
+            raise StopIteration
+        return row
+
 
 class _CursorProxy:
     """Proxy returned by conn.cursor() for code that calls cursor.execute() directly."""
@@ -203,6 +286,15 @@ class _CursorProxy:
 
     def fetchall(self):
         return [_RowWrapper(r) for r in self._cur.fetchall()]
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        row = self.fetchone()
+        if row is None:
+            raise StopIteration
+        return row
 
 
 def _make_conn():
@@ -245,13 +337,40 @@ def get_db_connection():
     """
     Get a connection from the pool. Always call conn.close() when done —
     this returns the connection to the pool rather than closing it.
+    Validates connection and recreates the pool if it has failed.
     """
     pool = _get_pool()
-    raw = pool.getconn()
-    raw.autocommit = False
-    conn = _PGConn(raw)
-    conn._pool = pool   # store reference so close() can return to pool
-    return conn
+    max_retries = 3
+    for attempt in range(max_retries):
+        raw = None
+        try:
+            raw = pool.getconn()
+            # Test connection health
+            with raw.cursor() as cur:
+                cur.execute("SELECT 1")
+            raw.rollback()  # End the transaction block started by SELECT 1
+            raw.autocommit = False
+            conn = _PGConn(raw)
+            conn._pool = pool   # store reference so close() can return to pool
+            return conn
+        except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
+            if raw:
+                try:
+                    pool.putconn(raw, close=True)
+                except Exception:
+                    pass
+            print(f"[Database Pool] Dead connection detected on attempt {attempt+1}/{max_retries}: {e}")
+            if attempt == max_retries - 1:
+                # Recreate the connection pool
+                print("[Database Pool] Recreating Connection Pool...")
+                _get_pool.clear()
+                pool = _get_pool()
+                raw = pool.getconn()
+                raw.autocommit = False
+                conn = _PGConn(raw)
+                conn._pool = pool
+                return conn
+
 
 
 
@@ -360,20 +479,20 @@ CREATE INDEX IF NOT EXISTS idx_sgpa_roll  ON sgpa_records(roll_no);
 
 def init_db():
     conn = get_db_connection()
-    cur = conn._conn.cursor()
 
-    # Run each statement separately (psycopg2 doesn't support executescript)
+    # Run each statement separately in its own transaction block to prevent psycopg2 transaction failures
     for stmt in _SCHEMA_SQL.split(';'):
         stmt = stmt.strip()
         if stmt:
             try:
-                cur.execute(stmt)
+                conn.execute(stmt)
+                conn.commit()
             except Exception as e:
-                conn._conn.rollback()
-                print(f"[init_db] Warning on: {stmt[:60]}... → {e}")
-                conn._conn.autocommit = False
-
-    conn.commit()
+                try:
+                    conn._conn.rollback()
+                except Exception:
+                    pass
+                print(f"[init_db] Warning on statement: {stmt[:60]}... → {e}")
 
     # Seed config defaults
     today = datetime.now().strftime('%Y-%m-%d')
@@ -384,34 +503,55 @@ def init_db():
         ('active_semester', 'Sem 2'),
         ('total_semester_hours', '600'),
     ]:
-        conn.execute(
-            "INSERT INTO config(key,value) VALUES(%s,%s) ON CONFLICT(key) DO NOTHING",
-            (key, val)
-        )
-    conn.commit()
+        try:
+            conn.execute(
+                "INSERT INTO config(key,value) VALUES(%s,%s) ON CONFLICT(key) DO NOTHING",
+                (key, val)
+            )
+            conn.commit()
+        except Exception as e:
+            try: conn._conn.rollback()
+            except: pass
+            print(f"[init_db] Warning on seeding config '{key}': {e}")
 
     # Seed subjects if empty
-    row = conn.execute("SELECT COUNT(*) FROM subjects").fetchone()
-    count = list(row._d.values())[0] if row else 0
-    if count == 0:
-        for section, subs in SECTION_SUBJECTS.items():
-            for sub in subs:
-                conn.execute(
-                    "INSERT INTO subjects(subject_code,subject_name,semester,section) "
-                    "VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                    (sub, sub, ACTIVE_SEMESTER, section)
-                )
-        conn.commit()
+    try:
+        row = conn.execute("SELECT COUNT(*) FROM subjects").fetchone()
+        count = list(row._d.values())[0] if row else 0
+        if count == 0:
+            for section, subs in SECTION_SUBJECTS.items():
+                for sub in subs:
+                    conn.execute(
+                        "INSERT INTO subjects(subject_code,subject_name,semester,section) "
+                        "VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                        (sub, sub, ACTIVE_SEMESTER, section)
+                    )
+            conn.commit()
+    except Exception as e:
+        try: conn._conn.rollback()
+        except: pass
+        print(f"[init_db] Warning on seeding subjects: {e}")
 
     # Seed students if empty
-    row = conn.execute("SELECT COUNT(*) FROM students").fetchone()
-    count = list(row._d.values())[0] if row else 0
-    if count == 0:
-        seed_db_from_csvs(conn)
+    try:
+        row = conn.execute("SELECT COUNT(*) FROM students").fetchone()
+        count = list(row._d.values())[0] if row else 0
+        if count == 0:
+            seed_db_from_csvs(conn)
+    except Exception as e:
+        try: conn._conn.rollback()
+        except: pass
+        print(f"[init_db] Warning on seeding students: {e}")
 
     # Migration: reset placeholder DOBs
-    conn.execute("UPDATE students SET dob='PENDING' WHERE dob='2007-01-01'")
-    conn.commit()
+    try:
+        conn.execute("UPDATE students SET dob='PENDING' WHERE dob='2007-01-01'")
+        conn.commit()
+    except Exception as e:
+        try: conn._conn.rollback()
+        except: pass
+        print(f"[init_db] Warning on DOB reset migration: {e}")
+
     conn.close()
 
 
@@ -698,3 +838,201 @@ def seed_db_from_csvs(conn):
         except Exception as e:
             print(f"[seed_db] Error reading {fname}: {e}")
     conn.commit()
+
+
+def parse_and_load_csv_results(csv_path, section="ECE_B", semester="Sem 2"):
+    """
+    Parses JNTU/VITS results CSV format (Hall No, Name, Sub1, GP1, Sub2, GP2...) and populates marks & students.
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        with open(csv_path, "r", encoding="utf-8") as f:
+            reader = list(csv.reader(f))
+            
+        if len(reader) < 3:
+            conn.close()
+            return False, "Spreadsheet contains no records."
+            
+        header = reader[0]
+        subjects = []
+        sub_indices = []
+        
+        for idx, val in enumerate(header):
+            val = val.strip()
+            if val and val.lower() not in ["hall no:", "name", "sgpa", "h.t no.", "student name"]:
+                subjects.append(val)
+                sub_indices.append(idx)
+                
+        students_count = 0
+        for row_idx in range(2, len(reader)):
+            row = reader[row_idx]
+            if not row or not row[0].strip():
+                continue
+                
+            roll_no = row[0].strip().upper()
+            name = row[1].strip()
+            
+            if roll_no.lower() in ["hall no:", "name", "total", "gp", "h.t no.", "student name", ""]:
+                continue
+                
+            branch = section.split("_")[0] if "_" in section else section
+            email = f"{roll_no.lower()}@vits.edu"
+            
+            # Upsert Student using ON CONFLICT (standard)
+            cursor.execute("""
+                INSERT INTO students (roll_no, name, dob, email, semester, department, section, branch)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (roll_no) DO UPDATE SET 
+                    name = EXCLUDED.name, 
+                    section = EXCLUDED.section,
+                    branch = EXCLUDED.branch,
+                    department = EXCLUDED.department
+            """, (roll_no, name, DEFAULT_STUDENT_PASSWORD, email, int(semester.split(" ")[1]), branch, section, branch))
+            
+            # Ingest marks
+            weighted_gp = 0.0
+            total_credits = 0.0
+            has_failed = False
+            
+            for sub, col_idx in zip(subjects, sub_indices):
+                if col_idx < len(row):
+                    score_str = row[col_idx].strip()
+                    gp_str = row[col_idx + 1].strip() if col_idx + 1 < len(row) else ""
+                    
+                    try:
+                        score = float(score_str)
+                    except ValueError:
+                        score = None
+                        
+                    try:
+                        gp = float(gp_str)
+                    except ValueError:
+                        gp = 0.0
+                        
+                    exam_type = f"{semester} Final Examinations"
+                    cursor.execute("""
+                        INSERT INTO marks (roll_no, subject, semester, exam_type, score, grade_point)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (roll_no, subject, semester, exam_type) DO UPDATE SET
+                            score = EXCLUDED.score,
+                            grade_point = EXCLUDED.grade_point
+                    """, (roll_no, sub, semester, exam_type, score, gp))
+                    
+                    credits = SUBJECT_CREDITS.get(sub, 3.0)
+                    weighted_gp += gp * credits
+                    total_credits += credits
+                    
+                    grade, _ = score_to_grade(score)
+                    if grade in ['F', 'Ab']:
+                        has_failed = True
+            
+            # Insert SGPA record
+            sgpa = round(weighted_gp / total_credits, 2) if total_credits > 0 else 0.0
+            cursor.execute("""
+                INSERT INTO sgpa_records (roll_no, semester, sgpa, failed)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (roll_no, semester) DO UPDATE SET
+                    sgpa = EXCLUDED.sgpa,
+                    failed = EXCLUDED.failed
+            """, (roll_no, semester, sgpa, 1 if has_failed else 0))
+            
+            students_count += 1
+            
+        conn.commit()
+        conn.close()
+        return True, f"Ingested {students_count} profiles successfully."
+    except Exception as e:
+        return False, str(e)
+
+
+def import_results_from_csvs(conn=None):
+    close_after = False
+    if conn is None:
+        conn = get_db_connection()
+        close_after = True
+    try:
+        cursor = conn.cursor()
+        if not os.path.exists(RESULTS_CSV_DIR):
+            print(f"[Database] Results directory '{RESULTS_CSV_DIR}' not found.")
+            return
+
+        csv_files = [f for f in os.listdir(RESULTS_CSV_DIR) if f.lower().endswith(".csv")]
+        print(f"[Database] Found {len(csv_files)} results CSV files.")
+
+        for filename in csv_files:
+            path = os.path.join(RESULTS_CSV_DIR, filename)
+            
+            # Match section from filename
+            section = None
+            name_part = os.path.splitext(filename)[0].upper().replace(" ", "").replace("_", "")
+            for c in CLASSES:
+                c_clean = c.upper().replace("_", "")
+                if c_clean in name_part:
+                    section = c
+                    break
+
+            if not section:
+                print(f"[Database] Skipping results CSV {filename} (no matching section)")
+                continue
+
+            print(f"[Database] Processing results for section {section} from file {filename}...")
+            
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            parsed = parse_sem1_results_csv(content)
+            if not parsed:
+                continue
+
+            marks_count = 0
+            sgpa_count = 0
+            semester = "Sem 1"
+
+            for record in parsed:
+                roll = record['roll_no']
+                name = record['name']
+                branch = decode_roll_branch(roll) or 'ECE'
+                
+                # Ensure student exists
+                cursor.execute('''
+                    INSERT INTO students (roll_no, name, dob, semester, branch, department, section)
+                    VALUES (%s, %s, %s, 2, %s, %s, %s)
+                    ON CONFLICT(roll_no) DO UPDATE SET 
+                        name=EXCLUDED.name, 
+                        section=EXCLUDED.section,
+                        branch=EXCLUDED.branch,
+                        department=EXCLUDED.department
+                ''', (roll, name, DEFAULT_STUDENT_PASSWORD, branch, branch, section))
+
+                # Insert Sem 1 Marks
+                for subj, data in record['subjects'].items():
+                    if data['total'] is not None:
+                        cursor.execute('''
+                            INSERT INTO marks (roll_no, subject, semester, exam_type, score, grade_point)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                            ON CONFLICT(roll_no, subject, semester, exam_type) DO UPDATE SET
+                                score = EXCLUDED.score,
+                                grade_point = EXCLUDED.grade_point
+                        ''', (roll, subj, semester, f"{semester} Final Examinations", data['total'], data['gp']))
+                        marks_count += 1
+
+                # Insert Sem 1 SGPA
+                cursor.execute('''
+                    INSERT INTO sgpa_records (roll_no, semester, sgpa, failed)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT(roll_no, semester) DO UPDATE SET
+                        sgpa = EXCLUDED.sgpa,
+                        failed = EXCLUDED.failed
+                ''', (roll, semester, record['sgpa'], 1 if record['failed'] else 0))
+                sgpa_count += 1
+
+            print(f"[Database] Imported {sgpa_count} student SGPA records and {marks_count} marks for {section}.")
+        conn.commit()
+    except Exception as e:
+        print(f"[Database] Error importing results from CSVs: {e}")
+    finally:
+        if close_after:
+            conn.close()
+

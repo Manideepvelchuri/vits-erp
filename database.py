@@ -801,3 +801,27 @@ def import_results_from_csvs(conn=None):
     finally:
         if close_after:
             conn.close()
+
+
+# ── Dynamic Route Overrides (PG/Supabase support on Cloud) ──
+import os
+import streamlit as st
+
+def _should_use_pg():
+    try:
+        url = st.secrets.get("database", {}).get("url", "")
+        if url:
+            return True
+    except Exception:
+        pass
+    if os.environ.get("DATABASE_URL"):
+        return True
+    return False
+
+if _should_use_pg():
+    try:
+        import database_pg
+        globals().update({k: v for k, v in database_pg.__dict__.items() if not k.startswith('__')})
+    except Exception as e:
+        print(f"[Database Routing Error] Failed to load PostgreSQL overrides: {e}")
+
