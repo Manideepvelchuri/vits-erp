@@ -1541,7 +1541,7 @@ def admin_dashboard():
         """, unsafe_allow_html=True)
         st.markdown("---")
         page = st.radio("Navigation", [
-            "🏠 Dashboard", "🚨 Bunk Analysis", "👥 Students", "📝 Marks Editor",
+            "🏠 Dashboard", "👥 Students", "📝 Marks Editor",
             "📤 CSV Upload", "🔄 Scraper",
             "📈 Analytics", "🗓️ Timetable", "💾 Backup", "⚙️ Settings"
         ])
@@ -1553,7 +1553,6 @@ def admin_dashboard():
 
     pages = {
         "🏠 Dashboard": admin_overview,
-        "🚨 Bunk Analysis": admin_bunk_analysis,
         "👥 Students": admin_students,
         "📝 Marks Editor": admin_marks,
         "📤 CSV Upload": admin_csv_upload,
