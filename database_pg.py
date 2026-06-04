@@ -235,10 +235,11 @@ class _PGConn:
                     self._conn.rollback()
                 except Exception:
                     pass
-            self._conn._last_used = time.time()
+            _CONN_LAST_USED[id(self._conn)] = time.time()
             pool.putconn(self._conn)
         else:
             self._conn.close()
+            _CONN_LAST_USED.pop(id(self._conn), None)
 
     def __enter__(self):
         return self
@@ -344,6 +345,9 @@ def _get_pool():
         return p
 
 
+_CONN_LAST_USED = {}
+
+
 def get_db_connection():
     """
     Get a connection from the pool. Always call conn.close() when done —
@@ -361,14 +365,14 @@ def get_db_connection():
             
             # Check when this connection was last used
             now = time.time()
-            last_used = getattr(raw, '_last_used', 0)
+            last_used = _CONN_LAST_USED.get(id(raw), 0)
             if now - last_used > 10:
                 # Test connection health over network only if idle > 10s
                 with raw.cursor() as cur:
                     cur.execute("SELECT 1")
                 raw.rollback()  # End the transaction block started by SELECT 1
             
-            raw._last_used = now
+            _CONN_LAST_USED[id(raw)] = now
             raw.autocommit = False
             conn = _PGConn(raw)
             conn._pool = pool   # store reference so close() can return to pool
@@ -386,7 +390,7 @@ def get_db_connection():
                 _get_pool.clear()
                 pool = _get_pool()
                 raw = pool.getconn()
-                raw._last_used = time.time()
+                _CONN_LAST_USED[id(raw)] = time.time()
                 raw.autocommit = False
                 conn = _PGConn(raw)
                 conn._pool = pool
