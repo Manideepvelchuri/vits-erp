@@ -1854,13 +1854,7 @@ def admin_csv_upload():
         sem = c1.selectbox("Semester", [f"Sem {i}" for i in range(1, 9)], index=1, key="marks_sem")
         exam = c2.selectbox("Exam Type", ['Mid 1', 'Mid 2', 'Lab Internals', f"{sem} Final Examinations"], key="marks_exam")
         
-        # Upload mode selector: Bulk vs Per-Class
-        mode = st.radio("Upload Mode", ["Bulk Upload (All Sections)", "Per-Class Upload (Specific Section)"], horizontal=True, key="marks_mode")
-        
-        section = None
-        if "Per-Class Upload" in mode:
-            section = st.selectbox("Select Class/Section", CLASSES, key="marks_section")
-            
+        section = st.selectbox("Section / Class", CLASSES, key="marks_section")
         uploaded = st.file_uploader("Upload Marks CSV", type=['csv'], key="marks_uploader")
         if uploaded:
             df = pd.read_csv(uploaded)
