@@ -1938,7 +1938,8 @@ def admin_csv_upload():
                     st.success(f"✅ Imported {count} mark entries.")
 
     else:  # JNTU Results
-        exam_type = c3.selectbox("Exam Type", ['Mid 1', 'Mid 2', 'Lab Internals', 'Final Examinations'], index=3, key="u_exam")
+        exam_type = "Final Examinations"
+        c3.markdown("<div style='padding-top:28px;font-size:0.85rem;color:#10B981;font-weight:600;'>✅ Final Examinations</div>", unsafe_allow_html=True)
         st.caption("Format: `Hall no, Name, SUB1 [Total,GP], SUB2 [Total,GP], ..., SGPA`")
         uploaded = st.file_uploader("Upload JNTU Results CSV", type=['csv'], key="u_file")
 
