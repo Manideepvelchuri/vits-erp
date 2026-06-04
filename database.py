@@ -336,7 +336,7 @@ def sync_sgpa_records(roll_no, conn):
         
         # Check if record already exists in sgpa_records
         existing = cursor.execute('''
-            SELECT id FROM sgpa_records WHERE roll_no=? AND semester=?
+            SELECT id, sgpa, failed FROM sgpa_records WHERE roll_no=? AND semester=?
         ''', (roll_no, sem)).fetchone()
         
         # For Sem 1, if it already exists, DO NOT recalculate or overwrite
@@ -371,15 +371,19 @@ def sync_sgpa_records(roll_no, conn):
             
             sgpa = round(weighted_gp / total_credits, 2) if total_credits > 0 else 0.0
             
+            new_failed = 1 if has_failed else 0
             if existing:
-                cursor.execute('''
-                    UPDATE sgpa_records SET sgpa=?, failed=? WHERE roll_no=? AND semester=?
-                ''', (sgpa, 1 if has_failed else 0, roll_no, sem))
+                existing_sgpa = existing['sgpa']
+                existing_failed = existing['failed']
+                if abs((existing_sgpa or 0.0) - sgpa) > 0.001 or existing_failed != new_failed:
+                    cursor.execute('''
+                        UPDATE sgpa_records SET sgpa=?, failed=? WHERE roll_no=? AND semester=?
+                    ''', (sgpa, new_failed, roll_no, sem))
             else:
                 cursor.execute('''
                     INSERT INTO sgpa_records (roll_no, semester, sgpa, failed)
                     VALUES (?, ?, ?, ?)
-                ''', (roll_no, sem, sgpa, 1 if has_failed else 0))
+                ''', (roll_no, sem, sgpa, new_failed))
     conn.commit()
 
 

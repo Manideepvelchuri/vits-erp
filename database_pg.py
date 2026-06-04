@@ -720,7 +720,7 @@ def sync_sgpa_records(roll_no, conn):
     for row in sem_rows:
         sem = row['semester']
         existing = conn.execute(
-            'SELECT id FROM sgpa_records WHERE roll_no=%s AND semester=%s',
+            'SELECT id, sgpa, failed FROM sgpa_records WHERE roll_no=%s AND semester=%s',
             (roll_no, sem)
         ).fetchone()
 
@@ -749,15 +749,19 @@ def sync_sgpa_records(roll_no, conn):
                     total_credits += credits
             sgpa = round(weighted_gp / total_credits, 2) if total_credits > 0 else 0.0
 
+            new_failed = 1 if has_failed else 0
             if existing:
-                conn.execute(
-                    'UPDATE sgpa_records SET sgpa=%s, failed=%s WHERE roll_no=%s AND semester=%s',
-                    (sgpa, 1 if has_failed else 0, roll_no, sem)
-                )
+                existing_sgpa = existing['sgpa']
+                existing_failed = existing['failed']
+                if abs((existing_sgpa or 0.0) - sgpa) > 0.001 or existing_failed != new_failed:
+                    conn.execute(
+                        'UPDATE sgpa_records SET sgpa=%s, failed=%s WHERE roll_no=%s AND semester=%s',
+                        (sgpa, new_failed, roll_no, sem)
+                    )
             else:
                 conn.execute(
                     'INSERT INTO sgpa_records(roll_no,semester,sgpa,failed) VALUES(%s,%s,%s,%s)',
-                    (roll_no, sem, sgpa, 1 if has_failed else 0)
+                    (roll_no, sem, sgpa, new_failed)
                 )
     conn.commit()
 
