@@ -1710,6 +1710,30 @@ def admin_students():
                     conn.commit(); conn.close()
                     st.success(f"Student {roll} saved."); st.rerun()
 
+    with st.expander("🗑️ Delete Student"):
+        with st.form("delete_student"):
+            del_roll = st.text_input("Roll Number to Delete").strip().upper()
+            confirm  = st.checkbox("I confirm I want to permanently delete this student and all their data")
+            if st.form_submit_button("🗑️ Delete Student", type="primary"):
+                if not del_roll:
+                    st.error("Enter a roll number.")
+                elif not confirm:
+                    st.warning("Check the confirmation box to proceed.")
+                else:
+                    conn = get_db_connection()
+                    exists = conn.execute("SELECT roll_no FROM students WHERE roll_no=?", (del_roll,)).fetchone()
+                    if not exists:
+                        st.error(f"Roll number {del_roll} not found.")
+                    else:
+                        conn.execute("DELETE FROM attendance WHERE roll_no=?",  (del_roll,))
+                        conn.execute("DELETE FROM marks WHERE roll_no=?",       (del_roll,))
+                        conn.execute("DELETE FROM sgpa_records WHERE roll_no=?",(del_roll,))
+                        conn.execute("DELETE FROM students WHERE roll_no=?",    (del_roll,))
+                        conn.commit()
+                        conn.close()
+                        st.success(f"✅ Student {del_roll} and all their records deleted.")
+                        st.rerun()
+
 
 def admin_marks():
     st.markdown("# 📝 Marks Editor")
