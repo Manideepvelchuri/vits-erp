@@ -502,23 +502,39 @@ def color_for_pct(p):
 # AUTH PAGES
 # ══════════════════════════════════════════════════════════════
 def login_page():
-    logo_path = os.path.join(os.path.dirname(__file__), 'vits_logo.png')
+    # ── suppress h1 anchor icons globally on this page ────────
+    st.markdown("""
+    <style>
+    h1 a, h2 a, h3 a { display: none !important; }
+    .login-card {
+        background: linear-gradient(135deg, rgba(20,28,48,0.95) 0%, rgba(12,18,36,0.98) 100%);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 20px;
+        padding: 36px 32px 28px 32px;
+        max-width: 480px;
+        margin: 0 auto;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    logo_path   = os.path.join(os.path.dirname(__file__), 'vits_logo.png')
     logo_base64 = get_image_base64(logo_path)
-    if logo_base64:
-        st.markdown(f"""
-        <div style="text-align: center; margin-bottom: 25px;">
-            <img src="data:image/png;base64,{logo_base64}" width="100" style="filter: drop-shadow(0px 6px 15px rgba(0,216,198,0.25)); margin-bottom: 10px;"/>
-            <h1 style="color: #00D8C6; font-family: 'Outfit', sans-serif; font-size: 2.4rem; margin-top: 10px; margin-bottom: 5px; text-shadow: 0 0 35px rgba(0, 216, 198, 0.3);">VITS Student Academic Dashboard</h1>
-            <p style="color: #cbd5e1; font-family: 'Inter', sans-serif; font-size: 1.1rem; letter-spacing: 0.5px; font-weight: 500;">Vignan Institute of Technology and Science</p>
+    logo_html   = f'<img src="data:image/png;base64,{logo_base64}" width="80" style="margin-bottom:10px;filter:drop-shadow(0 4px 12px rgba(0,216,198,0.3));"/>' if logo_base64 else '🎓'
+
+    st.markdown(f"""
+    <div style="text-align:center; padding: 40px 0 24px 0;">
+        {logo_html}
+        <div style="color:#00D8C6; font-family:'Outfit',sans-serif; font-size:2.2rem;
+                    font-weight:800; margin:8px 0 4px 0;
+                    text-shadow:0 0 30px rgba(0,216,198,0.3);">
+            VITS Student Academic Dashboard
         </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #00D8C6; font-family: 'Outfit', sans-serif; font-size: 2.4rem; margin-bottom: 5px; text-shadow: 0 0 35px rgba(0, 216, 198, 0.3);">🎓 VITS Student Academic Dashboard</h1>
-            <p style="color: #94a3b8; font-family: 'Inter', sans-serif; font-size: 1.1rem; letter-spacing: 0.5px;">Vignan Institute of Technology and Science</p>
+        <div style="color:#94a3b8; font-family:'Inter',sans-serif; font-size:1rem;
+                    letter-spacing:0.5px;">
+            Vignan Institute of Technology and Science
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -544,6 +560,7 @@ def login_page():
                         st.rerun()
                     else:
                         st.error("Invalid credentials")
+
 
 
 def handle_student_login(roll, pwd):
