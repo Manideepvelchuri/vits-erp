@@ -1,5 +1,5 @@
-﻿"""
-VITS Academic ERP â€” Streamlit Version (FIXED + ENHANCED)
+"""
+VITS Academic ERP — Streamlit Version (FIXED + ENHANCED)
 Pure Python, multi-page web app
 """
 import streamlit as st
@@ -113,7 +113,7 @@ def parse_period_string(p_val):
     return []
 
 
-# â”€â”€ Admin password helpers (DB-stored, hashed) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Admin password helpers (DB-stored, hashed) ────────────────
 def _hash_pwd(pwd):
     return hashlib.sha256(pwd.encode()).hexdigest()
 
@@ -144,7 +144,7 @@ def change_admin_pwd(new_pwd):
     conn.close()
 
 
-# â”€â”€ Attendance intelligence math â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Attendance intelligence math ──────────────────────────────
 def can_miss_classes(attended, conducted, target=0.75):
     """How many future classes can be skipped staying >= target."""
     if conducted == 0:
@@ -163,7 +163,7 @@ def classes_needed(attended, conducted, target=0.75):
     return max(0, n)
 
 
-# â”€â”€ Background Automation Scheduler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Background Automation Scheduler ───────────────────────────
 # Only run on local deployments (APScheduler crashes on Streamlit Cloud)
 @st.cache_resource
 def start_global_scheduler():
@@ -173,7 +173,7 @@ def start_global_scheduler():
     except Exception:
         pass
     if is_cloud:
-        print("[Scheduler] Cloud deployment detected â€” scheduler disabled. Use manual Fetch button.")
+        print("[Scheduler] Cloud deployment detected — scheduler disabled. Use manual Fetch button.")
         return None
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
@@ -199,10 +199,10 @@ def start_global_scheduler():
 global_scheduler = start_global_scheduler()
 
 
-# â”€â”€ Page config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Page config ──────────────────────────────────────────────
 st.set_page_config(
     page_title="VITS Student Academic Dashboard",
-    page_icon="ðŸŽ“",
+    page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -224,7 +224,7 @@ for k, v in defaults.items():
         st.session_state[k] = v
 
 
-# â”€â”€ Custom CSS (dark glassmorphism) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Custom CSS (dark glassmorphism) ──────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -450,7 +450,7 @@ table.premium-table tr:last-child td { border-bottom: none !important; }
 """, unsafe_allow_html=True)
 
 
-# â”€â”€ Premium Table Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Premium Table Helper ─────────────────────────────────────
 def st_premium_table(df):
     html = df.to_html(index=False, classes='premium-table')
     st.markdown(html, unsafe_allow_html=True)
@@ -498,9 +498,9 @@ def color_for_pct(p):
     return '#EF4444'
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ══════════════════════════════════════════════════════════════
 # AUTH PAGES
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ══════════════════════════════════════════════════════════════
 def login_page():
     logo_path = os.path.join(os.path.dirname(__file__), 'vits_logo.png')
     logo_base64 = get_image_base64(logo_path)
@@ -515,17 +515,17 @@ def login_page():
     else:
         st.markdown("""
         <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #00D8C6; font-family: 'Outfit', sans-serif; font-size: 2.4rem; margin-bottom: 5px; text-shadow: 0 0 35px rgba(0, 216, 198, 0.3);">ðŸŽ“ VITS Student Academic Dashboard</h1>
+            <h1 style="color: #00D8C6; font-family: 'Outfit', sans-serif; font-size: 2.4rem; margin-bottom: 5px; text-shadow: 0 0 35px rgba(0, 216, 198, 0.3);">🎓 VITS Student Academic Dashboard</h1>
             <p style="color: #94a3b8; font-family: 'Inter', sans-serif; font-size: 1.1rem; letter-spacing: 0.5px;">Vignan Institute of Technology and Science</p>
         </div>
         """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        tab1, tab2 = st.tabs(["ðŸ‘¤ Student", "ðŸ›¡ï¸ Admin"])
+        tab1, tab2 = st.tabs(["👤 Student", "🛡️ Admin"])
         with tab1:
             with st.form("student_login"):
-                st.info("**First-time login?** Use password: **`vits123`** â€” you'll set your DOB after login.")
+                st.info("**First-time login?** Use password: **`vits123`** — you'll set your DOB after login.")
                 roll = st.text_input("Roll Number", placeholder="24891A0465")
                 pwd  = st.text_input("Password (DOB: YYYY-MM-DD or vits123)", type="password")
                 if st.form_submit_button("Sign In", use_container_width=True):
@@ -590,7 +590,7 @@ def handle_student_login(roll, pwd):
 
 
 def setup_dob_page():
-    st.markdown(f"## ðŸ” Welcome, {st.session_state.user_name}")
+    st.markdown(f"## 🔐 Welcome, {st.session_state.user_name}")
     st.info("Please set your **Date of Birth** as your permanent password.")
     with st.form("setup_dob"):
         new_dob = st.date_input("Date of Birth", value=None,
@@ -610,9 +610,9 @@ def setup_dob_page():
             st.rerun()
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ══════════════════════════════════════════════════════════════
 # STUDENT DASHBOARD
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ══════════════════════════════════════════════════════════════
 def student_dashboard():
     roll = st.session_state.user_id
     conn = get_db_connection()
@@ -628,7 +628,7 @@ def student_dashboard():
         <div style="background: linear-gradient(135deg, rgba(0,216,198,0.08) 0%, rgba(139,92,246,0.08) 100%);
                     border: 1px solid rgba(0,216,198,0.15); border-radius: 16px;
                     padding: 18px; margin-bottom: 20px; text-align: center;">
-            <div style="font-size: 2.5rem; margin-bottom: 8px;">ðŸŽ“</div>
+            <div style="font-size: 2.5rem; margin-bottom: 8px;">🎓</div>
             <h4 style="margin: 0; color: #ffffff; font-family: 'Outfit', sans-serif;">{student['name']}</h4>
             <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #00D8C6; font-family: 'JetBrains Mono', monospace; font-weight: 600;">{student['roll_no']}</p>
             <div style="display: flex; justify-content: space-around; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;">
@@ -656,7 +656,7 @@ def student_dashboard():
             st.markdown(f"""<div style="text-align:center;margin-top:-12px;margin-bottom:12px;">
                 <span style="background:rgba(0,216,198,0.08);color:#00D8C6;border:1px solid rgba(0,216,198,0.2);
                 padding:4px 10px;border-radius:20px;font-size:0.72rem;font-weight:600;
-                font-family:'Inter',sans-serif;letter-spacing:0.5px;display:inline-block;">ðŸ’¡ {cgpa_note}</span>
+                font-family:'Inter',sans-serif;letter-spacing:0.5px;display:inline-block;">💡 {cgpa_note}</span>
                 </div>""", unsafe_allow_html=True)
 
         st.markdown("---")
@@ -664,13 +664,13 @@ def student_dashboard():
             [f"Sem {i}" for i in range(1, 9)], index=1)
         st.markdown("---")
         page = st.radio("Navigation", [
-            "ðŸ  Home", "ðŸ“… Attendance", "ðŸ“Š Marks", "ðŸ§® SGPA Calculator",
-            "ðŸ“ˆ Analytics", "ðŸ—“ï¸ Timetable"
+            "🏠 Home", "📅 Attendance", "📊 Marks", "🧮 SGPA Calculator",
+            "📈 Analytics", "🗓️ Timetable"
         ])
         st.markdown("---")
-        if st.button("ðŸ“„ Download Report PDF", use_container_width=True):
+        if st.button("📄 Download Report PDF", use_container_width=True):
             generate_student_pdf(student, selected_sem)
-        if st.button("ðŸšª Logout", use_container_width=True):
+        if st.button("🚪 Logout", use_container_width=True):
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.rerun()
@@ -684,21 +684,21 @@ def student_dashboard():
         (roll, sem)).fetchall()
     conn.close()
 
-    if page == "ðŸ  Home":
+    if page == "🏠 Home":
         show_home_page(student, sem, att_rows, marks_rows, cgpa_display)
-    elif page == "ðŸ“… Attendance":
+    elif page == "📅 Attendance":
         show_attendance_page(roll, sem, att_rows)
-    elif page == "ðŸ“Š Marks":
+    elif page == "📊 Marks":
         show_marks_page(sem, marks_rows)
-    elif page == "ðŸ§® SGPA Calculator":
+    elif page == "🧮 SGPA Calculator":
         show_sgpa_page(sem, marks_rows)
-    elif page == "ðŸ“ˆ Analytics":
+    elif page == "📈 Analytics":
         show_analytics_page(roll, sem)
-    elif page == "ðŸ—“ï¸ Timetable":
+    elif page == "🗓️ Timetable":
         show_timetable_page(student['section'])
 
 
-# â”€â”€ HOME / SUMMARY PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── HOME / SUMMARY PAGE ───────────────────────────────────────
 def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     hour = dt.now().hour
     greeting = "Good Morning" if hour < 12 else "Good Afternoon" if hour < 17 else "Good Evening"
@@ -752,7 +752,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         else:
             completed_credits += c_val
 
-    status = "âœ… SAFE" if overall >= 75 else "âš ï¸ RISK" if overall >= 65 else "ðŸš« DEBARRED"
+    status = "✅ SAFE" if overall >= 75 else "⚠️ RISK" if overall >= 65 else "🚫 DEBARRED"
 
     # Build subject data before columns so it's accessible full-width below
     subj_data = []
@@ -770,8 +770,8 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     col_main, col_side = st.columns([2.2, 1.0])
 
     with col_main:
-        st.markdown(f"# {greeting}, {student['name'].split(' ')[0]}! ðŸ‘‹")
-        st.caption(f"Here's your {sem} academic summary Â· Roll: {student['roll_no']} Â· {student['section']}")
+        st.markdown(f"# {greeting}, {student['name'].split(' ')[0]}! 👋")
+        st.caption(f"Here's your {sem} academic summary · Roll: {student['roll_no']} · {student['section']}")
         st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
 
         # 4 KPI cards
@@ -783,41 +783,41 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
 
         # Status banner
         if total_c == 0:
-            st.info("ðŸ” No attendance data yet for this semester. Visit the Attendance tab to sync.")
+            st.info("🔍 No attendance data yet for this semester. Visit the Attendance tab to sync.")
         elif overall >= 75:
             st.markdown(f"""<div class="status-banner" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);">
-                <h3 style="color:#10B981 !important;margin:0;">ðŸŸ¢ Safe Zone</h3>
+                <h3 style="color:#10B981 !important;margin:0;">🟢 Safe Zone</h3>
                 <p style="margin:8px 0 0 0;color:#cbd5e1 !important;">Current Attendance: <strong style="color:#fff;">{overall}%</strong>.
                 You can miss <strong style="color:#10B981;">{can_miss}</strong> more classes (approx. <strong style="color:#10B981;">{can_miss_days}</strong> days) and stay above 75%.</p>
                 </div>""", unsafe_allow_html=True)
         elif overall >= 65:
             st.markdown(f"""<div class="status-banner" style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);">
-                <h3 style="color:#F59E0B !important;margin:0;">ðŸŸ  Risk Zone</h3>
+                <h3 style="color:#F59E0B !important;margin:0;">🟠 Risk Zone</h3>
                 <p style="margin:8px 0 0 0;color:#cbd5e1 !important;">Current Attendance: <strong style="color:#fff;">{overall}%</strong>.
                 Attend <strong style="color:#F59E0B;">{need}</strong> consecutive classes (approx. <strong style="color:#F59E0B;">{need_days}</strong> days) to reach 75%.</p>
                 </div>""", unsafe_allow_html=True)
         else:
             st.markdown(f"""<div class="status-banner" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);">
-                <h3 style="color:#EF4444 !important;margin:0;">ðŸ”´ Debarred Zone</h3>
+                <h3 style="color:#EF4444 !important;margin:0;">🔴 Debarred Zone</h3>
                 <p style="margin:8px 0 0 0;color:#cbd5e1 !important;">Current Attendance: <strong style="color:#fff;">{overall}%</strong>.
                 You need <strong style="color:#EF4444;">{need}</strong> classes (approx. <strong style="color:#EF4444;">{need_days}</strong> days) to recover to 75%.</p>
                 </div>""", unsafe_allow_html=True)
 
         # Overall attendance skip predictor
         if total_c > 0:
-            st.markdown("### ðŸ”® Overall Attendance Skip Predictor")
-            st.caption(f"ðŸ’¡ One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
+            st.markdown("### 🔮 Overall Attendance Skip Predictor")
+            st.caption(f"💡 One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
 
             miss_days = st.slider("If I miss the next ___ days (overall)", 0, 15, 0, key=f"skip_days_home_{sem}")
             miss_classes = int(round(miss_days * avg_classes))
             if miss_days > 0:
                 proj_overall = round(total_a / (total_c + miss_classes) * 100, 1)
                 if proj_overall >= 75:
-                    st.success(f"Projected Overall Attendance: **{proj_overall}%** (Safe Zone) âœ… (Missing {miss_days} days / {miss_classes} classes)")
+                    st.success(f"Projected Overall Attendance: **{proj_overall}%** (Safe Zone) ✅ (Missing {miss_days} days / {miss_classes} classes)")
                 elif proj_overall >= 65:
-                    st.warning(f"Projected Overall Attendance: **{proj_overall}%** (Condonation Zone) âš ï¸ (Missing {miss_days} days / {miss_classes} classes)")
+                    st.warning(f"Projected Overall Attendance: **{proj_overall}%** (Condonation Zone) ⚠️ (Missing {miss_days} days / {miss_classes} classes)")
                 else:
-                    st.error(f"Projected Overall Attendance: **{proj_overall}%** (Debarred Zone) ðŸš« (Missing {miss_days} days / {miss_classes} classes)")
+                    st.error(f"Projected Overall Attendance: **{proj_overall}%** (Debarred Zone) 🚫 (Missing {miss_days} days / {miss_classes} classes)")
 
     with col_side:
         # View schedule scheduler at the top
@@ -825,7 +825,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         days_list = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
         default_idx = days_list.index(today_day) if today_day in days_list else 0
         
-        selected_day = st.selectbox("ðŸ“… View Schedule Day", days_list, index=default_idx)
+        selected_day = st.selectbox("📅 View Schedule Day", days_list, index=default_idx)
         
         conn = get_db_connection()
         day_classes = conn.execute(
@@ -845,7 +845,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         }
         
         if day_classes:
-            st.markdown(f"### â° {selected_day}'s Schedule")
+            st.markdown(f"### ⏰ {selected_day}'s Schedule")
             for idx, c in enumerate(day_classes):
                 t_range = times_map.get(c['period'], "Class Period")
                 border_color = "#00D8C6" if idx == 0 else "#8B5CF6" if idx == 1 else "rgba(255,255,255,0.15)"
@@ -857,17 +857,17 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                         {c['subject']}
                     </div>
                     <div style="font-size: 0.65rem; color: #94a3b8; font-family: 'JetBrains Mono'; font-weight: 500; text-align: right;">
-                        P{c['period']} Â· {t_range}
+                        P{c['period']} · {t_range}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-    # â”€â”€ Full-width Academic Summary â€” REDESIGNED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Full-width Academic Summary — REDESIGNED ──────────────────────
     if subj_data:
         best  = max(subj_data, key=lambda x: x['pct'])
         worst = min(subj_data, key=lambda x: x['pct'])
 
-        # â”€â”€ Section header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Section header ─────────────────────────────────────────────
         st.markdown("""
         <div style="display:flex;align-items:center;gap:12px;margin:28px 0 18px 0;">
             <div style="width:4px;height:32px;background:linear-gradient(180deg,#00D8C6,#8B5CF6);border-radius:2px;"></div>
@@ -879,15 +879,15 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         </div>
         """, unsafe_allow_html=True)
 
-        # â”€â”€ Hero Stats Row (4 cards) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Hero Stats Row (4 cards) ───────────────────────────────────
         if overall >= 75:
-            risk_color = "#10B981"; risk_icon = "âœ…"; risk_label = "SAFE ZONE"
-            risk_detail = f"Can skip <strong style='color:#10B981'>{can_miss} hrs</strong> â‰ˆ {can_miss_days} days"
+            risk_color = "#10B981"; risk_icon = "✅"; risk_label = "SAFE ZONE"
+            risk_detail = f"Can skip <strong style='color:#10B981'>{can_miss} hrs</strong> ≈ {can_miss_days} days"
         elif overall >= 65:
-            risk_color = "#F59E0B"; risk_icon = "âš ï¸"; risk_label = "RISK ZONE"
-            risk_detail = f"Attend <strong style='color:#F59E0B'>{need} more hrs</strong> â‰ˆ {need_days} days"
+            risk_color = "#F59E0B"; risk_icon = "⚠️"; risk_label = "RISK ZONE"
+            risk_detail = f"Attend <strong style='color:#F59E0B'>{need} more hrs</strong> ≈ {need_days} days"
         else:
-            risk_color = "#EF4444"; risk_icon = "ðŸš«"; risk_label = "DEBARRED"
+            risk_color = "#EF4444"; risk_icon = "🚫"; risk_label = "DEBARRED"
             risk_detail = f"Need <strong style='color:#EF4444'>{need} hrs</strong> to recover"
 
         sgpa_display = sgpa_text if sgpa_text and sgpa_text != "-" else "N/A"
@@ -933,7 +933,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
 
         st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 
-        # â”€â”€ Two-column layout: Donut + Subject Health Bars â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Two-column layout: Donut + Subject Health Bars ─────────────
         left_col, right_col = st.columns([1, 1.6])
 
         with left_col:
@@ -972,15 +972,15 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             st.markdown(f"""
             <div style="background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.2);
                         border-radius:12px;padding:12px 14px;margin-bottom:8px;">
-                <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Best Subject ðŸ†</div>
+                <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Best Subject 🏆</div>
                 <div style="font-size:1.05rem;font-weight:800;color:#10B981;font-family:'Outfit';margin-top:3px;">{best['subject']}</div>
-                <div style="font-size:0.8rem;color:#94a3b8;">{best['attended']}/{best['conducted']} hrs Â· <strong style='color:#10B981'>{best['pct']}%</strong></div>
+                <div style="font-size:0.8rem;color:#94a3b8;">{best['attended']}/{best['conducted']} hrs · <strong style='color:#10B981'>{best['pct']}%</strong></div>
             </div>
             <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);
                         border-radius:12px;padding:12px 14px;">
-                <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Needs Attention âš ï¸</div>
+                <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Needs Attention ⚠️</div>
                 <div style="font-size:1.05rem;font-weight:800;color:#EF4444;font-family:'Outfit';margin-top:3px;">{worst['subject']}</div>
-                <div style="font-size:0.8rem;color:#94a3b8;">{worst['attended']}/{worst['conducted']} hrs Â· <strong style='color:#EF4444'>{worst['pct']}%</strong></div>
+                <div style="font-size:0.8rem;color:#94a3b8;">{worst['attended']}/{worst['conducted']} hrs · <strong style='color:#EF4444'>{worst['pct']}%</strong></div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -995,10 +995,10 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             for s in sorted_subjs:
                 pct = s['pct']
                 bar_color = "#10B981" if pct >= 75 else "#F59E0B" if pct >= 65 else "#EF4444"
-                status_icon = "âœ…" if pct >= 75 else "âš ï¸" if pct >= 65 else "ðŸš«"
+                status_icon = "✅" if pct >= 75 else "⚠️" if pct >= 65 else "🚫"
                 absent_hrs = s['conducted'] - s['attended']
                 # truncate long subject names
-                subj_label = s['subject'][:16] + "â€¦" if len(s['subject']) > 16 else s['subject']
+                subj_label = s['subject'][:16] + "…" if len(s['subject']) > 16 else s['subject']
                 st.markdown(f"""
                 <div style="margin-bottom:10px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
@@ -1010,14 +1010,14 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                                     background:linear-gradient(90deg,{bar_color}aa,{bar_color});
                                     border-radius:999px;transition:width 0.4s ease;"></div>
                     </div>
-                    <div style="font-size:0.65rem;color:#475569;margin-top:2px;">{s['attended']}/{s['conducted']} hrs Â· {absent_hrs} absent</div>
+                    <div style="font-size:0.65rem;color:#475569;margin-top:2px;">{s['attended']}/{s['conducted']} hrs · {absent_hrs} absent</div>
                 </div>
                 """, unsafe_allow_html=True)
 
         st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
         st.markdown("""<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:8px 0 20px 0;">""", unsafe_allow_html=True)
 
-        # â”€â”€ Bar chart (kept below) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Bar chart (kept below) ─────────────────────────────────────
         st.markdown("""
         <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;
                     letter-spacing:0.12em;font-weight:600;margin-bottom:8px;font-family:'Inter';">
@@ -1035,8 +1035,8 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         apply_premium_plotly_theme(fig)
         st.plotly_chart(fig, use_container_width=True)
 
-    # Grades table â€“ full width
-    st.markdown("### ðŸ“ Exam & Assignment Grades")
+    # Grades table – full width
+    st.markdown("### 📝 Exam & Assignment Grades")
     sem_final_marks = [r for r in marks_rows if r['exam_type'] == f"{sem} Final Examinations"]
     if sem_final_marks:
         grades_df = pd.DataFrame([{
@@ -1057,12 +1057,12 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             } for r in mid_marks])
             st_premium_table(grades_df)
         else:
-            st.info("ðŸ” No academic marks uploaded for this semester yet.")
+            st.info("🔍 No academic marks uploaded for this semester yet.")
 
 
 
 def show_attendance_page(roll, sem, att_rows):
-    st.markdown("## ðŸ“… Attendance Overview")
+    st.markdown("## 📅 Attendance Overview")
     total_c = sum((r['hours_conducted'] or 0) for r in att_rows)
     total_a = sum((r['hours_attended']  or 0) for r in att_rows)
     overall = round(total_a / total_c * 100, 1) if total_c else 0.0
@@ -1094,18 +1094,18 @@ def show_attendance_page(roll, sem, att_rows):
 
     if total_c > 0:
         if overall >= 75:
-            st.success(f"âœ… Good standing â€” you can miss {can_miss} classes (approx. {can_miss_days} days) and stay above 75%")
+            st.success(f"✅ Good standing — you can miss {can_miss} classes (approx. {can_miss_days} days) and stay above 75%")
         elif overall >= 65:
-            st.warning(f"âš ï¸ Condonation required â€” attend {need} more classes (approx. {need_days} days) for 75%")
+            st.warning(f"⚠️ Condonation required — attend {need} more classes (approx. {need_days} days) for 75%")
         else:
-            st.error(f"ðŸš« Debarred â€” attend {need} classes (approx. {need_days} days) to recover")
+            st.error(f"🚫 Debarred — attend {need} classes (approx. {need_days} days) to recover")
     else:
         st.markdown("""<div style="background:rgba(239,68,68,0.04);border:1px dashed rgba(239,68,68,0.25);
             border-radius:12px;padding:16px;text-align:center;color:#ef4444;font-size:0.95rem;
             font-weight:500;margin:10px 0;font-family:'Inter',sans-serif;">
-            ðŸ” No attendance data found for this semester.</div>""", unsafe_allow_html=True)
+            🔍 No attendance data found for this semester.</div>""", unsafe_allow_html=True)
 
-    if st.button("ðŸ”„ Fetch Live Attendance from Portal"):
+    if st.button("🔄 Fetch Live Attendance from Portal"):
         with st.spinner("Scraping portal... 30-60s"):
             ok, msg = harvester.scrape_portal(section=st.session_state.section, semester=sem)
             st.success(msg) if ok else st.error(msg)
@@ -1117,19 +1117,19 @@ def show_attendance_page(roll, sem, att_rows):
 
     # Overall attendance skip predictor (new feature)
     if total_c > 0:
-        st.markdown("### ðŸ”® Overall Attendance Skip Predictor")
-        st.caption(f"ðŸ’¡ One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
+        st.markdown("### 🔮 Overall Attendance Skip Predictor")
+        st.caption(f"💡 One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
 
         miss_days = st.slider("If I miss the next ___ days (overall)", 0, 15, 0, key=f"skip_days_att_{sem}")
         miss_classes = int(round(miss_days * avg_classes))
         if miss_days > 0:
             proj_overall = round(total_a / (total_c + miss_classes) * 100, 1)
             if proj_overall >= 75:
-                st.success(f"Projected Overall Attendance: **{proj_overall}%** (Safe Zone) âœ… (Missing {miss_days} days / {miss_classes} classes)")
+                st.success(f"Projected Overall Attendance: **{proj_overall}%** (Safe Zone) ✅ (Missing {miss_days} days / {miss_classes} classes)")
             elif proj_overall >= 65:
-                st.warning(f"Projected Overall Attendance: **{proj_overall}%** (Condonation Zone) âš ï¸ (Missing {miss_days} days / {miss_classes} classes)")
+                st.warning(f"Projected Overall Attendance: **{proj_overall}%** (Condonation Zone) ⚠️ (Missing {miss_days} days / {miss_classes} classes)")
             else:
-                st.error(f"Projected Overall Attendance: **{proj_overall}%** (Debarred Zone) ðŸš« (Missing {miss_days} days / {miss_classes} classes)")
+                st.error(f"Projected Overall Attendance: **{proj_overall}%** (Debarred Zone) 🚫 (Missing {miss_days} days / {miss_classes} classes)")
 
     df = pd.DataFrame([{
         'Subject': r['subject'], 'Conducted': r['hours_conducted'] or 0,
@@ -1137,7 +1137,7 @@ def show_attendance_page(roll, sem, att_rows):
         'Percentage': round((r['hours_attended'] or 0)/(r['hours_conducted'] or 1)*100, 1),
     } for r in att_rows])
     df['Status'] = df['Percentage'].apply(
-        lambda p: 'Safe (â‰¥75%)' if p >= 75 else 'Below 75%')
+        lambda p: 'Safe (≥75%)' if p >= 75 else 'Below 75%')
 
     fig = px.bar(df, x='Subject', y='Percentage', color='Percentage',
                  color_continuous_scale=[[0, '#EF4444'], [0.65, '#F59E0B'], [0.75, '#00D8C6'], [1, '#00D8C6']],
@@ -1148,18 +1148,18 @@ def show_attendance_page(roll, sem, att_rows):
     fig.update_coloraxes(showscale=False)
     st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("### ðŸ“Š Subject-wise Details + Intelligence")
+    st.markdown("### 📊 Subject-wise Details + Intelligence")
     for idx, row in df.iterrows():
         cm = can_miss_classes(row['Attended'], row['Conducted'])
         nd = classes_needed(row['Attended'], row['Conducted'])
         intel = f"Can miss {cm} classes" if row['Percentage'] >= 75 else f"Attend {nd} more for 75%"
-        with st.expander(f"**{row['Subject']}** â€” {row['Percentage']}% Â· {intel}"):
+        with st.expander(f"**{row['Subject']}** — {row['Percentage']}% · {intel}"):
             c1, c2, c3 = st.columns(3)
             c1.write(f"**Conducted:** {row['Conducted']}")
             c2.write(f"**Attended:** {row['Attended']}")
             c3.write(f"**Absent:** {row['Conducted'] - row['Attended']}")
             if row['Subject'] != 'CRT':
-                st.markdown("**ðŸ”® Attendance Predictor**")
+                st.markdown("**🔮 Attendance Predictor**")
                 pc1, pc2 = st.columns(2)
                 fa = pc1.number_input("If I attend ___ classes", 0, 100, 5,
                                       key=f"att_{sem}_{row['Subject']}")
@@ -1178,7 +1178,7 @@ def show_attendance_page(roll, sem, att_rows):
 
 
 def show_marks_page(sem, marks_rows):
-    st.markdown("## ðŸ“Š Academic Results")
+    st.markdown("## 📊 Academic Results")
     by_exam = {}
     if marks_rows:
         for r in marks_rows:
@@ -1201,7 +1201,7 @@ def show_marks_page(sem, marks_rows):
             if isinstance(r['Score'], (int, float)):
                 trend_data.append({'Exam': et, 'Subject': r['Subject'], 'Score': r['Score']})
     if trend_data:
-        st.markdown("### ðŸ“ˆ Marks Progression (Mid 1 â†’ Mid 2 â†’ Finals)")
+        st.markdown("### 📈 Marks Progression (Mid 1 → Mid 2 → Finals)")
         fig = px.line(pd.DataFrame(trend_data), x='Exam', y='Score', color='Subject', markers=True, render_mode='svg')
         fig.update_traces(line_shape='spline', line=dict(width=3))
         apply_premium_plotly_theme(fig)
@@ -1214,7 +1214,7 @@ def show_marks_page(sem, marks_rows):
             st.markdown("""<div style="background:rgba(239,68,68,0.04);border:1px dashed rgba(239,68,68,0.25);
                 border-radius:12px;padding:16px;text-align:center;color:#ef4444;font-size:0.95rem;
                 font-weight:500;margin:10px 0;font-family:'Inter',sans-serif;">
-                ðŸ” No data found for this examination.</div>""", unsafe_allow_html=True)
+                🔍 No data found for this examination.</div>""", unsafe_allow_html=True)
         else:
             st_premium_table(pd.DataFrame(rows))
             if et == f"{sem} Final Examinations":
@@ -1234,7 +1234,7 @@ def show_marks_page(sem, marks_rows):
 
 
 def show_sgpa_page(sem, marks_rows):
-    st.markdown("## ðŸ§® SGPA Calculator")
+    st.markdown("## 🧮 SGPA Calculator")
     st.caption("Adjust sliders to project your SGPA based on possible scores.")
     conn = get_db_connection()
     st_row = conn.execute('SELECT section FROM students WHERE roll_no=?',
@@ -1257,7 +1257,7 @@ def show_sgpa_page(sem, marks_rows):
                      if r['exam_type'] == f"{sem} Final Examinations"}
     has_actuals = len(actual_scores) > 0
     if not has_actuals:
-        st.info("â„¹ï¸ No actual final marks yet â€” sliders start at 0. Drag to simulate.")
+        st.info("ℹ️ No actual final marks yet — sliders start at 0. Drag to simulate.")
 
     projected = {}
     for sub in subjects:
@@ -1288,7 +1288,7 @@ def show_sgpa_page(sem, marks_rows):
     c2.metric("Projected CGPA", f"{projected_cgpa:.2f}" if projected_cgpa > 0 else "-")
     c3.metric("Total Credits", total_cr)
 
-    with st.expander("ðŸ“š JNTUH Grade Scale"):
+    with st.expander("📚 JNTUH Grade Scale"):
         st_premium_table(pd.DataFrame([
             {'Range': '90-100', 'Grade': 'O', 'GP': 10},
             {'Range': '80-89', 'Grade': 'A+', 'GP': 9},
@@ -1301,12 +1301,12 @@ def show_sgpa_page(sem, marks_rows):
 
 
 def show_analytics_page(roll, sem):
-    st.markdown("## ðŸ“ˆ Attendance Analytics")
+    st.markdown("## 📈 Attendance Analytics")
     days = st.radio("Time Range", [7, 30, 180], index=1, horizontal=True,
                     format_func=lambda d: f"Last {d} Days" if d < 180 else "Full Semester")
 
     if sem == 'Sem 1':
-        st.info("â„¹ï¸ Attendance trends are only available for scraped semesters (Sem 2+). Sem 1 shows results only.")
+        st.info("ℹ️ Attendance trends are only available for scraped semesters (Sem 2+). Sem 1 shows results only.")
         return
 
     import datetime as dt_mod
@@ -1326,7 +1326,7 @@ def show_analytics_page(roll, sem):
 
     df = pd.DataFrame([dict(r) for r in rows])
 
-    st.markdown("### ðŸ“ˆ Attendance Trend Over Time")
+    st.markdown("### 📈 Attendance Trend Over Time")
     fig = px.line(df, x='snapshot_date', y='percentage', color='subject_code', markers=True, render_mode='svg')
     fig.update_traces(line_shape='spline', line=dict(width=3))
     fig.add_hline(y=75, line_dash="dash", line_color="#00D8C6")
@@ -1334,7 +1334,7 @@ def show_analytics_page(roll, sem):
     apply_premium_plotly_theme(fig)
     st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("### ðŸ”¥ Absenteeism Heatmap")
+    st.markdown("### 🔥 Absenteeism Heatmap")
     pivot = df.pivot_table(index='subject_code', columns='snapshot_date',
                             values='percentage', aggfunc='last')
     fig2 = go.Figure(data=go.Heatmap(
@@ -1344,8 +1344,8 @@ def show_analytics_page(roll, sem):
     apply_premium_plotly_theme(fig2)
     st.plotly_chart(fig2, use_container_width=True)
 
-    # Attendance forecast (NEW â€” feature #12)
-    st.markdown("### ðŸ”® Attendance Forecast")
+    # Attendance forecast (NEW — feature #12)
+    st.markdown("### 🔮 Attendance Forecast")
     latest = df.sort_values('snapshot_date').groupby('subject_code').last().reset_index()
     fc_rows = []
     for _, r in latest.iterrows():
@@ -1363,7 +1363,7 @@ def show_analytics_page(roll, sem):
     conn.close()
     default_total = int(cfg.get('total_semester_hours', '600'))
 
-    st.markdown("### ðŸŽ¯ Condonation Planner")
+    st.markdown("### 🎯 Condonation Planner")
     c1, c2, c3 = st.columns(3)
     a = c1.number_input("Hours Attended", min_value=0, value=0)
     c = c2.number_input("Hours Conducted", min_value=0, value=0)
@@ -1371,23 +1371,23 @@ def show_analytics_page(roll, sem):
     if c > 0:
         pct = a / c * 100; remaining = t - c
         if a + remaining < 0.65 * t:
-            st.error("ðŸš« Debarred â€” 65% mathematically impossible.")
+            st.error("🚫 Debarred — 65% mathematically impossible.")
         elif a + remaining < 0.75 * t:
             h65 = math.ceil((0.65 * c - a) / 0.35) if a < 0.65*c else 0
-            st.error(f"âš ï¸ 75% unattainable. Need {max(0, h65)} classes for 65%.")
+            st.error(f"⚠️ 75% unattainable. Need {max(0, h65)} classes for 65%.")
         elif pct >= 75:
-            st.success(f"âœ… Good standing at {pct:.1f}%.")
+            st.success(f"✅ Good standing at {pct:.1f}%.")
         elif pct >= 65:
             h75 = math.ceil((0.75 * c - a) / 0.25)
-            st.warning(f"âš ï¸ Attend {h75} consecutive classes for 75%.")
+            st.warning(f"⚠️ Attend {h75} consecutive classes for 75%.")
         else:
             h65 = math.ceil((0.65 * c - a) / 0.35)
             h75 = math.ceil((0.75 * c - a) / 0.25)
-            st.error(f"ðŸš« Below 65%. Need {h65} for 65%, {h75} for 75%.")
+            st.error(f"🚫 Below 65%. Need {h65} for 65%, {h75} for 75%.")
 
 
 def show_timetable_page(section):
-    st.markdown(f"## ðŸ—“ï¸ Weekly Timetable â€” {section}")
+    st.markdown(f"## 🗓️ Weekly Timetable — {section}")
     conn = get_db_connection()
     tt = conn.execute('SELECT day, period, subject FROM timetable WHERE section=? ORDER BY day, period',
                       (section,)).fetchall()
@@ -1407,20 +1407,20 @@ def show_timetable_page(section):
         rowd = {'Day': d}
         rowd['08:45-09:35 (P1)'] = grid[d].get(1, '-')
         rowd['09:35-10:25 (P2)'] = grid[d].get(2, '-')
-        rowd['10:25-10:40'] = 'â˜• BREAK'
+        rowd['10:25-10:40'] = '☕ BREAK'
         rowd['10:40-11:30 (P3)'] = grid[d].get(3, '-')
         rowd['11:30-12:20 (P4)'] = grid[d].get(4, '-')
-        rowd['12:20-01:10'] = 'ðŸ± LUNCH'
+        rowd['12:20-01:10'] = '🍱 LUNCH'
         rowd['01:10-02:00 (P5)'] = grid[d].get(5, '-')
         rowd['02:00-02:45 (P6)'] = grid[d].get(6, '-')
         rowd['02:45-03:30 (P7)'] = grid[d].get(7, '-')
         table_data.append(rowd)
 
-    st.markdown("### ðŸ“Š Timetable Grid")
+    st.markdown("### 📊 Timetable Grid")
     st_premium_table(pd.DataFrame(table_data))
 
     # Daily timeline styled like "Upcoming Events" scheduler in the reference image
-    st.markdown("### ðŸ“… Daily Schedule (Upcoming Events)")
+    st.markdown("### 📅 Daily Schedule (Upcoming Events)")
 
     times = {
         1: "08:45 - 09:35",
@@ -1453,26 +1453,26 @@ def show_timetable_page(section):
                 })
 
                 if p == 2:
-                    sched.append({'periods': '-', 'time': '10:25 - 10:40', 'subject': 'â˜• BREAK'})
+                    sched.append({'periods': '-', 'time': '10:25 - 10:40', 'subject': '☕ BREAK'})
                 elif p == 4:
-                    sched.append({'periods': '-', 'time': '12:20 - 01:10', 'subject': 'ðŸ± LUNCH BREAK'})
+                    sched.append({'periods': '-', 'time': '12:20 - 01:10', 'subject': '🍱 LUNCH BREAK'})
 
                 p += 1
 
             for item in sched:
-                if item['subject'] in ('-', 'â˜• BREAK', 'ðŸ± LUNCH BREAK'):
+                if item['subject'] in ('-', '☕ BREAK', '🍱 LUNCH BREAK'):
                     bg = 'rgba(255,255,255,0.02)'
                     border = 'rgba(255,255,255,0.05)'
                     color = '#94a3b8'
-                    icon = 'â³' if item['subject'] == '-' else 'â˜•' if 'BREAK' in item['subject'] else 'ðŸ±'
+                    icon = '⏳' if item['subject'] == '-' else '☕' if 'BREAK' in item['subject'] else '🍱'
                 else:
                     colors = [
-                        ('rgba(0,216,198,0.12)', '#00D8C6', 'ðŸ“˜'),
-                        ('rgba(139,92,246,0.12)', '#8B5CF6', 'ðŸ“™'),
-                        ('rgba(245,158,11,0.12)', '#F59E0B', 'ðŸ“—'),
-                        ('rgba(239,68,68,0.12)', '#EF4444', 'ðŸ“•'),
-                        ('rgba(16,185,129,0.12)', '#10B981', 'ðŸ““'),
-                        ('rgba(236,72,153,0.12)', '#EC4899', 'ðŸ“”')
+                        ('rgba(0,216,198,0.12)', '#00D8C6', '📘'),
+                        ('rgba(139,92,246,0.12)', '#8B5CF6', '📙'),
+                        ('rgba(245,158,11,0.12)', '#F59E0B', '📗'),
+                        ('rgba(239,68,68,0.12)', '#EF4444', '📕'),
+                        ('rgba(16,185,129,0.12)', '#10B981', '📓'),
+                        ('rgba(236,72,153,0.12)', '#EC4899', '📔')
                     ]
                     idx = sum(ord(c) for c in item['subject']) % len(colors)
                     bg, color, icon = colors[idx]
@@ -1487,7 +1487,7 @@ def show_timetable_page(section):
                         <div>
                             <div style="font-weight: 700; color: #fff; font-family: 'Outfit'; font-size: 1.1rem; letter-spacing: 0.3px;">{item['subject']}</div>
                             <div style="color: #94a3b8; font-size: 0.85rem; font-family: 'Inter'; margin-top: 2px;">
-                                {item['periods'] + '  Â·  ' if item['periods'] != '-' else ''}{item['time']}
+                                {item['periods'] + '  ·  ' if item['periods'] != '-' else ''}{item['time']}
                             </div>
                         </div>
                     </div>
@@ -1520,53 +1520,53 @@ def generate_student_pdf(student, sem="Sem 2"):
     sgpa = compute_sgpa([{'subject': r['subject'], 'grade_point': r['grade_point']}
                          for r in finals if r['score'] is not None])
     buf = pdf_generator.generate_report_pdf(dict(student), att, marks_by_type, sgpa, cgpa, semester=sem)
-    st.download_button("â¬‡ï¸ Click to Download Report",
+    st.download_button("⬇️ Click to Download Report",
         data=buf.getvalue(), file_name=f"Report_{roll}_{sem.replace(' ', '')}.pdf",
         mime="application/pdf")
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ══════════════════════════════════════════════════════════════
 # ADMIN DASHBOARD
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ══════════════════════════════════════════════════════════════
 def admin_dashboard():
     with st.sidebar:
         st.markdown("""
         <div style="background: linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(139,92,246,0.08) 100%);
                     border: 1px solid rgba(239,68,68,0.15); border-radius: 16px;
                     padding: 18px; margin-bottom: 20px; text-align: center;">
-            <div style="font-size: 2.5rem; margin-bottom: 8px;">ðŸ›¡ï¸</div>
+            <div style="font-size: 2.5rem; margin-bottom: 8px;">🛡️</div>
             <h4 style="margin: 0; color: #ffffff; font-family: 'Outfit', sans-serif;">Portal Admin</h4>
             <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #EF4444; font-family: 'JetBrains Mono', monospace; font-weight: 600;">System Console</p>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("---")
         page = st.radio("Navigation", [
-            "ðŸ  Dashboard", "ðŸ‘¥ Students", "ðŸ“ Marks Editor",
-            "ðŸ“¤ CSV Upload", "ðŸ”„ Scraper",
-            "ðŸ“ˆ Analytics", "ðŸ—“ï¸ Timetable", "ðŸ’¾ Backup", "âš™ï¸ Settings"
+            "🏠 Dashboard", "👥 Students", "📝 Marks Editor",
+            "📤 CSV Upload", "🔄 Scraper",
+            "📈 Analytics", "🗓️ Timetable", "💾 Backup", "⚙️ Settings"
         ])
         st.markdown("---")
-        if st.button("ðŸšª Logout", use_container_width=True):
+        if st.button("🚪 Logout", use_container_width=True):
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.rerun()
 
     pages = {
-        "ðŸ  Dashboard": admin_overview,
-        "ðŸ‘¥ Students": admin_students,
-        "ðŸ“ Marks Editor": admin_marks,
-        "ðŸ“¤ CSV Upload": admin_csv_upload,
-        "ðŸ”„ Scraper": admin_scraper,
-        "ðŸ“ˆ Analytics": admin_analytics,
-        "ðŸ—“ï¸ Timetable": admin_timetable,
-        "ðŸ’¾ Backup": admin_backup_page,
-        "âš™ï¸ Settings": admin_settings,
+        "🏠 Dashboard": admin_overview,
+        "👥 Students": admin_students,
+        "📝 Marks Editor": admin_marks,
+        "📤 CSV Upload": admin_csv_upload,
+        "🔄 Scraper": admin_scraper,
+        "📈 Analytics": admin_analytics,
+        "🗓️ Timetable": admin_timetable,
+        "💾 Backup": admin_backup_page,
+        "⚙️ Settings": admin_settings,
     }
     pages[page]()
 
 
 def admin_overview():
-    st.markdown("# ðŸ  Admin Dashboard")
+    st.markdown("# 🏠 Admin Dashboard")
     conn = get_db_connection()
     cfg = get_config_map(conn)
     total = conn.execute('SELECT COUNT(*) FROM students').fetchone()[0]
@@ -1594,7 +1594,7 @@ def admin_overview():
 
 
 def admin_students():
-    st.markdown("# ðŸ‘¥ Student Directory")
+    st.markdown("# 👥 Student Directory")
     conn = get_db_connection()
     c1, c2 = st.columns([2, 1])
     section_filter = c1.selectbox("Filter by Section", ['All'] + CLASSES)
@@ -1612,7 +1612,7 @@ def admin_students():
 
     if rows:
         df = pd.DataFrame([dict(r) for r in rows])
-        df['DOB Set'] = df['dob'].apply(lambda d: 'âš ï¸ Pending' if d in ('PENDING', '2007-01-01') else 'âœ… Set')
+        df['DOB Set'] = df['dob'].apply(lambda d: '⚠️ Pending' if d in ('PENDING', '2007-01-01') else '✅ Set')
         df['DOB'] = pd.to_datetime(df['dob'], errors='coerce').dt.date
         df['Reset'] = False
         display_df = df[['roll_no', 'name', 'section', 'branch', 'DOB Set', 'DOB', 'Reset']].rename(columns={
@@ -1647,7 +1647,7 @@ def admin_students():
         )
         st.caption(f"Showing {len(rows)} students (max 200)")
 
-        if st.button("ðŸ’¾ Save Directory Changes", use_container_width=True):
+        if st.button("💾 Save Directory Changes", use_container_width=True):
             if "student_editor" in st.session_state:
                 edits = st.session_state["student_editor"].get("edited_rows", {})
                 if edits:
@@ -1679,7 +1679,7 @@ def admin_students():
     else:
         st.info("No students found.")
 
-    with st.expander("âž• Add / Edit Student"):
+    with st.expander("➕ Add / Edit Student"):
         with st.form("edit_student"):
             c1, c2 = st.columns(2)
             roll = c1.text_input("Roll Number").upper()
@@ -1688,7 +1688,7 @@ def admin_students():
             dob  = c2.date_input("DOB", value=None,
                 min_value=datetime.date(1985, 1, 1),
                 max_value=datetime.date.today())
-            if st.form_submit_button("ðŸ’¾ Save Student"):
+            if st.form_submit_button("💾 Save Student"):
                 if roll and name:
                     branch = sec.split('_')[0] if '_' in sec else sec
                     conn = get_db_connection()
@@ -1712,7 +1712,7 @@ def admin_students():
 
 
 def admin_marks():
-    st.markdown("# ðŸ“ Marks Editor")
+    st.markdown("# 📝 Marks Editor")
     c1, c2, c3 = st.columns(3)
     roll = c1.text_input("Roll Number").upper()
     sem  = c2.selectbox("Semester", [f"Sem {i}" for i in range(1, 9)], index=1)
@@ -1743,7 +1743,7 @@ def admin_marks():
                         subj, min_value=-1, max_value=100, value=prefill,
                         key=f"score_{sem}_{exam}_{subj}",
                         help="Set -1 to skip / leave unchanged")
-                if st.form_submit_button("ðŸ’¾ Save Marks"):
+                if st.form_submit_button("💾 Save Marks"):
                     count = 0
                     for subj, score in scores.items():
                         if score < 0:   # -1 = skip
@@ -1814,14 +1814,14 @@ def resolve_csv_columns(df):
 
 
 def admin_csv_upload():
-    st.markdown("# ðŸ“¤ CSV & Results Upload Center")
+    st.markdown("# 📤 CSV & Results Upload Center")
     
     # Switch between Internal Marks and JNTU Results
-    upload_type = st.tabs(["ðŸ“¤ Internal Marks CSV", "ðŸ“¥ JNTU Results CSV"])
+    upload_type = st.tabs(["📤 Internal Marks CSV", "📥 JNTU Results CSV"])
     
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ──────────────────────────────────────────────────────────
     # TAB 1: Internal Marks CSV
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ──────────────────────────────────────────────────────────
     with upload_type[0]:
         st.markdown("### Import Student Marks")
         st.caption("CSV format: `roll_no, SUBJECT1, SUBJECT2, ...` (Ensure first column contains Roll Numbers)")
@@ -1844,14 +1844,14 @@ def admin_csv_upload():
             roll_col, name_col, subject_cols = resolve_csv_columns(df)
             
             if not roll_col:
-                st.error("âš ï¸ Could not dynamically identify a Roll Number/Hall Ticket column in this CSV. Please ensure a column contains roll numbers like '24891A0465'.")
+                st.error("⚠️ Could not dynamically identify a Roll Number/Hall Ticket column in this CSV. Please ensure a column contains roll numbers like '24891A0465'.")
             elif not subject_cols:
-                st.error("âš ï¸ No subject columns detected. Ensure columns representing subjects are present (not snooze, totals, or percentages).")
+                st.error("⚠️ No subject columns detected. Ensure columns representing subjects are present (not snooze, totals, or percentages).")
             else:
-                st.info(f"âœ… Dynamically detected columns: Roll Number = **`{roll_col}`**, Name = **`{name_col or 'None'}`**, Subjects = {subject_cols}")
+                st.info(f"✅ Dynamically detected columns: Roll Number = **`{roll_col}`**, Name = **`{name_col or 'None'}`**, Subjects = {subject_cols}")
                 st_premium_table(df.head())
                 
-                if st.button("ðŸ“¤ Import Marks Now", use_container_width=True, key="btn_import_marks"):
+                if st.button("📤 Import Marks Now", use_container_width=True, key="btn_import_marks"):
                     try:
                         sem_num = int(sem.replace("Sem", "").strip())
                     except Exception:
@@ -1896,11 +1896,11 @@ def admin_csv_upload():
                                 count += 1
                         conn.commit()
                     conn.close()
-                    st.success(f"âœ… Imported {count} mark entries successfully.")
+                    st.success(f"✅ Imported {count} mark entries successfully.")
                 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ──────────────────────────────────────────────────────────
     # TAB 2: JNTU Results CSV
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ──────────────────────────────────────────────────────────
     with upload_type[1]:
         st.markdown("### Import JNTU Semester Results")
         st.caption("Upload the JNTUH results format: `Hall no, Name, SUB1 [Total,GP], SUB2 [Total,GP], ..., SGPA`")
@@ -1927,7 +1927,7 @@ def admin_csv_upload():
             
         uploaded_res = st.file_uploader("Upload Results CSV", type=['csv'], key='results_csv')
         
-        if uploaded_res and st.button("ðŸ“¥ Import Results Now", use_container_width=True, key="btn_import_results"):
+        if uploaded_res and st.button("📥 Import Results Now", use_container_width=True, key="btn_import_results"):
             try:
                 try:
                     sem_num = int(semester.replace("Sem", "").strip())
@@ -1984,21 +1984,21 @@ def admin_csv_upload():
                 conn.close()
                 
                 if exam_type == 'Final Examinations':
-                    st.success(f"âœ… Imported {sgpa_count} students (SGPA), {marks_count} mark entries for {semester}.")
+                    st.success(f"✅ Imported {sgpa_count} students (SGPA), {marks_count} mark entries for {semester}.")
                 else:
-                    st.success(f"âœ… Imported {marks_count} mark entries ({exam_type}) for {semester}.")
+                    st.success(f"✅ Imported {marks_count} mark entries ({exam_type}) for {semester}.")
             except Exception as e:
                 st.error(f"Import error: {e}")
 
 
 def admin_scraper():
-    st.markdown("# ðŸ”„ Portal Scraper")
+    st.markdown("# 🔄 Portal Scraper")
     conn = get_db_connection()
     cfg = get_config_map(conn)
     logs = conn.execute('SELECT * FROM scrape_log ORDER BY scraped_at DESC LIMIT 50').fetchall()
     conn.close()
 
-    st.markdown("### ðŸ“… Active Semester")
+    st.markdown("### 📅 Active Semester")
     sem = st.selectbox(
         "Currently scraping:",
         [f"Sem {i}" for i in range(1, 9)],
@@ -2011,14 +2011,14 @@ def admin_scraper():
         conn.close()
         st.success("Semester updated.")
 
-    st.markdown("### ðŸ“† Date Range")
+    st.markdown("### 📆 Date Range")
     c1, c2 = st.columns(2)
     sd = c1.date_input("From", value=dt.strptime(cfg.get('start_date', '2026-01-27'), '%Y-%m-%d'))
     ed = c2.date_input("To", value=dt.now())
 
-    st.markdown("### ðŸŽ¯ Scrape Single Section")
+    st.markdown("### 🎯 Scrape Single Section")
     section = st.selectbox("Section", CLASSES)
-    if st.button("ðŸ”„ Scrape Section", use_container_width=True):
+    if st.button("🔄 Scrape Section", use_container_width=True):
         with st.spinner(f"Scraping {section}... 30-60s"):
             ok, msg = harvester.scrape_portal(
                 start_date=sd.strftime('%Y-%m-%d'),
@@ -2028,9 +2028,9 @@ def admin_scraper():
             if ok: st.success(msg)
             else:  st.error(msg)
 
-    st.markdown("### ðŸš€ Bulk Scrape ALL Sections")
+    st.markdown("### 🚀 Bulk Scrape ALL Sections")
     st.warning(f"Will scrape all {len(CLASSES)} sections. Takes 5-10 minutes.")
-    if st.button("ðŸš€ Scrape ALL Sections", use_container_width=True):
+    if st.button("🚀 Scrape ALL Sections", use_container_width=True):
         progress = st.progress(0)
         status = st.empty()
         results = []
@@ -2047,7 +2047,7 @@ def admin_scraper():
         ok_count = sum(1 for r in results if r['ok'])
         st.success(f"Done! {ok_count}/{len(CLASSES)} sections synced.")
 
-    st.markdown("### ðŸ“œ Sync History")
+    st.markdown("### 📜 Sync History")
     if logs:
         log_df = pd.DataFrame([dict(r) for r in logs])
         display_df = log_df[['scraped_at', 'section', 'students', 'status', 'duration']].rename(columns={
@@ -2063,7 +2063,7 @@ def admin_scraper():
 
 
 def admin_analytics():
-    st.markdown("# ðŸ“ˆ Admin Analytics")
+    st.markdown("# 📈 Admin Analytics")
     conn = get_db_connection()
     cfg = get_config_map(conn)
     sem = cfg.get('active_semester', 'Sem 2')
@@ -2099,7 +2099,7 @@ def admin_analytics():
     ''', (sem,)).fetchall()
     conn.close()
 
-    st.markdown("### ðŸ¥ Section Health Dashboard")
+    st.markdown("### 🏥 Section Health Dashboard")
     if sec_health:
         sh_df = pd.DataFrame([dict(r) for r in sec_health])
         fig = px.bar(sh_df, x='section', y='avg_pct', color='avg_pct',
@@ -2112,15 +2112,15 @@ def admin_analytics():
 
     cc1, cc2 = st.columns(2)
     with cc1:
-        st.markdown("### ðŸš¨ Top Absentees (â‰¤65%)")
+        st.markdown("### 🚨 Top Absentees (≤65%)")
         if absentees:
             ab_df = pd.DataFrame([dict(r) for r in absentees])
             st_premium_table(ab_df[['roll_no','name','section','pct']].rename(columns={
                 'roll_no':'Roll','name':'Name','section':'Sec','pct':'%'}))
         else:
-            st.success("ðŸŽ‰ No students below 65%!")
+            st.success("🎉 No students below 65%!")
     with cc2:
-        st.markdown("### âš ï¸ Condonation Zone (65-75%)")
+        st.markdown("### ⚠️ Condonation Zone (65-75%)")
         if condonation:
             cond_data = []
             for r in condonation:
@@ -2134,10 +2134,10 @@ def admin_analytics():
 
 
 def admin_timetable():
-    st.markdown("# ðŸ—“ï¸ Timetable Management")
+    st.markdown("# 🗓️ Timetable Management")
     section = st.selectbox("Section", CLASSES)
     uploaded = st.file_uploader("Upload Timetable CSV (columns: day, period, subject)", type=['csv'])
-    if uploaded and st.button("ðŸ“¤ Upload"):
+    if uploaded and st.button("📤 Upload"):
         df = pd.read_csv(uploaded)
         conn = get_db_connection()
         success = True
@@ -2146,7 +2146,7 @@ def admin_timetable():
             periods_list = parse_period_string(p_val)
 
             if not periods_list:
-                st.error(f"âš ï¸ Invalid period format in CSV: '{p_val}'")
+                st.error(f"⚠️ Invalid period format in CSV: '{p_val}'")
                 success = False
                 break
 
@@ -2177,12 +2177,12 @@ def admin_timetable():
 
 
 def admin_backup_page():
-    st.markdown("# ðŸ’¾ Database Backup")
+    st.markdown("# 💾 Database Backup")
     st.info("Create a timestamped backup of the database. Keeps last 10 backups.")
-    if st.button("ðŸ“¦ Create Backup Now", use_container_width=True):
+    if st.button("📦 Create Backup Now", use_container_width=True):
         path = backup_db()
         if path:
-            st.success(f"âœ… Backup created: `{os.path.basename(path)}`")
+            st.success(f"✅ Backup created: `{os.path.basename(path)}`")
         else:
             st.error("Backup failed.")
 
@@ -2190,21 +2190,21 @@ def admin_backup_page():
     backup_dir = os.path.join(os.path.dirname(__file__), 'backups')
     if os.path.exists(backup_dir):
         backups = sorted(os.listdir(backup_dir), reverse=True)
-        st.markdown(f"### ðŸ“ Existing Backups ({len(backups)})")
+        st.markdown(f"### 📁 Existing Backups ({len(backups)})")
         for b in backups:
             full_path = os.path.join(backup_dir, b)
             size_mb = os.path.getsize(full_path) / 1024 / 1024
-            st.text(f"ðŸ“„ {b} ({size_mb:.2f} MB)")
+            st.text(f"📄 {b} ({size_mb:.2f} MB)")
 
 
 def admin_settings():
-    st.markdown("# âš™ï¸ Admin Settings")
-    st.markdown("### ðŸ”‘ Change Admin Password")
+    st.markdown("# ⚙️ Admin Settings")
+    st.markdown("### 🔑 Change Admin Password")
     with st.form("change_admin_pwd"):
         cur = st.text_input("Current Password", type="password")
         new1 = st.text_input("New Password", type="password")
         new2 = st.text_input("Confirm New Password", type="password")
-        if st.form_submit_button("ðŸ’¾ Update Password"):
+        if st.form_submit_button("💾 Update Password"):
             if not verify_admin_pwd(cur.strip()):
                 st.error("Current password is incorrect.")
             elif not new1 or new1 != new2:
@@ -2213,10 +2213,10 @@ def admin_settings():
                 st.error("Password must be at least 6 characters.")
             else:
                 change_admin_pwd(new1.strip())
-                st.success("âœ… Admin password changed successfully!")
+                st.success("✅ Admin password changed successfully!")
 
     st.markdown("---")
-    st.markdown("### ðŸ“… Semester & Date Configuration")
+    st.markdown("### 📅 Semester & Date Configuration")
     conn = get_db_connection()
     cfg = get_config_map(conn)
     conn.close()
@@ -2225,7 +2225,7 @@ def admin_settings():
             index=int(cfg.get('active_semester', 'Sem 2').replace('Sem ', '')) - 1)
         sd = st.date_input("Semester Start", value=dt.strptime(cfg.get('start_date', '2026-01-27'), '%Y-%m-%d'))
         total_hours = st.number_input("Total Semester Hours (Default)", min_value=1, value=int(cfg.get('total_semester_hours', '600')))
-        if st.form_submit_button("ðŸ’¾ Save Config"):
+        if st.form_submit_button("💾 Save Config"):
             conn = get_db_connection()
             conn.execute("INSERT INTO config (key, value) VALUES ('active_semester', ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (active,))
             conn.execute("INSERT INTO config (key, value) VALUES ('start_date', ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (sd.strftime('%Y-%m-%d'),))
@@ -2234,9 +2234,9 @@ def admin_settings():
             st.success("Configuration saved.")
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ══════════════════════════════════════════════════════════════
 # ROUTER
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ══════════════════════════════════════════════════════════════
 if not st.session_state.get('logged_in'):
     login_page()
 elif st.session_state.get('needs_dob_setup'):
