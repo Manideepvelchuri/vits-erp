@@ -1414,12 +1414,13 @@ def admin_overview():
     overall_avg = conn.execute('''
         SELECT ROUND(AVG(pct),1) FROM (
             SELECT SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted),0) pct
-            FROM attendance WHERE semester=? GROUP BY roll_no)
+            FROM attendance WHERE semester=? GROUP BY roll_no) AS subquery
     ''', (sem,)).fetchone()[0] or 0
     below75 = conn.execute('''
         SELECT COUNT(DISTINCT roll_no) FROM (
             SELECT roll_no, SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted),0) pct
-            FROM attendance WHERE semester=? GROUP BY roll_no HAVING pct<75)
+            FROM attendance WHERE semester=? GROUP BY roll_no 
+            HAVING SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted),0) < 75) AS subquery
     ''', (sem,)).fetchone()[0]
     conn.close()
 
@@ -1800,7 +1801,9 @@ def admin_analytics():
         SELECT s.roll_no, s.name, s.section,
                ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0), 1) pct
         FROM students s JOIN attendance a ON s.roll_no=a.roll_no AND a.semester=?
-        GROUP BY s.roll_no HAVING pct <= 65 ORDER BY pct ASC LIMIT 50
+        GROUP BY s.roll_no, s.name, s.section 
+        HAVING ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0), 1) <= 65 
+        ORDER BY pct ASC LIMIT 50
     ''', (sem,)).fetchall()
 
     # Condonation list (NEW)
@@ -1809,7 +1812,10 @@ def admin_analytics():
                ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0), 1) pct,
                SUM(a.hours_attended) ta, SUM(a.hours_conducted) tc
         FROM students s JOIN attendance a ON s.roll_no=a.roll_no AND a.semester=?
-        GROUP BY s.roll_no HAVING pct>65 AND pct<75 ORDER BY pct ASC LIMIT 50
+        GROUP BY s.roll_no, s.name, s.section 
+        HAVING ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0), 1) > 65 
+           AND ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0), 1) < 75 
+        ORDER BY pct ASC LIMIT 50
     ''', (sem,)).fetchall()
 
     # Section health
