@@ -1879,7 +1879,7 @@ def admin_csv_upload():
     section = c2.selectbox("Section", CLASSES, key="u_section")
 
     if "Internal" in csv_format:
-        exam = c3.selectbox("Exam Type", ['Mid 1', 'Mid 2', 'Lab Internals', f"{sem} Final Examinations"], key="u_exam")
+        exam = c3.selectbox("Exam Type", ['Mid 1', 'Mid 2', 'Lab Internals'], key="u_exam")
         st.caption("Format: `roll_no, SUBJECT1, SUBJECT2, ...`")
         uploaded = st.file_uploader("Upload Marks CSV", type=['csv'], key="u_file")
 
