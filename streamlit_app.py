@@ -1383,7 +1383,7 @@ def admin_dashboard():
         st.markdown("---")
         page = st.radio("Navigation", [
             "🏠 Dashboard", "👥 Students", "📝 Marks Editor",
-            "📤 CSV Upload", "📥 Results Import", "🔄 Scraper",
+            "📤 CSV Upload", "🔄 Scraper",
             "📈 Analytics", "🗓️ Timetable", "💾 Backup", "⚙️ Settings"
         ])
         st.markdown("---")
@@ -1397,7 +1397,6 @@ def admin_dashboard():
         "👥 Students": admin_students,
         "📝 Marks Editor": admin_marks,
         "📤 CSV Upload": admin_csv_upload,
-        "📥 Results Import": admin_results_import,
         "🔄 Scraper": admin_scraper,
         "📈 Analytics": admin_analytics,
         "🗓️ Timetable": admin_timetable,
@@ -1606,119 +1605,176 @@ def admin_marks():
 
 
 def admin_csv_upload():
-    st.markdown("# 📤 Bulk CSV Upload")
-    st.caption("CSV format: `roll_no, SUBJECT1, SUBJECT2, ...`")
-    c1, c2 = st.columns(2)
-    sem  = c1.selectbox("Semester", [f"Sem {i}" for i in range(1, 9)], index=1)
-    exam = c2.selectbox("Exam Type", ['Mid 1', 'Mid 2', 'Lab Internals', f"{sem} Final Examinations"])
-    uploaded = st.file_uploader("Upload CSV", type=['csv'])
-    if uploaded:
-        df = pd.read_csv(uploaded)
-        # Bug 12 fix: normalize roll_no column name
-        df.columns = [c.strip() for c in df.columns]
-        roll_col = next((c for c in df.columns if c.lower().replace(' ', '').replace('_', '') == 'rollno'), None)
-        if not roll_col:
-            st.error("CSV must have a 'roll_no' column.")
-            return
-        st_premium_table(df.head())
-        if st.button("📤 Import Now"):
-            conn = get_db_connection(); count = 0
-            for _, row in df.iterrows():
-                roll = str(row.get(roll_col, '')).strip().upper()
-                if not roll: continue
-                for col in df.columns:
-                    if col == roll_col: continue
-                    val = pd.to_numeric(row[col], errors='coerce')
-                    if pd.isna(val): continue
-                    score = float(val); _, gp = score_to_grade(score)
-                    conn.execute('''
-                        INSERT INTO marks(roll_no,subject,semester,exam_type,score,grade_point)
-                        VALUES(?,?,?,?,?,?)
-                        ON CONFLICT(roll_no,subject,semester,exam_type) DO UPDATE SET
-                            score=excluded.score, grade_point=excluded.grade_point
-                    ''', (roll, col.strip(), sem, exam, score, gp))
-                    count += 1
-            conn.commit(); conn.close()
-            st.success(f"Imported {count} mark entries.")
-
-
-def admin_results_import():
-    st.markdown("# 📥 Import Semester Results CSV")
-    st.caption("Upload the JNTUH results format: Hall no, Name, SUB1 [Total,GP], SUB2 [Total,GP], ..., SGPA")
-
-    conn = get_db_connection()
-    cfg = get_config_map(conn)
-    conn.close()
-    active_sem = cfg.get('active_semester', 'Sem 2')
-
-    c1, c2 = st.columns(2)
-    try:
-        active_idx = [f"Sem {i}" for i in range(1, 9)].index(active_sem)
-    except ValueError:
-        active_idx = 1
-    semester = c1.selectbox("Semester", [f"Sem {i}" for i in range(1, 9)], index=active_idx)
-    exam_type = c2.selectbox("Exam Type", ['Mid 1', 'Mid 2', 'Lab Internals', 'Final Examinations'])
-    uploaded = st.file_uploader("Upload Results CSV", type=['csv'], key='results_csv')
-
-    if uploaded and st.button("📥 Import Now"):
+    st.markdown("# 📤 CSV & Results Upload Center")
+    
+    # Switch between Internal Marks and JNTU Results
+    upload_type = st.tabs(["📤 Internal Marks CSV", "📥 JNTU Results CSV"])
+    
+    # ──────────────────────────────────────────────────────────
+    # TAB 1: Internal Marks CSV
+    # ──────────────────────────────────────────────────────────
+    with upload_type[0]:
+        st.markdown("### Import Student Marks")
+        st.caption("CSV format: `roll_no, SUBJECT1, SUBJECT2, ...` (Ensure first column contains Roll Numbers)")
+        
+        c1, c2 = st.columns(2)
+        sem = c1.selectbox("Semester", [f"Sem {i}" for i in range(1, 9)], index=1, key="marks_sem")
+        exam = c2.selectbox("Exam Type", ['Mid 1', 'Mid 2', 'Lab Internals', f"{sem} Final Examinations"], key="marks_exam")
+        
+        # Upload mode selector: Bulk vs Per-Class
+        mode = st.radio("Upload Mode", ["Bulk Upload (All Sections)", "Per-Class Upload (Specific Section)"], horizontal=True, key="marks_mode")
+        
+        section = None
+        if "Per-Class Upload" in mode:
+            section = st.selectbox("Select Class/Section", CLASSES, key="marks_section")
+            
+        uploaded = st.file_uploader("Upload Marks CSV", type=['csv'], key="marks_uploader")
+        if uploaded:
+            df = pd.read_csv(uploaded)
+            df.columns = [c.strip() for c in df.columns]
+            roll_col = next((c for c in df.columns if c.lower().replace(' ', '').replace('_', '') == 'rollno'), None)
+            if not roll_col:
+                st.error("CSV must have a 'roll_no' column.")
+            else:
+                st_premium_table(df.head())
+                
+                if st.button("📤 Import Marks Now", use_container_width=True, key="btn_import_marks"):
+                    try:
+                        sem_num = int(sem.replace("Sem", "").strip())
+                    except Exception:
+                        sem_num = 2
+                        
+                    conn = get_db_connection()
+                    count = 0
+                    with st.spinner("Importing marks..."):
+                        for _, row in df.iterrows():
+                            roll = str(row.get(roll_col, '')).strip().upper()
+                            if not roll:
+                                continue
+                            
+                            # Validate / Register student if Per-Class mode
+                            if section:
+                                # Verify if student exists
+                                row_st = conn.execute('SELECT name FROM students WHERE roll_no=?', (roll,)).fetchone()
+                                branch = decode_roll_branch(roll) or 'ECE'
+                                if not row_st:
+                                    conn.execute('''
+                                        INSERT INTO students(roll_no, name, dob, semester, branch, department, section)
+                                        VALUES(?, ?, 'PENDING', ?, ?, ?, ?)
+                                    ''', (roll, f"Student {roll}", sem_num, branch, branch, section))
+                                else:
+                                    conn.execute('UPDATE students SET section=? WHERE roll_no=?', (section, roll))
+                            
+                            for col in df.columns:
+                                if col == roll_col:
+                                    continue
+                                val = pd.to_numeric(row[col], errors='coerce')
+                                if pd.isna(val):
+                                    continue
+                                score = float(val)
+                                _, gp = score_to_grade(score)
+                                conn.execute('''
+                                    INSERT INTO marks(roll_no,subject,semester,exam_type,score,grade_point)
+                                    VALUES(?,?,?,?,?,?)
+                                    ON CONFLICT(roll_no,subject,semester,exam_type) DO UPDATE SET
+                                        score=excluded.score, grade_point=excluded.grade_point
+                                ''', (roll, col.strip(), sem, exam, score, gp))
+                                count += 1
+                        conn.commit()
+                    conn.close()
+                    st.success(f"✅ Imported {count} mark entries successfully.")
+                
+    # ──────────────────────────────────────────────────────────
+    # TAB 2: JNTU Results CSV
+    # ──────────────────────────────────────────────────────────
+    with upload_type[1]:
+        st.markdown("### Import JNTU Semester Results")
+        st.caption("Upload the JNTUH results format: `Hall no, Name, SUB1 [Total,GP], SUB2 [Total,GP], ..., SGPA`")
+        
+        conn = get_db_connection()
+        cfg = get_config_map(conn)
+        conn.close()
+        active_sem = cfg.get('active_semester', 'Sem 2')
+        
+        c1, c2 = st.columns(2)
         try:
-            # Bug 5 fix: derive numeric semester from text
+            active_idx = [f"Sem {i}" for i in range(1, 9)].index(active_sem)
+        except ValueError:
+            active_idx = 1
+        semester = c1.selectbox("Semester", [f"Sem {i}" for i in range(1, 9)], index=active_idx, key="res_sem")
+        exam_type = c2.selectbox("Exam Type", ['Mid 1', 'Mid 2', 'Lab Internals', 'Final Examinations'], index=3, key="res_exam")
+        
+        # Upload mode selector for Results: Bulk vs Per-Class
+        res_mode = st.radio("Upload Mode", ["Bulk Upload (Auto Section)", "Per-Class Upload (Specific Section)"], horizontal=True, key="res_mode")
+        
+        res_section = None
+        if "Per-Class Upload" in res_mode:
+            res_section = st.selectbox("Select Class/Section", CLASSES, key="res_section")
+            
+        uploaded_res = st.file_uploader("Upload Results CSV", type=['csv'], key='results_csv')
+        
+        if uploaded_res and st.button("📥 Import Results Now", use_container_width=True, key="btn_import_results"):
             try:
-                sem_num = int(semester.replace("Sem", "").strip())
-            except Exception:
-                sem_num = 2
-            content = uploaded.read().decode('utf-8')
-            parsed  = parse_sem1_results_csv(content)
-            conn    = get_db_connection()
-            marks_count = sgpa_count = 0
-
-            # Determine exam type label for database marks table
-            if exam_type == 'Final Examinations':
-                db_exam_type = f"{semester} Final Examinations"
-            else:
-                db_exam_type = exam_type
-
-            with st.spinner(f"Importing {len(parsed)} records..."):
-                for record in parsed:
-                    roll = record['roll_no']
-                    branch = decode_roll_branch(roll) or 'ECE'
+                try:
+                    sem_num = int(semester.replace("Sem", "").strip())
+                except Exception:
+                    sem_num = 2
+                content = uploaded_res.read().decode('utf-8')
+                parsed = parse_sem1_results_csv(content)
+                conn = get_db_connection()
+                marks_count = sgpa_count = 0
+                
+                # Determine exam type label for database marks table
+                if exam_type == 'Final Examinations':
+                    db_exam_type = f"{semester} Final Examinations"
+                else:
+                    db_exam_type = exam_type
                     
-                    st_row = conn.execute('SELECT section FROM students WHERE roll_no=?', (roll,)).fetchone()
-                    section = st_row['section'] if st_row else f"{branch}_A"
-
-                    conn.execute('''
-                        INSERT INTO students(roll_no,name,dob,semester,branch,department,section)
-                        VALUES(?,?,?,?,?,?,?)
-                        ON CONFLICT(roll_no) DO UPDATE SET name=excluded.name
-                    ''', (roll, record['name'], 'PENDING', sem_num, branch, branch, section))
-
-                    for subj, data in record['subjects'].items():
-                        if data['total'] is not None:
-                            conn.execute('''
-                                INSERT INTO marks(roll_no,subject,semester,exam_type,score,grade_point)
-                                VALUES(?,?,?,?,?,?)
-                                ON CONFLICT(roll_no,subject,semester,exam_type) DO UPDATE SET
-                                    score=excluded.score, grade_point=excluded.grade_point
-                            ''', (roll, subj, semester, db_exam_type, data['total'], data['gp']))
-                            marks_count += 1
-
-                    if exam_type == 'Final Examinations':
+                with st.spinner(f"Importing {len(parsed)} JNTU records..."):
+                    for record in parsed:
+                        roll = record['roll_no']
+                        branch = decode_roll_branch(roll) or 'ECE'
+                        
+                        if res_section:
+                            # User selected a specific section for this CSV
+                            section = res_section
+                        else:
+                            st_row = conn.execute('SELECT section FROM students WHERE roll_no=?', (roll,)).fetchone()
+                            section = st_row['section'] if st_row else f"{branch}_A"
+                            
                         conn.execute('''
-                            INSERT INTO sgpa_records(roll_no,semester,sgpa,failed)
-                            VALUES(?,?,?,?)
-                            ON CONFLICT(roll_no,semester) DO UPDATE SET
-                                sgpa=excluded.sgpa, failed=excluded.failed
-                        ''', (roll, semester, record['sgpa'], 1 if record['failed'] else 0))
-                        sgpa_count += 1
-                conn.commit()
+                            INSERT INTO students(roll_no,name,dob,semester,branch,department,section)
+                            VALUES(?,?,?,?,?,?,?)
+                            ON CONFLICT(roll_no) DO UPDATE SET name=excluded.name, section=excluded.section
+                        ''', (roll, record['name'], 'PENDING', sem_num, branch, branch, section))
+                        
+                        for subj, data in record['subjects'].items():
+                            if data['total'] is not None:
+                                conn.execute('''
+                                    INSERT INTO marks(roll_no,subject,semester,exam_type,score,grade_point)
+                                    VALUES(?,?,?,?,?,?)
+                                    ON CONFLICT(roll_no,subject,semester,exam_type) DO UPDATE SET
+                                        score=excluded.score, grade_point=excluded.grade_point
+                                ''', (roll, subj, semester, db_exam_type, data['total'], data['gp']))
+                                marks_count += 1
+                                
+                        if exam_type == 'Final Examinations':
+                            conn.execute('''
+                                INSERT INTO sgpa_records(roll_no,semester,sgpa,failed)
+                                VALUES(?,?,?,?)
+                                ON CONFLICT(roll_no,semester) DO UPDATE SET
+                                    sgpa=excluded.sgpa, failed=excluded.failed
+                            ''', (roll, semester, record['sgpa'], 1 if record['failed'] else 0))
+                            sgpa_count += 1
+                    conn.commit()
                 conn.close()
-
-            if exam_type == 'Final Examinations':
-                st.success(f"✅ Imported {sgpa_count} students (SGPA), {marks_count} mark entries for {semester}.")
-            else:
-                st.success(f"✅ Imported {marks_count} mark entries ({exam_type}) for {semester}.")
-        except Exception as e:
-            st.error(f"Import error: {e}")
+                
+                if exam_type == 'Final Examinations':
+                    st.success(f"✅ Imported {sgpa_count} students (SGPA), {marks_count} mark entries for {semester}.")
+                else:
+                    st.success(f"✅ Imported {marks_count} mark entries ({exam_type}) for {semester}.")
+            except Exception as e:
+                st.error(f"Import error: {e}")
 
 
 def admin_scraper():

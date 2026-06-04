@@ -140,13 +140,133 @@ def parse_sem1_results_csv(csv_content):
     return results
 
 
+import time
+
+_QUERY_CACHE = {}
+
+def _clear_cache():
+    global _QUERY_CACHE
+    _QUERY_CACHE.clear()
+
+class _CachedCursor:
+    def __init__(self, rows):
+        self._rows = rows
+        self._idx = 0
+
+    def fetchone(self):
+        if self._idx < len(self._rows):
+            r = self._rows[self._idx]
+            self._idx += 1
+            return r
+        return None
+
+    def fetchall(self):
+        res = self._rows[self._idx:]
+        self._idx = len(self._rows)
+        return res
+
+    def __getitem__(self, idx):
+        if not self._rows:
+            return None
+        return self._rows[0][idx]
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        row = self.fetchone()
+        if row is None:
+            raise StopIteration
+        return row
+
+class _SQLiteConn:
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=()):
+        sql_upper = sql.strip().upper()
+        is_read = sql_upper.startswith('SELECT') or sql_upper.startswith('WITH')
+        
+        if not is_read:
+            _clear_cache()
+
+        if is_read:
+            cache_key = (sql, tuple(params) if params else ())
+            now = time.time()
+            if cache_key in _QUERY_CACHE:
+                expiry, cached_rows = _QUERY_CACHE[cache_key]
+                if now < expiry:
+                    return _CachedCursor(cached_rows)
+
+        cur = self._conn.execute(sql, params)
+        
+        if is_read:
+            cache_key = (sql, tuple(params) if params else ())
+            rows = cur.fetchall()
+            _QUERY_CACHE[cache_key] = (time.time() + 300, rows)
+            return _CachedCursor(rows)
+            
+        return cur
+
+    def executemany(self, sql, seq):
+        _clear_cache()
+        return self._conn.executemany(sql, seq)
+
+    def cursor(self):
+        return _SQLiteCursorProxy(self._conn.cursor(), self)
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+class _SQLiteCursorProxy:
+    def __init__(self, cur, sqlite_conn):
+        self._cur = cur
+        self._conn = sqlite_conn
+
+    def execute(self, sql, params=()):
+        sql_upper = sql.strip().upper()
+        is_read = sql_upper.startswith('SELECT') or sql_upper.startswith('WITH')
+        if not is_read:
+            _clear_cache()
+        self._cur.execute(sql, params)
+        return self._cur
+
+    def executemany(self, sql, seq):
+        _clear_cache()
+        self._cur.executemany(sql, seq)
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        row = self.fetchone()
+        if row is None:
+            raise StopIteration
+        return row
+
+
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA journal_mode=WAL')
     conn.execute('PRAGMA foreign_keys=ON')
     conn.execute('PRAGMA busy_timeout=30000')
-    return conn
+    return _SQLiteConn(conn)
 
 
 def get_config_map(conn=None):
