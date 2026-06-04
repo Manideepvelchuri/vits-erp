@@ -709,7 +709,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     can_miss = can_miss_classes(total_a, total_c)
     need = classes_needed(total_a, total_c)
 
-    # SGPA for this sem
+    # SGPA for this sem and average timetable classes
     conn = get_db_connection()
     sgpa_row = conn.execute(
         'SELECT sgpa, failed FROM sgpa_records WHERE roll_no=? AND semester=?',
@@ -720,7 +720,18 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         SELECT subject, score FROM marks
         WHERE roll_no=? AND exam_type LIKE '%Final Examinations'
     ''', (student['roll_no'],)).fetchall()
+
+    sec = student['section']
+    avg_classes = 7.0
+    if sec:
+        days_count = conn.execute('SELECT COUNT(DISTINCT day) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
+        total_periods = conn.execute('SELECT COUNT(*) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
+        if days_count > 0:
+            avg_classes = total_periods / days_count
     conn.close()
+
+    can_miss_days = round(can_miss / avg_classes, 1) if avg_classes > 0 else 0.0
+    need_days = round(need / avg_classes, 1) if avg_classes > 0 else 0.0
 
     if sgpa_row and not sgpa_row['failed'] and sgpa_row['sgpa'] > 0:
         sgpa_text = f"{sgpa_row['sgpa']:.2f}"
@@ -777,33 +788,25 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             st.markdown(f"""<div class="status-banner" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);">
                 <h3 style="color:#10B981 !important;margin:0;">🟢 Safe Zone</h3>
                 <p style="margin:8px 0 0 0;color:#cbd5e1 !important;">Current Attendance: <strong style="color:#fff;">{overall}%</strong>.
-                You can miss <strong style="color:#10B981;">{can_miss}</strong> more classes and stay above 75%.</p>
+                You can miss <strong style="color:#10B981;">{can_miss}</strong> more classes (approx. <strong style="color:#10B981;">{can_miss_days}</strong> days) and stay above 75%.</p>
                 </div>""", unsafe_allow_html=True)
         elif overall >= 65:
             st.markdown(f"""<div class="status-banner" style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);">
                 <h3 style="color:#F59E0B !important;margin:0;">🟠 Risk Zone</h3>
                 <p style="margin:8px 0 0 0;color:#cbd5e1 !important;">Current Attendance: <strong style="color:#fff;">{overall}%</strong>.
-                Attend <strong style="color:#F59E0B;">{need}</strong> consecutive classes to reach 75%.</p>
+                Attend <strong style="color:#F59E0B;">{need}</strong> consecutive classes (approx. <strong style="color:#F59E0B;">{need_days}</strong> days) to reach 75%.</p>
                 </div>""", unsafe_allow_html=True)
         else:
             st.markdown(f"""<div class="status-banner" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);">
                 <h3 style="color:#EF4444 !important;margin:0;">🔴 Debarred Zone</h3>
                 <p style="margin:8px 0 0 0;color:#cbd5e1 !important;">Current Attendance: <strong style="color:#fff;">{overall}%</strong>.
-                You need <strong style="color:#EF4444;">{need}</strong> classes to recover to 75%.</p>
+                You need <strong style="color:#EF4444;">{need}</strong> classes (approx. <strong style="color:#EF4444;">{need_days}</strong> days) to recover to 75%.</p>
                 </div>""", unsafe_allow_html=True)
 
         # Overall attendance skip predictor
         if total_c > 0:
             st.markdown("### 🔮 Overall Attendance Skip Predictor")
-            conn = get_db_connection()
-            sec = student['section']
-            avg_classes = 7.0
-            if sec:
-                days_count = conn.execute('SELECT COUNT(DISTINCT day) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
-                total_periods = conn.execute('SELECT COUNT(*) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
-                if days_count > 0:
-                    avg_classes = total_periods / days_count
-            conn.close()
+            st.caption(f"💡 One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
 
             miss_days = st.slider("If I miss the next ___ days (overall)", 0, 15, 0, key=f"skip_days_home_{sem}")
             miss_classes = int(round(miss_days * avg_classes))
@@ -915,22 +918,38 @@ def show_attendance_page(roll, sem, att_rows):
     total_a = sum((r['hours_attended']  or 0) for r in att_rows)
     overall = round(total_a / total_c * 100, 1) if total_c else 0.0
 
+    conn = get_db_connection()
+    student = conn.execute('SELECT section FROM students WHERE roll_no=?', (roll,)).fetchone()
+    sec = student['section'] if student else 'ECE_B'
+    avg_classes = 7.0
+    if sec:
+        days_count = conn.execute('SELECT COUNT(DISTINCT day) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
+        total_periods = conn.execute('SELECT COUNT(*) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
+        if days_count > 0:
+            avg_classes = total_periods / days_count
+    conn.close()
+
+    can_miss = can_miss_classes(total_a, total_c)
+    need = classes_needed(total_a, total_c)
+    can_miss_days = round(can_miss / avg_classes, 1) if avg_classes > 0 else 0.0
+    need_days = round(need / avg_classes, 1) if avg_classes > 0 else 0.0
+
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Hours Conducted", total_c)
     c2.metric("Hours Attended", total_a)
     c3.metric("Overall %", f"{overall}%")
     if overall >= 75:
-        c4.metric("Can Miss", can_miss_classes(total_a, total_c))
+        c4.metric("Can Miss", f"{can_miss} ({can_miss_days} d)")
     else:
-        c4.metric("Attend Next", classes_needed(total_a, total_c))
+        c4.metric("Attend Next", f"{need} ({need_days} d)")
 
     if total_c > 0:
         if overall >= 75:
-            st.success(f"✅ Good standing — you can miss {can_miss_classes(total_a, total_c)} classes and stay above 75%")
+            st.success(f"✅ Good standing — you can miss {can_miss} classes (approx. {can_miss_days} days) and stay above 75%")
         elif overall >= 65:
-            st.warning(f"⚠️ Condonation required — attend {classes_needed(total_a, total_c)} more classes for 75%")
+            st.warning(f"⚠️ Condonation required — attend {need} more classes (approx. {need_days} days) for 75%")
         else:
-            st.error(f"🚫 Debarred — attend {classes_needed(total_a, total_c)} classes to recover")
+            st.error(f"🚫 Debarred — attend {need} classes (approx. {need_days} days) to recover")
     else:
         st.markdown("""<div style="background:rgba(239,68,68,0.04);border:1px dashed rgba(239,68,68,0.25);
             border-radius:12px;padding:16px;text-align:center;color:#ef4444;font-size:0.95rem;
@@ -950,16 +969,7 @@ def show_attendance_page(roll, sem, att_rows):
     # Overall attendance skip predictor (new feature)
     if total_c > 0:
         st.markdown("### 🔮 Overall Attendance Skip Predictor")
-        conn = get_db_connection()
-        student = conn.execute('SELECT section FROM students WHERE roll_no=?', (roll,)).fetchone()
-        sec = student['section'] if student else 'ECE_B'
-        avg_classes = 7.0
-        if sec:
-            days_count = conn.execute('SELECT COUNT(DISTINCT day) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
-            total_periods = conn.execute('SELECT COUNT(*) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
-            if days_count > 0:
-                avg_classes = total_periods / days_count
-        conn.close()
+        st.caption(f"💡 One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
 
         miss_days = st.slider("If I miss the next ___ days (overall)", 0, 15, 0, key=f"skip_days_att_{sem}")
         miss_classes = int(round(miss_days * avg_classes))
@@ -1604,6 +1614,56 @@ def admin_marks():
         conn.close()
 
 
+def resolve_csv_columns(df):
+    """
+    Returns (roll_col, name_col, subject_cols) dynamically resolved from df.columns.
+    """
+    import re
+    # 1. Resolve roll_col
+    roll_synonyms = {'rollno', 'roll_no', 'rollnumber', 'roll number', 'htno', 'h.tno', 'h.tno.', 'h.t no.', 'hallticket', 'hall ticket', 'rollno.', 'hallno', 'hallno.'}
+    roll_col = None
+    for c in df.columns:
+        norm = str(c).strip().lower().replace(' ', '').replace('_', '').replace('.', '')
+        if norm in roll_synonyms:
+            roll_col = c
+            break
+            
+    if not roll_col:
+        # Check values to find a column with roll-like strings (e.g., 24891A0465)
+        roll_pattern = re.compile(r'^\d{2}891A\w{4}$', re.IGNORECASE)
+        for c in df.columns:
+            # Check first 5 non-null values
+            sample = df[c].dropna().head(5).astype(str).str.strip().tolist()
+            if sample and any(roll_pattern.match(val) for val in sample):
+                roll_col = c
+                break
+                
+    # 2. Resolve name_col
+    name_synonyms = {'name', 'studentname', 'student name', 'fullname', 'full name', 'student_name'}
+    name_col = None
+    for c in df.columns:
+        norm = str(c).strip().lower().replace(' ', '').replace('_', '').replace('.', '')
+        if norm in name_synonyms:
+            name_col = c
+            break
+            
+    # 3. Resolve subject columns
+    ignored_cols = {
+        'sno', 's.no', 's.no.', 'total', 'percentage', 'percentage(%)', 'pct', 
+        'sgpa', 'gpa', 'failed', 'result', 'status', 'section', 'class', 'sno.'
+    }
+    subject_cols = []
+    for c in df.columns:
+        if c == roll_col or c == name_col:
+            continue
+        norm = str(c).strip().lower().replace(' ', '').replace('_', '').replace('.', '').replace('(', '').replace(')', '').replace('%', '')
+        if norm in ignored_cols:
+            continue
+        subject_cols.append(c)
+        
+    return roll_col, name_col, subject_cols
+
+
 def admin_csv_upload():
     st.markdown("# 📤 CSV & Results Upload Center")
     
@@ -1632,10 +1692,14 @@ def admin_csv_upload():
         if uploaded:
             df = pd.read_csv(uploaded)
             df.columns = [c.strip() for c in df.columns]
-            roll_col = next((c for c in df.columns if c.lower().replace(' ', '').replace('_', '') == 'rollno'), None)
+            roll_col, name_col, subject_cols = resolve_csv_columns(df)
+            
             if not roll_col:
-                st.error("CSV must have a 'roll_no' column.")
+                st.error("⚠️ Could not dynamically identify a Roll Number/Hall Ticket column in this CSV. Please ensure a column contains roll numbers like '24891A0465'.")
+            elif not subject_cols:
+                st.error("⚠️ No subject columns detected. Ensure columns representing subjects are present (not snooze, totals, or percentages).")
             else:
+                st.info(f"✅ Dynamically detected columns: Roll Number = **`{roll_col}`**, Name = **`{name_col or 'None'}`**, Subjects = {subject_cols}")
                 st_premium_table(df.head())
                 
                 if st.button("📤 Import Marks Now", use_container_width=True, key="btn_import_marks"):
@@ -1657,17 +1721,18 @@ def admin_csv_upload():
                                 # Verify if student exists
                                 row_st = conn.execute('SELECT name FROM students WHERE roll_no=?', (roll,)).fetchone()
                                 branch = decode_roll_branch(roll) or 'ECE'
+                                student_name = str(row.get(name_col, f"Student {roll}")).strip() if name_col else f"Student {roll}"
                                 if not row_st:
                                     conn.execute('''
                                         INSERT INTO students(roll_no, name, dob, semester, branch, department, section)
                                         VALUES(?, ?, 'PENDING', ?, ?, ?, ?)
-                                    ''', (roll, f"Student {roll}", sem_num, branch, branch, section))
+                                    ''', (roll, student_name, sem_num, branch, branch, section))
                                 else:
                                     conn.execute('UPDATE students SET section=? WHERE roll_no=?', (section, roll))
+                                    if name_col and student_name:
+                                        conn.execute('UPDATE students SET name=? WHERE roll_no=?', (student_name, roll))
                             
-                            for col in df.columns:
-                                if col == roll_col:
-                                    continue
+                            for col in subject_cols:
                                 val = pd.to_numeric(row[col], errors='coerce')
                                 if pd.isna(val):
                                     continue
