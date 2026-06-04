@@ -207,11 +207,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize DB on first run
-if 'db_initialized' not in st.session_state:
+# Initialize DB once per app lifetime (cached globally)
+@st.cache_resource
+def startup_db_init():
     init_db()
     ensure_admin_pwd()
-    st.session_state.db_initialized = True
+
+startup_db_init()
 
 defaults = {
     'logged_in': False, 'role': None, 'user_id': None,
