@@ -932,6 +932,13 @@ import os
 import streamlit as st
 
 def _should_use_pg():
+    import sys
+    if os.environ.get("SANDBOX_ACTIVE") == "true":
+        return False
+    # If any command-line argument contains sandbox, disable PG overrides to run locally
+    for arg in sys.argv:
+        if "sandbox" in str(arg).lower():
+            return False
     try:
         url = st.secrets.get("database", {}).get("url", "")
         if url:

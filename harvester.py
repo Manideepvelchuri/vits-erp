@@ -369,48 +369,93 @@ def fill_attendance_history_gaps(conn, section, fdt, tdt):
                         insert_data.append((d_str, roll, sub, att, cond, pct))
                 continue
                 
-            # Linear interpolation for gaps
+            # Discrete step-wise interpolation for gaps
             sorted_dates = sorted(existing_map.keys())
             
-            for idx, d_str in enumerate(all_dates_str):
-                if d_str in existing_map:
+            if len(sorted_dates) == 1:
+                att, cond = existing_map[sorted_dates[0]]
+                pct = round(att / cond * 100, 2) if cond > 0 else 0.0
+                for d_str in all_dates_str:
+                    if d_str not in existing_map:
+                        insert_data.append((d_str, roll, sub, att, cond, pct))
+                continue
+                
+            # For each consecutive pair of dates, fill the gap discretely
+            for idx in range(len(sorted_dates) - 1):
+                prev_date_str = sorted_dates[idx]
+                next_date_str = sorted_dates[idx+1]
+                
+                p_date = datetime.strptime(prev_date_str, '%Y-%m-%d').date()
+                n_date = datetime.strptime(next_date_str, '%Y-%m-%d').date()
+                
+                delta_days = (n_date - p_date).days
+                if delta_days <= 1:
                     continue
                     
-                # Find preceding and succeeding dates
-                prev_date_str = None
-                next_date_str = None
-                for sd in sorted_dates:
-                    if sd < d_str:
-                        prev_date_str = sd
-                    elif sd > d_str and next_date_str is None:
-                        next_date_str = sd
+                gap_dates = [p_date + timedelta(days=i) for i in range(1, delta_days)]
+                
+                att_p, cond_p = existing_map[prev_date_str]
+                att_n, cond_n = existing_map[next_date_str]
+                
+                diff_cond = cond_n - cond_p
+                diff_att = att_n - att_p
+                diff_bunks = max(0, diff_cond - diff_att)
+                
+                # Weekdays in this gap
+                gap_weekdays_indices = [i for i, d in enumerate(gap_dates) if d.weekday() < 5]
+                if not gap_weekdays_indices:
+                    gap_weekdays_indices = list(range(len(gap_dates)))
+                    
+                conducted_distribution = [0] * len(gap_dates)
+                if gap_weekdays_indices and diff_cond > 0:
+                    import random
+                    random.seed(hash(roll + sub + prev_date_str))
+                    for _ in range(diff_cond):
+                        idx_choice = random.choice(gap_weekdays_indices)
+                        conducted_distribution[idx_choice] += 1
                         
-                # Interpolate or extrapolate
-                if prev_date_str is None:
-                    # Extrapolate backward (copy from first available)
-                    att, cond = existing_map[sorted_dates[0]]
-                elif next_date_str is None:
-                    # Extrapolate forward (copy from last available)
-                    att, cond = existing_map[sorted_dates[-1]]
-                else:
-                    # Linear interpolation
-                    att_p, cond_p = existing_map[prev_date_str]
-                    att_n, cond_n = existing_map[next_date_str]
+                bunk_distribution = [0] * len(gap_dates)
+                conducted_events = []
+                for i, count in enumerate(conducted_distribution):
+                    for _ in range(count):
+                        conducted_events.append(i)
+                        
+                if conducted_events and diff_bunks > 0:
+                    import random
+                    random.seed(hash(roll + sub + next_date_str))
+                    bunk_indices = random.sample(conducted_events, min(diff_bunks, len(conducted_events)))
+                    for idx_choice in bunk_indices:
+                        bunk_distribution[idx_choice] += 1
+                        
+                current_cond = cond_p
+                current_att = att_p
+                for i, d in enumerate(gap_dates):
+                    d_str = d.strftime('%Y-%m-%d')
+                    current_cond += conducted_distribution[i]
+                    current_att += conducted_distribution[i] - bunk_distribution[i]
+                    pct = round(current_att / current_cond * 100, 2) if current_cond > 0 else 0.0
+                    insert_data.append((d_str, roll, sub, current_att, current_cond, pct))
                     
-                    p_date = datetime.strptime(prev_date_str, '%Y-%m-%d').date()
-                    n_date = datetime.strptime(next_date_str, '%Y-%m-%d').date()
-                    curr_date = datetime.strptime(d_str, '%Y-%m-%d').date()
+            # Extrapolate outside sorted_dates range if all_dates_str starts earlier or ends later
+            first_date_str = sorted_dates[0]
+            last_date_str = sorted_dates[-1]
+            att_f, cond_f = existing_map[first_date_str]
+            pct_f = round(att_f / cond_f * 100, 2) if cond_f > 0 else 0.0
+            
+            att_l, cond_l = existing_map[last_date_str]
+            pct_l = round(att_l / cond_l * 100, 2) if cond_l > 0 else 0.0
+            
+            for d_str in all_dates_str:
+                if d_str in existing_map:
+                    continue
+                # Check if it was filled by the gap loop
+                if any(x[0] == d_str and x[1] == roll and x[2] == sub for x in insert_data):
+                    continue
                     
-                    total_days = (n_date - p_date).days
-                    curr_days = (curr_date - p_date).days
-                    
-                    fraction = curr_days / total_days if total_days > 0 else 0.0
-                    
-                    cond = int(cond_p + fraction * (cond_n - cond_p))
-                    att = int(att_p + fraction * (att_n - att_p))
-                    
-                pct = round(att / cond * 100, 2) if cond > 0 else 0.0
-                insert_data.append((d_str, roll, sub, att, cond, pct))
+                if d_str < first_date_str:
+                    insert_data.append((d_str, roll, sub, att_f, cond_f, pct_f))
+                elif d_str > last_date_str:
+                    insert_data.append((d_str, roll, sub, att_l, cond_l, pct_l))
                 
     if insert_data:
         cursor.executemany('''

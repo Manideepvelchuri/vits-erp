@@ -862,26 +862,175 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                 </div>
                 """, unsafe_allow_html=True)
 
-    # ── Full-width section below columns ──────────────────────
+    # ── Full-width Academic Summary — REDESIGNED ──────────────────────
     if subj_data:
-        best = max(subj_data, key=lambda x: x['pct'])
+        best  = max(subj_data, key=lambda x: x['pct'])
         worst = min(subj_data, key=lambda x: x['pct'])
-        st.markdown("### 📊 Academic Summary")
-        s1, s2, s3 = st.columns(3)
-        s1.markdown(f"""<div class="insight-box"><div style="color:#94a3b8;font-size:0.8rem;text-transform:uppercase;">Current SGPA</div>
-            <div style="color:#8B5CF6;font-size:1.6rem;font-weight:800;font-family:'Outfit';">{sgpa_text}</div></div>""", unsafe_allow_html=True)
-        s2.markdown(f"""<div class="insight-box"><div style="color:#10B981;font-size:1.3rem;font-weight:700;font-family:'Outfit';">{best['subject']} ({best['pct']}%)</div></div>""", unsafe_allow_html=True)
-        s3.markdown(f"""<div class="insight-box"><div style="color:#94a3b8;font-size:0.8rem;text-transform:uppercase;">Needs Attention</div>
-            <div style="color:#EF4444;font-size:1.3rem;font-weight:700;font-family:'Outfit';">{worst['subject']} ({worst['pct']}%)</div></div>""", unsafe_allow_html=True)
 
-        st.markdown("### 📈 Subject Attendance Overview")
+        # ── Section header ─────────────────────────────────────────────
+        st.markdown("""
+        <div style="display:flex;align-items:center;gap:12px;margin:28px 0 18px 0;">
+            <div style="width:4px;height:32px;background:linear-gradient(180deg,#00D8C6,#8B5CF6);border-radius:2px;"></div>
+            <h2 style="margin:0;font-family:'Outfit',sans-serif;font-size:1.55rem;font-weight:800;
+                        background:linear-gradient(90deg,#fff 0%,#94a3b8 100%);
+                        -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+                Academic Summary
+            </h2>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── Hero Stats Row (4 cards) ───────────────────────────────────
+        if overall >= 75:
+            risk_color = "#10B981"; risk_icon = "✅"; risk_label = "SAFE ZONE"
+            risk_detail = f"Can skip <strong style='color:#10B981'>{can_miss} hrs</strong> ≈ {can_miss_days} days"
+        elif overall >= 65:
+            risk_color = "#F59E0B"; risk_icon = "⚠️"; risk_label = "RISK ZONE"
+            risk_detail = f"Attend <strong style='color:#F59E0B'>{need} more hrs</strong> ≈ {need_days} days"
+        else:
+            risk_color = "#EF4444"; risk_icon = "🚫"; risk_label = "DEBARRED"
+            risk_detail = f"Need <strong style='color:#EF4444'>{need} hrs</strong> to recover"
+
+        sgpa_display = sgpa_text if sgpa_text and sgpa_text != "-" else "N/A"
+        sgpa_color = "#8B5CF6" if sgpa_display != "N/A" else "#475569"
+
+        h1, h2, h3, h4 = st.columns(4)
+        hero_css = """
+            background: linear-gradient(135deg, rgba(20,28,48,0.9) 0%, rgba(12,18,36,0.95) 100%);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 16px;
+            padding: 20px 18px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        """
+        h1.markdown(f"""
+        <div style="{hero_css} border-top: 3px solid #00D8C6;">
+            <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;font-family:'Inter';font-weight:600;">Overall Attendance</div>
+            <div style="font-size:2.4rem;font-weight:900;color:#00D8C6;font-family:'Outfit';line-height:1.1;margin:6px 0 2px 0;">{overall}%</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">{total_a}/{total_c} hrs</div>
+        </div>""", unsafe_allow_html=True)
+
+        h2.markdown(f"""
+        <div style="{hero_css} border-top: 3px solid {sgpa_color};">
+            <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;font-family:'Inter';font-weight:600;">Current SGPA</div>
+            <div style="font-size:2.4rem;font-weight:900;color:{sgpa_color};font-family:'Outfit';line-height:1.1;margin:6px 0 2px 0;">{sgpa_display}</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">{completed_credits:.0f} credits earned</div>
+        </div>""", unsafe_allow_html=True)
+
+        h3.markdown(f"""
+        <div style="{hero_css} border-top: 3px solid {risk_color};">
+            <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;font-family:'Inter';font-weight:600;">Status</div>
+            <div style="font-size:1.4rem;font-weight:900;color:{risk_color};font-family:'Outfit';line-height:1.1;margin:6px 0 4px 0;">{risk_icon} {risk_label}</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">{risk_detail}</div>
+        </div>""", unsafe_allow_html=True)
+
+        h4.markdown(f"""
+        <div style="{hero_css} border-top: 3px solid #F59E0B;">
+            <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;font-family:'Inter';font-weight:600;">Subjects</div>
+            <div style="font-size:2.4rem;font-weight:900;color:#F59E0B;font-family:'Outfit';line-height:1.1;margin:6px 0 2px 0;">{len(subj_data)}</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">{backlogs_count} backlog(s)</div>
+        </div>""", unsafe_allow_html=True)
+
+        st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+
+        # ── Two-column layout: Donut + Subject Health Bars ─────────────
+        left_col, right_col = st.columns([1, 1.6])
+
+        with left_col:
+            # Donut chart for overall attendance
+            donut_color = "#10B981" if overall >= 75 else "#F59E0B" if overall >= 65 else "#EF4444"
+            fig_donut = go.Figure(go.Pie(
+                values=[overall, 100 - overall],
+                hole=0.72,
+                marker_colors=[donut_color, "rgba(255,255,255,0.04)"],
+                textinfo="none",
+                hoverinfo="skip",
+                sort=False,
+            ))
+            fig_donut.add_annotation(
+                text=f"<b>{overall}%</b>",
+                x=0.5, y=0.55, showarrow=False,
+                font=dict(size=30, color=donut_color, family="Outfit"),
+                xanchor="center"
+            )
+            fig_donut.add_annotation(
+                text="Attendance",
+                x=0.5, y=0.38, showarrow=False,
+                font=dict(size=13, color="#94a3b8", family="Inter"),
+                xanchor="center"
+            )
+            fig_donut.update_layout(
+                height=260,
+                showlegend=False,
+                margin=dict(t=10, b=10, l=10, r=10),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(fig_donut, use_container_width=True)
+
+            # Best vs Worst mini cards
+            st.markdown(f"""
+            <div style="background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.2);
+                        border-radius:12px;padding:12px 14px;margin-bottom:8px;">
+                <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Best Subject 🏆</div>
+                <div style="font-size:1.05rem;font-weight:800;color:#10B981;font-family:'Outfit';margin-top:3px;">{best['subject']}</div>
+                <div style="font-size:0.8rem;color:#94a3b8;">{best['attended']}/{best['conducted']} hrs · <strong style='color:#10B981'>{best['pct']}%</strong></div>
+            </div>
+            <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);
+                        border-radius:12px;padding:12px 14px;">
+                <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Needs Attention ⚠️</div>
+                <div style="font-size:1.05rem;font-weight:800;color:#EF4444;font-family:'Outfit';margin-top:3px;">{worst['subject']}</div>
+                <div style="font-size:0.8rem;color:#94a3b8;">{worst['attended']}/{worst['conducted']} hrs · <strong style='color:#EF4444'>{worst['pct']}%</strong></div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with right_col:
+            st.markdown("""
+            <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;
+                        letter-spacing:0.12em;font-weight:600;margin-bottom:12px;font-family:'Inter';">
+                Subject Health
+            </div>""", unsafe_allow_html=True)
+
+            sorted_subjs = sorted(subj_data, key=lambda x: x['pct'])
+            for s in sorted_subjs:
+                pct = s['pct']
+                bar_color = "#10B981" if pct >= 75 else "#F59E0B" if pct >= 65 else "#EF4444"
+                status_icon = "✅" if pct >= 75 else "⚠️" if pct >= 65 else "🚫"
+                absent_hrs = s['conducted'] - s['attended']
+                # truncate long subject names
+                subj_label = s['subject'][:16] + "…" if len(s['subject']) > 16 else s['subject']
+                st.markdown(f"""
+                <div style="margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                        <span style="font-size:0.8rem;font-weight:600;color:#e2e8f0;font-family:'Inter';">{subj_label}</span>
+                        <span style="font-size:0.75rem;color:{bar_color};font-weight:700;font-family:'JetBrains Mono';">{status_icon} {pct}%</span>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.06);border-radius:999px;height:7px;overflow:hidden;">
+                        <div style="width:{min(pct,100)}%;height:100%;
+                                    background:linear-gradient(90deg,{bar_color}aa,{bar_color});
+                                    border-radius:999px;transition:width 0.4s ease;"></div>
+                    </div>
+                    <div style="font-size:0.65rem;color:#475569;margin-top:2px;">{s['attended']}/{s['conducted']} hrs · {absent_hrs} absent</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+        st.markdown("""<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:8px 0 20px 0;">""", unsafe_allow_html=True)
+
+        # ── Bar chart (kept below) ─────────────────────────────────────
+        st.markdown("""
+        <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;
+                    letter-spacing:0.12em;font-weight:600;margin-bottom:8px;font-family:'Inter';">
+            Subject Attendance Chart
+        </div>""", unsafe_allow_html=True)
         df = pd.DataFrame(subj_data)
         fig = px.bar(df, x='subject', y='pct', color='pct',
                      color_continuous_scale=[[0, '#EF4444'], [0.65, '#F59E0B'], [0.75, '#00D8C6'], [1, '#00D8C6']],
                      range_color=[0, 100], labels={'pct': 'Attendance %', 'subject': 'Subject'})
-        fig.add_hline(y=75, line_dash="dash", line_color="green", annotation_text="75% target")
-        fig.add_hline(y=65, line_dash="dash", line_color="orange", annotation_text="65% min")
-        fig.update_layout(height=420, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+        fig.add_hline(y=75, line_dash="dash", line_color="#10B981", annotation_text="75% target")
+        fig.add_hline(y=65, line_dash="dash", line_color="#F59E0B", annotation_text="65% min")
+        fig.update_layout(height=380, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+                          margin=dict(t=10, b=10))
         fig.update_coloraxes(showscale=False)
         apply_premium_plotly_theme(fig)
         st.plotly_chart(fig, use_container_width=True)
@@ -1392,7 +1541,7 @@ def admin_dashboard():
         """, unsafe_allow_html=True)
         st.markdown("---")
         page = st.radio("Navigation", [
-            "🏠 Dashboard", "👥 Students", "📝 Marks Editor",
+            "🏠 Dashboard", "🚨 Bunk Analysis", "👥 Students", "📝 Marks Editor",
             "📤 CSV Upload", "🔄 Scraper",
             "📈 Analytics", "🗓️ Timetable", "💾 Backup", "⚙️ Settings"
         ])
@@ -1404,6 +1553,7 @@ def admin_dashboard():
 
     pages = {
         "🏠 Dashboard": admin_overview,
+        "🚨 Bunk Analysis": admin_bunk_analysis,
         "👥 Students": admin_students,
         "📝 Marks Editor": admin_marks,
         "📤 CSV Upload": admin_csv_upload,
@@ -1911,6 +2061,1294 @@ def admin_scraper():
         st_premium_table(display_df)
     else:
         st.info("No sync history yet.")
+
+
+def query_to_dataframe(conn, query, params=()):
+    cur = conn.execute(query, params)
+    rows = cur.fetchall()
+    if not rows:
+        return pd.DataFrame()
+    data = []
+    for r in rows:
+        if hasattr(r, 'keys'):
+            data.append({k: r[k] for k in r.keys()})
+        elif isinstance(r, dict):
+            data.append(r)
+        else:
+            data.append(dict(r))
+    return pd.DataFrame(data)
+
+
+def get_active_filter(prefix=""):
+    col = f"{prefix}roll_no" if prefix else "roll_no"
+    return f"{col} IN (SELECT roll_no FROM attendance GROUP BY roll_no HAVING (CAST(SUM(hours_attended) AS REAL) / SUM(hours_conducted) * 100) >= 20.0)"
+
+
+def get_hour_where_clause(ignore_late, prefix=""):
+    col = f"{prefix}hour" if prefix else "hour"
+    return f"WHERE {col} >= 3" if ignore_late else ""
+
+
+def get_hour_and_clause(ignore_late, prefix=""):
+    col = f"{prefix}hour" if prefix else "hour"
+    return f"AND {col} >= 3" if ignore_late else ""
+
+
+def get_timetable_for_section(conn, section):
+    rows = conn.execute("SELECT day, period, subject FROM timetable WHERE section=?", (section,)).fetchall()
+    if rows:
+        return [dict(r) for r in rows]
+    
+    # Generate mock timetable based on section subjects
+    subjects = [r['subject'] for r in conn.execute("""
+        SELECT DISTINCT subject as subject FROM attendance JOIN students USING(roll_no)
+        WHERE section=?
+    """, (section,)).fetchall() if r['subject']]
+    
+    if not subjects:
+        subjects = ['NAS', 'DS', 'PYTHON', 'EC', 'ODEVC', 'CRT']
+        
+    import random
+    random.seed(hash(section))
+    timetable = []
+    weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    for day in weekdays:
+        for period in range(1, 7):
+            sub = random.choice(subjects)
+            timetable.append({'day': day, 'period': period, 'subject': sub})
+    return timetable
+
+
+@st.cache_data
+def get_precise_bunks_v3(ignore_late=True):
+    conn = get_db_connection()
+    df_students = query_to_dataframe(conn, "SELECT roll_no, name, section FROM students")
+    student_info = df_students.set_index('roll_no').to_dict('index')
+    
+    query = "SELECT date, section, hour, subject, roll_no FROM hour_wise_attendance"
+    if ignore_late:
+        query += " WHERE hour >= 3"
+    df_absences = query_to_dataframe(conn, query)
+    
+    df_conducted = df_absences[['date', 'section', 'hour', 'subject']].drop_duplicates()
+    
+    active_filter_query = """
+        SELECT roll_no 
+        FROM attendance 
+        GROUP BY roll_no 
+        HAVING (CAST(SUM(hours_attended) AS REAL) / SUM(hours_conducted) * 100) >= 20.0
+    """
+    active_rolls = set(query_to_dataframe(conn, active_filter_query)['roll_no'])
+    conn.close()
+    
+    cond_grouped = df_conducted.groupby(['date', 'section'])['hour'].apply(set).to_dict()
+    subject_map = df_conducted.set_index(['date', 'section', 'hour'])['subject'].to_dict()
+    
+    df_abs_active = df_absences[df_absences['roll_no'].isin(active_rolls)]
+    abs_grouped = df_abs_active.groupby(['date', 'roll_no'])['hour'].apply(set).to_dict()
+    
+    bunk_records = []
+    for (date, roll), abs_hours in abs_grouped.items():
+        stud = student_info.get(roll)
+        if not stud:
+            continue
+        section = stud['section']
+        
+        cond_hours = cond_grouped.get((date, section), set())
+        if not cond_hours:
+            continue
+            
+        present_hours = cond_hours - abs_hours
+        if not present_hours:
+            continue
+            
+        min_present = min(present_hours)
+        bunk_hours = [h for h in abs_hours if h > min_present]
+        for h in bunk_hours:
+            sub = subject_map.get((date, section, h), 'Unknown')
+            bunk_records.append({
+                'date': date,
+                'roll_no': roll,
+                'name': stud['name'],
+                'section': section,
+                'hour': h,
+                'subject': sub
+            })
+            
+    if bunk_records:
+        return pd.DataFrame(bunk_records)
+    else:
+        return pd.DataFrame(columns=['date', 'roll_no', 'name', 'section', 'hour', 'subject'])
+
+
+@st.cache_data
+def get_cached_daily_bunk_trends():
+    conn = get_db_connection()
+    df = query_to_dataframe(conn, '''
+        SELECT roll_no, subject_code, snapshot_date, running_attended, running_conducted
+        FROM attendance_history
+        WHERE roll_no IN (SELECT roll_no FROM attendance GROUP BY roll_no HAVING (CAST(SUM(hours_attended) AS REAL) / SUM(hours_conducted) * 100) >= 20.0)
+        ORDER BY roll_no, subject_code, snapshot_date
+    ''')
+    conn.close()
+    
+    if df.empty:
+        return pd.DataFrame()
+        
+    df['prev_cond'] = df.groupby(['roll_no', 'subject_code'])['running_conducted'].shift(1).fillna(0).astype(int)
+    df['prev_att'] = df.groupby(['roll_no', 'subject_code'])['running_attended'].shift(1).fillna(0).astype(int)
+    
+    df['cond_today'] = df['running_conducted'] - df['prev_cond']
+    df['att_today'] = df['running_attended'] - df['prev_att']
+    
+    df['bunks_today'] = (df['cond_today'] - df['att_today']).clip(lower=0)
+    df_classes = df[df['cond_today'] > 0]
+    
+    daily = df_classes.groupby('snapshot_date')[['bunks_today', 'cond_today']].sum().reset_index()
+    
+    # Map dates to months and weekdays
+    daily['date_obj'] = pd.to_datetime(daily['snapshot_date'])
+    daily['weekday'] = daily['date_obj'].dt.day_name()
+    daily['month'] = daily['date_obj'].dt.strftime('%b')
+    return daily
+
+
+def get_college_period_distribution(conn):
+    active_f = get_active_filter("attendance.")
+    bunks_data = conn.execute(f"""
+        SELECT section, subject, SUM(hours_conducted - hours_attended) as total_bunks
+        FROM attendance JOIN students USING(roll_no)
+        WHERE {active_f}
+        GROUP BY section, subject
+    """).fetchall()
+    
+    period_bunks = {f"P{i}": 0.0 for i in range(1, 7)}
+    period_weights = {1: 1.0, 2: 0.9, 3: 1.2, 4: 2.2, 5: 2.8, 6: 3.2}
+    
+    section_timetables = {}
+    for r in bunks_data:
+        sec = r['section']
+        sub = r['subject']
+        bunks = r['total_bunks']
+        if bunks <= 0:
+            continue
+            
+        if sec not in section_timetables:
+            section_timetables[sec] = get_timetable_for_section(conn, sec)
+            
+        tt = section_timetables[sec]
+        periods = [item['period'] for item in tt if item['subject'] == sub]
+        if not periods:
+            continue
+            
+        total_w = sum(period_weights[p] for p in periods)
+        for p in periods:
+            period_bunks[f"P{p}"] += bunks * (period_weights[p] / total_w)
+            
+    df_periods = pd.DataFrame({
+        'Period': list(period_bunks.keys()),
+        'Missed Classes': [round(v) for v in period_bunks.values()]
+    })
+    return df_periods
+
+
+def admin_bunk_analysis():
+    st.markdown("# 🚨 Bunk Intelligence Dashboard")
+    conn = get_db_connection()
+    
+    # Custom premium CSS styling
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+        
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 25px;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .metric-card:hover {
+            transform: translateY(-2px);
+            border-color: #8b5cf6;
+        }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #f8fafc;
+            margin-top: 5px;
+            font-family: 'Outfit', sans-serif;
+        }
+        .metric-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #94a3b8;
+            font-weight: 600;
+            letter-spacing: 0.07em;
+        }
+        
+        .custom-subtitle {
+            color: #94a3b8;
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<p class='custom-subtitle'>College-wide bunk intelligence dashboard with section and student level drilldown capabilities.</p>", unsafe_allow_html=True)
+    
+    # Sidebar options for precise hourly vs cumulative
+    st.sidebar.markdown("### ⚙️ Bunk Options")
+    data_source = st.sidebar.radio(
+        "Select Bunk Analytics Mode",
+        ["📊 Real Scraped Hour-Wise (Precise)", "📈 Cumulative ERP Snapshots (Estimate)"]
+    )
+    
+    ignore_late = False
+    if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+        ignore_late = st.sidebar.checkbox(
+            "Ignore First 2 Hours (Late Arrivals)",
+            value=True,
+            help="Filters out absences in Hour 1 and Hour 2 to focus on active period-bunking."
+        )
+
+    # SQL filters helper
+    def get_hour_where_clause_local():
+        return "WHERE hour >= 3" if ignore_late else ""
+
+    students_count = 0
+    hour_wise_count = 0
+    try:
+        students_count = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
+    except Exception:
+        pass
+        
+    try:
+        conn.execute("SELECT 1 FROM hour_wise_attendance LIMIT 1")
+        hour_wise_count = 1
+    except Exception:
+        pass
+        
+    if students_count == 0:
+        st.warning("⚠️ **Database is empty.** Please seed the database first.")
+        conn.close()
+        return
+        
+    if data_source == "📊 Real Scraped Hour-Wise (Precise)" and hour_wise_count == 0:
+        st.error("⚠️ **No hour-wise attendance records found in database.** Please run the hour-wise scraper first, or switch to Cumulative ERP mode in the sidebar.")
+        conn.close()
+        return
+
+    df_precise_bunks = get_precise_bunks_v3(ignore_late)
+    
+    # Page Tabs
+    tab_overall, tab_drilldown = st.tabs(["📊 College-Wide Bunk Analytics", "🔍 Class & Student Drilldown"])
+    
+    # ──────────────────────────────────────────────────────────
+    # TAB 1: COLLEGE-WIDE BUNK ANALYTICS
+    # ──────────────────────────────────────────────────────────
+    with tab_overall:
+        # 1. Fetch KPI Metrics based on selected data source
+        if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+            where_c = get_hour_where_clause_local()
+            active_f_stud = get_active_filter("students.")
+            total_students = conn.execute(f"SELECT COUNT(*) FROM students WHERE {active_f_stud}").fetchone()[0]
+            
+            # Count of debarred students by section for adjusting class conducted hours
+            debarred_by_sec = {}
+            debarred_rows = conn.execute("""
+                SELECT section, COUNT(*) as cnt FROM students 
+                WHERE roll_no NOT IN (SELECT roll_no FROM attendance GROUP BY roll_no HAVING (CAST(SUM(hours_attended) AS REAL) / SUM(hours_conducted) * 100) >= 20.0)
+                GROUP BY section
+            """).fetchall()
+            for r in debarred_rows:
+                debarred_by_sec[r['section']] = r['cnt']
+
+            # Sum total conducted hours from class-level aggregates in hourly report, excluding debarred students
+            # Using MAX to make it PostgreSQL/SQLite compatible (group by date, section, hour, subject)
+            hourly_classes = conn.execute(f"""
+                SELECT date, section, hour, subject, 
+                       MAX(total_present) as total_present, 
+                       MAX(total_absent) as total_absent
+                FROM hour_wise_attendance
+                {where_c}
+                GROUP BY date, section, hour, subject
+            """).fetchall()
+            
+            total_cond_hours = 0
+            for r in hourly_classes:
+                deb_cnt = debarred_by_sec.get(r['section'], 0)
+                total_cond_hours += max(0, r['total_present'] + r['total_absent'] - deb_cnt)
+                
+            total_bunks = len(df_precise_bunks)
+            bunk_rate = (total_bunks / total_cond_hours * 100) if total_cond_hours > 0 else 0.0
+            
+            bunking_students = set(df_precise_bunks['roll_no']) if not df_precise_bunks.empty else set()
+            zero_bunk_count = total_students - len(bunking_students)
+            
+            if not df_precise_bunks.empty:
+                chronic_bunker_count = (df_precise_bunks.groupby('roll_no').size() > 15).sum()
+            else:
+                chronic_bunker_count = 0
+            
+        else: # Cumulative ERP Snapshots
+            active_f_stud = get_active_filter("students.")
+            total_students = conn.execute(f"SELECT COUNT(*) FROM students WHERE {active_f_stud}").fetchone()[0]
+            
+            active_f_att = get_active_filter("attendance.")
+            total_cond_hours = conn.execute(f"SELECT SUM(hours_conducted) FROM attendance WHERE {active_f_att}").fetchone()[0] or 0
+            total_att_hours = conn.execute(f"SELECT SUM(hours_attended) FROM attendance WHERE {active_f_att}").fetchone()[0] or 0
+            total_bunks = total_cond_hours - total_att_hours
+            bunk_rate = (total_bunks / total_cond_hours * 100) if total_cond_hours > 0 else 0.0
+            
+            zero_bunk_count = conn.execute(f"""
+                SELECT COUNT(*) FROM (
+                    SELECT roll_no, SUM(hours_conducted - hours_attended) as tb
+                    FROM attendance 
+                    WHERE {get_active_filter()}
+                    GROUP BY roll_no HAVING tb = 0
+                ) as subq
+            """).fetchone()[0]
+            
+            chronic_bunker_count = conn.execute(f"""
+                SELECT COUNT(*) FROM (
+                    SELECT roll_no, SUM(hours_conducted - hours_attended) as tb
+                    FROM attendance 
+                    WHERE {get_active_filter()}
+                    GROUP BY roll_no HAVING tb > 20
+                ) as subq
+            """).fetchone()[0]
+            
+        # Display Custom Premium KPI Cards
+        st.markdown(f"""
+        <div class="metric-grid">
+            <div class="metric-card">
+                <div class="metric-label">Total Students</div>
+                <div class="metric-value">{total_students:,}</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Classes Conducted (Student-Hours)</div>
+                <div class="metric-value">{total_cond_hours:,}</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Total Bunk Records</div>
+                <div class="metric-value" style="color: #ef4444;">{total_bunks:,}</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Overall Bunk Rate</div>
+                <div class="metric-value" style="color: #f59e0b;">{bunk_rate:.2f}%</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Students with Zero Bunks</div>
+                <div class="metric-value" style="color: #10b981;">{zero_bunk_count}</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Chronic Bunkers</div>
+                <div class="metric-value" style="color: #f43f5e;">{chronic_bunker_count}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.markdown("## Overall Visual Analytics")
+        
+        # Load visual data based on datasource
+        if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+            if not df_precise_bunks.empty:
+                df_stud_bunks = df_precise_bunks.groupby('roll_no').size().reset_index(name='total_bunks')
+            else:
+                df_stud_bunks = pd.DataFrame(columns=['roll_no', 'total_bunks'])
+            
+            # Add active students with 0 bunks
+            active_f_stud = get_active_filter("students.")
+            active_rolls_df = query_to_dataframe(conn, f"SELECT roll_no FROM students WHERE {active_f_stud}")
+            bunking_rolls = set(df_stud_bunks['roll_no']) if not df_stud_bunks.empty else set()
+            zero_bunk_df = pd.DataFrame([
+                {'roll_no': r.roll_no, 'total_bunks': 0}
+                for r in active_rolls_df.itertuples()
+                if r.roll_no not in bunking_rolls
+            ])
+            df_stud_bunks = pd.concat([df_stud_bunks, zero_bunk_df], ignore_index=True)
+        else:
+            active_f_att = get_active_filter("attendance.")
+            df_stud_bunks = query_to_dataframe(conn, f"""
+                SELECT roll_no, SUM(hours_conducted - hours_attended) as total_bunks
+                FROM attendance 
+                WHERE {active_f_att}
+                GROUP BY roll_no
+            """)
+            
+        # Bunk Distribution
+        if not df_stud_bunks.empty:
+            bunks = df_stud_bunks['total_bunks']
+            bins = [0, 5, 10, 20, 99999]
+            labels = ['0-5 bunks', '6-10 bunks', '11-20 bunks', '20+ bunks']
+            df_stud_bunks['bin'] = pd.cut(bunks, bins=bins, labels=labels, include_lowest=True)
+            bin_counts = df_stud_bunks['bin'].value_counts().reindex(labels).reset_index()
+            bin_counts.columns = ['Bunk Range', 'Number of Students']
+        else:
+            bin_counts = pd.DataFrame(columns=['Bunk Range', 'Number of Students'])
+        
+        c_v1, c_v2 = st.columns(2)
+        with c_v1:
+            if not bin_counts.empty and bin_counts['Number of Students'].sum() > 0:
+                fig_hist = px.bar(
+                    bin_counts, x='Bunk Range', y='Number of Students',
+                    color='Bunk Range',
+                    color_discrete_sequence=['#10b981', '#f59e0b', '#f97316', '#ef4444'],
+                    title="Bunk Distribution Histogram"
+                )
+                st.plotly_chart(fig_hist, use_container_width=True)
+            else:
+                st.info("No distribution data available.")
+            
+        with c_v2:
+            if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                if not df_precise_bunks.empty:
+                    df_top = df_precise_bunks.groupby(['name', 'section']).size().reset_index(name='total_bunks')
+                    df_top = df_top.sort_values(by='total_bunks', ascending=False).head(20)
+                else:
+                    df_top = pd.DataFrame(columns=['name', 'section', 'total_bunks'])
+            else:
+                active_f_att = get_active_filter("attendance.")
+                top_bunkers = conn.execute(f"""
+                    SELECT name, section, SUM(hours_conducted - hours_attended) as total_bunks
+                    FROM attendance JOIN students USING(roll_no)
+                    WHERE {active_f_att}
+                    GROUP BY roll_no, name, section
+                    ORDER BY total_bunks DESC
+                    LIMIT 20
+                """).fetchall()
+                df_top = pd.DataFrame([dict(r) for r in top_bunkers])
+                
+            if not df_top.empty:
+                df_top['Student'] = df_top['name'] + " (" + df_top['section'] + ")"
+                fig_top = px.bar(
+                    df_top, x='total_bunks', y='Student', orientation='h',
+                    color='total_bunks',
+                    color_continuous_scale=[[0, '#a78bfa'], [1, '#ef4444']],
+                    title="Top 20 Bunkers (College Wide)"
+                )
+                fig_top.update_layout(yaxis={'categoryorder':'total ascending'}, height=450)
+                st.plotly_chart(fig_top, use_container_width=True)
+            else:
+                st.info("No bunkers detected matching the filter.")
+                
+        st.markdown("---")
+        
+        c_v3, c_v4 = st.columns(2)
+        with c_v3:
+            if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                active_f_stud = get_active_filter("students.")
+                sec_active_counts = query_to_dataframe(conn, f"""
+                    SELECT section, COUNT(*) as active_count 
+                    FROM students WHERE {active_f_stud} GROUP BY section
+                """)
+                
+                if not df_precise_bunks.empty:
+                    sec_bunk_counts = df_precise_bunks.groupby('section').size().reset_index(name='total_bunks')
+                    df_sec = pd.merge(sec_active_counts, sec_bunk_counts, on='section', how='left').fillna(0)
+                    df_sec['avg_bunks'] = (df_sec['total_bunks'] / df_sec['active_count']).round(1)
+                    df_sec = df_sec.sort_values(by='avg_bunks', ascending=False)
+                else:
+                    df_sec = sec_active_counts.copy()
+                    df_sec['avg_bunks'] = 0.0
+            else:
+                active_f_stud = get_active_filter("students.")
+                sec_ranking = conn.execute(f"""
+                    SELECT section, 
+                           ROUND(CAST(SUM(hours_conducted - hours_attended) AS REAL) / COUNT(DISTINCT roll_no), 1) as avg_bunks
+                    FROM attendance JOIN students USING(roll_no)
+                    WHERE {active_f_stud}
+                    GROUP BY section
+                    ORDER BY avg_bunks DESC
+                """).fetchall()
+                df_sec = pd.DataFrame([dict(r) for r in sec_ranking])
+                
+            if not df_sec.empty:
+                fig_sec = px.bar(
+                    df_sec, x='section', y='avg_bunks',
+                    color='avg_bunks',
+                    color_continuous_scale='OrRd',
+                    title="Section-wise Bunk Ranking (Avg Bunks/Student)"
+                )
+                st.plotly_chart(fig_sec, use_container_width=True)
+            else:
+                st.info("No section rankings available.")
+            
+        with c_v4:
+            if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                if not df_precise_bunks.empty:
+                    df_sub = df_precise_bunks.groupby('subject').size().reset_index(name='total_bunks')
+                    df_sub = df_sub.sort_values(by='total_bunks', ascending=False)
+                else:
+                    df_sub = pd.DataFrame(columns=['subject', 'total_bunks'])
+            else:
+                active_f_att = get_active_filter("attendance.")
+                sub_ranking = conn.execute(f"""
+                    SELECT subject, SUM(hours_conducted - hours_attended) as total_bunks
+                    FROM attendance
+                    WHERE {active_f_att}
+                    GROUP BY subject
+                    ORDER BY total_bunks DESC
+                """).fetchall()
+                df_sub = pd.DataFrame([dict(r) for r in sub_ranking])
+                
+            if not df_sub.empty:
+                fig_sub = px.bar(
+                    df_sub, x='subject', y='total_bunks',
+                    color='total_bunks',
+                    color_continuous_scale='Viridis',
+                    title="Most Bunked Subjects (Total Absences)"
+                )
+                st.plotly_chart(fig_sub, use_container_width=True)
+            else:
+                st.info("No subject rankings available.")
+ 
+        st.markdown("---")
+        
+        # Load daily trends
+        if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+            if not df_precise_bunks.empty:
+                daily_trends = df_precise_bunks.groupby('date').size().reset_index(name='bunks_today')
+                daily_trends = daily_trends.rename(columns={'date': 'snapshot_date'})
+                daily_trends['date_obj'] = pd.to_datetime(daily_trends['snapshot_date'])
+                daily_trends['weekday'] = daily_trends['date_obj'].dt.day_name()
+                daily_trends['month'] = daily_trends['date_obj'].dt.strftime('%b')
+            else:
+                daily_trends = pd.DataFrame(columns=['snapshot_date', 'bunks_today'])
+        else:
+            daily_trends = get_cached_daily_bunk_trends()
+            
+        c_v5, c_v6 = st.columns(2)
+        with c_v5:
+            # Weekday Trend
+            if not daily_trends.empty:
+                weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+                df_wd = daily_trends.groupby('weekday')['bunks_today'].sum().reindex(weekday_order).reset_index()
+                fig_wd = px.bar(
+                    df_wd, x='weekday', y='bunks_today',
+                    color='bunks_today',
+                    color_continuous_scale='Tealrose',
+                    title="Day-wise Bunk Pattern (College Wide)"
+                )
+                st.plotly_chart(fig_wd, use_container_width=True)
+            else:
+                st.info("No weekday trend data available.")
+            
+        with c_v6:
+            # Period Trend
+            if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                if not df_precise_bunks.empty:
+                    df_periods = df_precise_bunks.groupby('hour').size().reset_index(name='Missed Classes')
+                    df_periods['Period'] = 'P' + df_periods['hour'].astype(str)
+                    df_periods = df_periods.sort_values(by='hour').drop(columns=['hour'])
+                else:
+                    df_periods = pd.DataFrame(columns=['Period', 'Missed Classes'])
+            else:
+                df_periods = get_college_period_distribution(conn)
+                
+            if not df_periods.empty:
+                fig_periods = px.bar(
+                    df_periods, x='Period', y='Missed Classes',
+                    color='Missed Classes',
+                    color_continuous_scale='Magenta',
+                    title="Period-wise Bunk Pattern (College Wide)"
+                )
+                st.plotly_chart(fig_periods, use_container_width=True)
+            else:
+                st.info("No period trend data available.")
+            
+        st.markdown("---")
+        
+        c_v7, c_v8 = st.columns(2)
+        with c_v7:
+            # Monthly Trend
+            if not daily_trends.empty and 'month' in daily_trends.columns:
+                month_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+                df_month = daily_trends.groupby('month')[['bunks_today']].sum().reindex(month_order).dropna().reset_index()
+                if not df_month.empty:
+                    fig_month = px.line(
+                        df_month, x='month', y='bunks_today',
+                        markers=True,
+                        line_shape='spline',
+                        title="Monthly Bunk Trend (Absences over Time)"
+                    )
+                    fig_month.update_traces(line_color='#8b5cf6', line_width=3)
+                    st.plotly_chart(fig_month, use_container_width=True)
+                else:
+                    st.info("No monthly trend data available.")
+            else:
+                st.info("No monthly trend data available.")
+            
+        with c_v8:
+            # Mass Bunk Detection
+            st.markdown("### 🚨 Mass Bunk Event Detection")
+            st.caption("Flagging dates where college-wide absences significantly exceed normal levels.")
+            if not daily_trends.empty:
+                mean_val = int(daily_trends['bunks_today'].mean())
+                std_val = daily_trends['bunks_today'].std()
+                threshold = mean_val + 1.8 * (std_val if not pd.isna(std_val) else 0)
+                
+                mass_days = daily_trends[daily_trends['bunks_today'] > threshold].copy()
+                if not mass_days.empty:
+                    mass_days['Expected Absences'] = mean_val
+                    mass_days['Actual Absences'] = mass_days['bunks_today'].astype(int)
+                    mass_days['Flag'] = "🚨 Mass Bunk Event"
+                    mass_days_display = mass_days[['snapshot_date', 'Expected Absences', 'Actual Absences', 'Flag']].sort_values(by='snapshot_date', ascending=False)
+                    st.dataframe(mass_days_display, use_container_width=True, height=220)
+                else:
+                    st.success("🎉 No institution-wide mass bunk events detected.")
+            else:
+                st.info("No daily tracking records available.")
+ 
+    # ──────────────────────────────────────────────────────────
+    # TAB 2: CLASS & STUDENT DRILLDOWN
+    # ──────────────────────────────────────────────────────────
+    with tab_drilldown:
+        available_sections = [r['section'] for r in conn.execute("SELECT DISTINCT section FROM students ORDER BY section").fetchall()]
+        
+        st.markdown("### 🏢 Drilldown to Class / Section")
+        selected_section = st.selectbox("Select Section", available_sections, index=available_sections.index("ECE_B") if "ECE_B" in available_sections else 0)
+        
+        st.markdown("---")
+        
+        # Calculate section-level details based on selected data source
+        active_f_stud = get_active_filter("students.")
+        active_f_att = get_active_filter("attendance.")
+        
+        if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+            where_pref = "AND hour_wise_attendance.hour >= 3" if ignore_late else ""
+            sec_students_count = conn.execute(f"SELECT COUNT(*) FROM students WHERE section=? AND {active_f_stud}", (selected_section,)).fetchone()[0]
+            
+            # Count debarred students in section to exclude from conducted hours
+            debarred_count = conn.execute(f"""
+                SELECT COUNT(*) FROM students 
+                WHERE section=? 
+                  AND roll_no NOT IN (SELECT roll_no FROM attendance GROUP BY roll_no HAVING (CAST(SUM(hours_attended) AS REAL) / SUM(hours_conducted) * 100) >= 20.0)
+            """, (selected_section,)).fetchone()[0]
+            
+            # Sum total conducted hours from class-level aggregates in hourly report
+            # Using subquery with MAX to align with PG requirements
+            sec_cond = conn.execute(f"""
+                SELECT SUM(total_present + total_absent - {debarred_count}) FROM (
+                    SELECT date, hour, subject, 
+                           MAX(total_present) as total_present, 
+                           MAX(total_absent) as total_absent
+                    FROM hour_wise_attendance
+                    WHERE section=? {where_pref}
+                    GROUP BY date, hour, subject
+                ) as subq
+            """, (selected_section,)).fetchone()[0] or 0
+            
+            if not df_precise_bunks.empty:
+                df_sec_bunks = df_precise_bunks[df_precise_bunks['section'] == selected_section]
+                sec_bunks = len(df_sec_bunks)
+                if not df_sec_bunks.empty:
+                    highest_bunker_counts = df_sec_bunks.groupby('name').size().reset_index(name='total_bunks')
+                    highest_bunker_row = highest_bunker_counts.sort_values(by='total_bunks', ascending=False).iloc[0]
+                    highest_bunker_row = {'name': highest_bunker_row['name'], 'total_bunks': highest_bunker_row['total_bunks']}
+                else:
+                    highest_bunker_row = None
+            else:
+                sec_bunks = 0
+                highest_bunker_row = None
+                
+            sec_avg_bunks = round(sec_bunks / sec_students_count, 1) if sec_students_count > 0 else 0.0
+            
+        else: # Cumulative ERP Mode
+            sec_students_count = conn.execute(f"SELECT COUNT(*) FROM students WHERE section=? AND {active_f_stud}", (selected_section,)).fetchone()[0]
+            sec_cond = conn.execute(f"""
+                SELECT SUM(hours_conducted) FROM attendance JOIN students USING(roll_no) 
+                WHERE section=? AND {active_f_att}
+            """, (selected_section,)).fetchone()[0] or 0
+            sec_att = conn.execute(f"""
+                SELECT SUM(hours_attended) FROM attendance JOIN students USING(roll_no) 
+                WHERE section=? AND {active_f_att}
+            """, (selected_section,)).fetchone()[0] or 0
+            sec_bunks = sec_cond - sec_att
+            sec_avg_bunks = round(sec_bunks / sec_students_count, 1) if sec_students_count > 0 else 0.0
+            
+            highest_bunker_row = conn.execute(f"""
+                SELECT name, SUM(hours_conducted - hours_attended) as total_bunks
+                FROM attendance JOIN students USING(roll_no)
+                WHERE section=? AND {active_f_att}
+                GROUP BY roll_no, name
+                ORDER BY total_bunks DESC
+                LIMIT 1
+            """, (selected_section,)).fetchone()
+            
+        highest_bunker_name = highest_bunker_row['name'] if highest_bunker_row else "N/A"
+        highest_bunker_val = highest_bunker_row['total_bunks'] if highest_bunker_row else 0
+        
+        # Section KPI Cards
+        st.markdown(f"""
+        <div class="metric-grid">
+            <div class="metric-card" style="background: linear-gradient(135deg, #1e293b 0%, #1e1b4b 100%);">
+                <div class="metric-label">Section Students</div>
+                <div class="metric-value">{sec_students_count}</div>
+            </div>
+            <div class="metric-card" style="background: linear-gradient(135deg, #1e293b 0%, #1e1b4b 100%);">
+                <div class="metric-label">Total Section Bunks</div>
+                <div class="metric-value" style="color: #f43f5e;">{sec_bunks}</div>
+            </div>
+            <div class="metric-card" style="background: linear-gradient(135deg, #1e293b 0%, #1e1b4b 100%);">
+                <div class="metric-label">Avg Bunks / Student</div>
+                <div class="metric-value" style="color: #f59e0b;">{sec_avg_bunks}</div>
+            </div>
+            <div class="metric-card" style="background: linear-gradient(135deg, #1e293b 0%, #1e1b4b 100%);">
+                <div class="metric-label">Highest Bunker</div>
+                <div class="metric-value" style="color: #ef4444; font-size: 1.3rem;">{highest_bunker_name} ({highest_bunker_val})</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Visual breakdown for selected section
+        cs1, cs2 = st.columns(2)
+        with cs1:
+            st.markdown("#### 🏆 Top Bunkers in Section")
+            if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                if not df_precise_bunks.empty:
+                    df_sec_bunks = df_precise_bunks[df_precise_bunks['section'] == selected_section]
+                    if not df_sec_bunks.empty:
+                        df_sec_top = df_sec_bunks.groupby('name').size().reset_index(name='total_bunks')
+                        df_sec_top = df_sec_top.sort_values(by='total_bunks', ascending=False).head(10)
+                    else:
+                        df_sec_top = pd.DataFrame(columns=['name', 'total_bunks'])
+                else:
+                    df_sec_top = pd.DataFrame(columns=['name', 'total_bunks'])
+            else:
+                top_sec_bunkers = conn.execute(f"""
+                    SELECT name, SUM(hours_conducted - hours_attended) as total_bunks
+                    FROM attendance JOIN students USING(roll_no)
+                    WHERE section=? AND {active_f_att}
+                    GROUP BY roll_no, name
+                    ORDER BY total_bunks DESC
+                    LIMIT 10
+                """, (selected_section,)).fetchall()
+                df_sec_top = pd.DataFrame([dict(r) for r in top_sec_bunkers])
+                
+            if not df_sec_top.empty:
+                st.dataframe(df_sec_top.rename(columns={'name':'Student', 'total_bunks':'Bunks'}), use_container_width=True)
+                fig_sec_top = px.bar(
+                    df_sec_top, x='total_bunks', y='name', orientation='h',
+                    color='total_bunks',
+                    color_continuous_scale='Reds',
+                    labels={'total_bunks':'Bunk Count', 'name':'Student'}
+                )
+                fig_sec_top.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False, height=300)
+                st.plotly_chart(fig_sec_top, use_container_width=True)
+            else:
+                st.info("No absences recorded for this section.")
+                
+        with cs2:
+            st.markdown("#### 📚 Subject-wise Bunk Analysis")
+            if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                if not df_precise_bunks.empty:
+                    df_sec_bunks = df_precise_bunks[df_precise_bunks['section'] == selected_section]
+                    if not df_sec_bunks.empty:
+                        df_sec_sub = df_sec_bunks.groupby('subject').size().reset_index(name='total_bunks')
+                        df_sec_sub = df_sec_sub.sort_values(by='total_bunks', ascending=False)
+                    else:
+                        df_sec_sub = pd.DataFrame(columns=['subject', 'total_bunks'])
+                else:
+                    df_sec_sub = pd.DataFrame(columns=['subject', 'total_bunks'])
+            else:
+                sec_sub_bunks = conn.execute(f"""
+                    SELECT subject, SUM(hours_conducted - hours_attended) as total_bunks
+                    FROM attendance JOIN students USING(roll_no)
+                    WHERE section=? AND {active_f_att}
+                    GROUP BY subject
+                    ORDER BY total_bunks DESC
+                """, (selected_section,)).fetchall()
+                df_sec_sub = pd.DataFrame([dict(r) for r in sec_sub_bunks])
+                
+            if not df_sec_sub.empty:
+                st.dataframe(df_sec_sub.rename(columns={'subject':'Subject', 'total_bunks':'Total Bunks'}), use_container_width=True)
+                fig_sec_sub = px.bar(
+                    df_sec_sub, x='subject', y='total_bunks',
+                    color='total_bunks',
+                    color_continuous_scale='Purples',
+                    labels={'total_bunks':'Absences', 'subject':'Subject'}
+                )
+                fig_sec_sub.update_layout(showlegend=False, height=300)
+                st.plotly_chart(fig_sec_sub, use_container_width=True)
+            else:
+                st.info("No subject-wise records found.")
+                
+        st.markdown("---")
+        
+        # Section Heatmap Filtered to Active Bunkers
+        st.markdown("#### 🗺️ Student vs Subject Absences Heatmap (Active Bunkers Only)")
+        st.caption("Grid visualization comparing relative subject-bunk profiles for selected students.")
+        
+        if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+            if not df_precise_bunks.empty:
+                df_sec_bunks = df_precise_bunks[df_precise_bunks['section'] == selected_section]
+                if not df_sec_bunks.empty:
+                    df_heatmap_all = df_sec_bunks.groupby(['name', 'subject']).size().reset_index(name='Bunks')
+                    df_heatmap_all = df_heatmap_all.rename(columns={'name': 'Student', 'subject': 'Subject'})
+                else:
+                    df_heatmap_all = pd.DataFrame(columns=['Student', 'Subject', 'Bunks'])
+            else:
+                df_heatmap_all = pd.DataFrame(columns=['Student', 'Subject', 'Bunks'])
+        else:
+            df_heatmap_all = query_to_dataframe(conn, f"""
+                SELECT name as "Student", subject as "Subject", (hours_conducted - hours_attended) as "Bunks"
+                FROM attendance JOIN students USING(roll_no)
+                WHERE section=? AND {active_f_att}
+            """, (selected_section,))
+            
+        if not df_heatmap_all.empty:
+            # Normalize column casing for pandas operations
+            df_heatmap_all.columns = [c.capitalize() if c.lower() in ('student', 'subject', 'bunks') else c for c in df_heatmap_all.columns]
+            
+            student_totals = df_heatmap_all.groupby('Student')['Bunks'].sum()
+            max_bunks_val = int(student_totals.max()) if not student_totals.empty else 10
+            
+            min_bunks_filter = st.slider(
+                "Filter Heatmap: Show only students with total bunks ≥",
+                min_value=0,
+                max_value=max(5, max_bunks_val),
+                value=min(10, max(0, max_bunks_val // 3)),
+                key="sec_heatmap_filter"
+            )
+            
+            active_students = student_totals[student_totals >= min_bunks_filter].index.tolist()
+            
+            if active_students:
+                df_heatmap_filtered = df_heatmap_all[df_heatmap_all['Student'].isin(active_students)]
+                df_pivot = df_heatmap_filtered.pivot(index='Student', columns='Subject', values='Bunks').fillna(0)
+                
+                ordered_students = student_totals.loc[df_pivot.index].sort_values(ascending=True).index
+                df_pivot = df_pivot.loc[ordered_students]
+                
+                fig_heatmap = go.Figure(data=go.Heatmap(
+                    z=df_pivot.values,
+                    x=df_pivot.columns,
+                    y=df_pivot.index,
+                    colorscale='YlOrRd',
+                    colorbar=dict(title="Bunks")
+                ))
+                fig_heatmap.update_layout(height=max(250, len(active_students)*18 + 100), margin=dict(t=20, b=20, l=20, r=20))
+                st.plotly_chart(fig_heatmap, use_container_width=True)
+                st.caption(f"Showing {len(active_students)} active bunkers in the section (total bunks ≥ {min_bunks_filter}).")
+            else:
+                st.info(f"No students have total bunks ≥ {min_bunks_filter} in this section.")
+        else:
+            st.info("No data available to plot heatmap.")
+            
+        # Section Smart Insights Panel
+        st.markdown("---")
+        st.markdown("### 💡 Section Smart Insights")
+        
+        insights = []
+        if not df_sec_sub.empty:
+            most_bunked_sub = df_sec_sub.iloc[0]['subject']
+            sub_bunk_share = round(df_sec_sub.iloc[0]['total_bunks'] / max(1, sec_bunks) * 100)
+            insights.append(f"• **{most_bunked_sub}** is the most skipped subject, accounting for **{sub_bunk_share}%** of all absences in this section.")
+            
+        if highest_bunker_row and sec_bunks > 0:
+            share = round(highest_bunker_val / sec_bunks * 100, 1)
+            insights.append(f"• **{highest_bunker_name}** is the highest bunker and contributes **{share}%** of this section's total absences.")
+            
+        # Timetable day correlation
+        tt_sec = get_timetable_for_section(conn, selected_section)
+        day_map = {
+            'Mon': 'Monday', 'Tue': 'Tuesday', 'Wed': 'Wednesday', 'Thu': 'Thursday', 'Fri': 'Friday',
+            'Monday': 'Monday', 'Tuesday': 'Tuesday', 'Wednesday': 'Wednesday', 'Thursday': 'Thursday', 'Friday': 'Friday'
+        }
+        weekday_map = {'Monday':0, 'Tuesday':0, 'Wednesday':0, 'Thursday':0, 'Friday':0}
+        for item in tt_sec:
+            sub = item['subject']
+            day = item['day']
+            mapped_day = day_map.get(day)
+            if mapped_day and not df_sec_sub.empty and 'subject' in df_sec_sub.columns:
+                sub_rows = df_sec_sub[df_sec_sub['subject'] == sub]
+                if not sub_rows.empty:
+                    weekday_map[mapped_day] += int(sub_rows.iloc[0]['total_bunks'])
+                
+        max_day = max(weekday_map, key=weekday_map.get)
+        if weekday_map[max_day] > 0:
+            insights.append(f"• **{max_day}** has the highest correlated bunk weight based on subject scheduling distributions.")
+            
+        # Monthly progression
+        sec_students_rolls = [r['roll_no'] for r in conn.execute(f"SELECT roll_no FROM students WHERE section=? AND {active_f_stud}", (selected_section,)).fetchall()]
+        if sec_students_rolls:
+            placeholders = ','.join('%s' if _DB_BACKEND == "pg" else '?' for _ in sec_students_rolls)
+            if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                if not df_precise_bunks.empty:
+                    df_sec_bunks = df_precise_bunks[(df_precise_bunks['section'] == selected_section) & (df_precise_bunks['roll_no'].isin(sec_students_rolls))]
+                    if not df_sec_bunks.empty:
+                        df_sec_daily = df_sec_bunks.groupby('date').size().reset_index(name='total_bunks')
+                        df_sec_daily = df_sec_daily.rename(columns={'date': 'snapshot_date'})
+                        df_sec_daily = df_sec_daily.sort_values(by='snapshot_date')
+                    else:
+                        df_sec_daily = pd.DataFrame(columns=['snapshot_date', 'total_bunks'])
+                else:
+                    df_sec_daily = pd.DataFrame(columns=['snapshot_date', 'total_bunks'])
+            else:
+                sec_daily_rows = conn.execute(f"""
+                    SELECT snapshot_date, SUM(running_conducted - running_attended) as total_bunks
+                    FROM attendance_history
+                    WHERE roll_no IN ({placeholders})
+                    GROUP BY snapshot_date
+                    ORDER BY snapshot_date
+                """, sec_students_rolls).fetchall()
+                df_sec_daily = pd.DataFrame([dict(r) for r in sec_daily_rows])
+            if not df_sec_daily.empty:
+                df_sec_daily['date'] = pd.to_datetime(df_sec_daily['snapshot_date'])
+                df_sec_daily['month'] = df_sec_daily['date'].dt.strftime('%b')
+                monthly_aggregates = df_sec_daily.groupby('month')['total_bunks'].max().reindex(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']).dropna()
+                if len(monthly_aggregates) >= 2:
+                    last_two = monthly_aggregates.tail(2)
+                    pct_change = round((last_two.iloc[1] - last_two.iloc[0]) / max(1, last_two.iloc[0]) * 100, 1)
+                    direction = "increased" if pct_change > 0 else "decreased"
+                    insights.append(f"• Monthly cumulative absences **{direction} by {abs(pct_change)}%** compared to the previous month.")
+                    
+        for insight in insights:
+            st.info(insight)
+            
+        st.markdown("---")
+        
+        # ──────────────────────────────────────────────────────────
+        # STUDENT-LEVEL DRILLDOWN SECTION
+        # ──────────────────────────────────────────────────────────
+        st.markdown("### 👤 Student-Level Detailed Drilldown")
+        sec_students = conn.execute("SELECT roll_no, name FROM students WHERE section=? ORDER BY roll_no", (selected_section,)).fetchall()
+        
+        if sec_students:
+            selected_student_str = st.selectbox(
+                "Select Student Profile",
+                [f"{r['roll_no']} - {r['name']}" for r in sec_students]
+            )
+            selected_roll = selected_student_str.split(" - ")[0]
+            
+            # Fetch overall attendance to check if debarred
+            student_overall_att = conn.execute("""
+                SELECT SUM(hours_attended), SUM(hours_conducted)
+                FROM attendance
+                WHERE roll_no = ?
+            """, (selected_roll,)).fetchone()
+            total_att = student_overall_att[0] or 0
+            total_cond = student_overall_att[1] or 1
+            overall_pct = (total_att / total_cond * 100)
+            is_debarred = overall_pct < 20.0
+            
+            if is_debarred:
+                st.warning(f"⚠️ **Debarred / Long-Term Absent Profile**: This student's overall attendance is **{overall_pct:.2f}%**, which is below the 20% threshold. They did not attend standard classes and are excluded from active bunker rankings and metrics.")
+            
+            # Fetch student profile details based on data source
+            if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                where_pref = "AND hour_wise_attendance.hour >= 3" if ignore_late else ""
+                if not df_precise_bunks.empty:
+                    df_stud_bunks = df_precise_bunks[df_precise_bunks['roll_no'] == selected_roll]
+                    st_total_bunks = len(df_stud_bunks)
+                else:
+                    st_total_bunks = 0
+                
+                # Count debarred students in section to exclude from conducted hours
+                debarred_count = conn.execute(f"""
+                    SELECT COUNT(*) FROM students 
+                    WHERE section=? 
+                      AND roll_no NOT IN (SELECT roll_no FROM attendance GROUP BY roll_no HAVING (CAST(SUM(hours_attended) AS REAL) / SUM(hours_conducted) * 100) >= 20.0)
+                """, (selected_section,)).fetchone()[0]
+                
+                # Fetch section-level conducted hours for this section
+                # Using MAX and group by for PostgreSQL compatibility
+                sec_conducted_rows = conn.execute(f"""
+                    SELECT MAX(total_present) as total_present, MAX(total_absent) as total_absent
+                    FROM hour_wise_attendance
+                    WHERE section=? {where_pref}
+                    GROUP BY date, hour, subject
+                """, (selected_section,)).fetchall()
+                
+                sec_conducted_total = sum(max(0, r['total_present'] + r['total_absent'] - debarred_count) for r in sec_conducted_rows)
+                st_total_conducted = round(sec_conducted_total / max(1, sec_students_count))
+                st_attendance_pct = overall_pct
+                
+                # Calculate Section Bunk Rank (only ranking active/non-debarred students)
+                if not df_precise_bunks.empty:
+                    df_sec_bunks = df_precise_bunks[df_precise_bunks['section'] == selected_section]
+                    if not df_sec_bunks.empty:
+                        sec_bunks_ranking_df = df_sec_bunks.groupby('roll_no').size().reset_index(name='total_bunks')
+                        sec_bunks_ranking_df = sec_bunks_ranking_df.sort_values(by='total_bunks', ascending=False)
+                        sec_bunks_ranking = sec_bunks_ranking_df.to_dict('records')
+                    else:
+                        sec_bunks_ranking = []
+                else:
+                    sec_bunks_ranking = []
+                
+            else: # Cumulative Mode
+                student_att_rows = conn.execute("""
+                    SELECT subject, hours_attended, hours_conducted, (hours_conducted - hours_attended) as bunks
+                    FROM attendance WHERE roll_no=?
+                """, (selected_roll,)).fetchall()
+                
+                st_total_conducted = sum(r['hours_conducted'] for r in student_att_rows)
+                st_total_bunks = sum(r['bunks'] for r in student_att_rows)
+                st_attendance_pct = (sum(r['hours_attended'] for r in student_att_rows) / max(1, st_total_conducted) * 100)
+                
+                # Calculate Section Bunk Rank (only ranking active/non-debarred students)
+                sec_bunks_ranking = conn.execute(f"""
+                    SELECT roll_no, SUM(hours_conducted - hours_attended) as total_bunks
+                    FROM attendance JOIN students USING(roll_no)
+                    WHERE section=? AND {active_f_att}
+                    GROUP BY roll_no
+                    ORDER BY total_bunks DESC
+                """, (selected_section,)).fetchall()
+                
+            if is_debarred:
+                rank_str = "Excluded (Debarred)"
+            else:
+                rank = 1
+                for r in sec_bunks_ranking:
+                    if r['roll_no'] == selected_roll:
+                        break
+                    rank += 1
+                rank_str = f"#{rank} / {sec_students_count}"
+                
+            # Display Student KPI Cards
+            st.markdown(f"""
+            <div class="metric-grid" style="margin-top: 15px;">
+                <div class="metric-card" style="background: #181825; border-color: #45475a;">
+                    <div class="metric-label">Student Total Bunks</div>
+                    <div class="metric-value" style="color: #f43f5e;">{st_total_bunks}</div>
+                </div>
+                <div class="metric-card" style="background: #181825; border-color: #45475a;">
+                    <div class="metric-label">Section Bunk Rank</div>
+                    <div class="metric-value" style="color: #f59e0b;">{rank_str}</div>
+                </div>
+                <div class="metric-card" style="background: #181825; border-color: #45475a;">
+                    <div class="metric-label">Attendance Percentage</div>
+                    <div class="metric-value" style="color: {'#10b981' if st_attendance_pct >= 75 else '#f59e0b' if st_attendance_pct >= 65 else '#ef4444'};">{st_attendance_pct:.1f}%</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Sub-plots for student
+            cds1, cds2 = st.columns(2)
+            with cds1:
+                st.markdown("#### 📚 Subject-wise Absences")
+                if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                    if not df_precise_bunks.empty:
+                        df_stud_bunks = df_precise_bunks[df_precise_bunks['roll_no'] == selected_roll]
+                        if not df_stud_bunks.empty:
+                            df_sub_break = df_stud_bunks.groupby('subject').size().reset_index(name='bunks')
+                        else:
+                            df_sub_break = pd.DataFrame(columns=['subject', 'bunks'])
+                    else:
+                        df_sub_break = pd.DataFrame(columns=['subject', 'bunks'])
+                else:
+                    df_sub_break = pd.DataFrame([dict(r) for r in student_att_rows])
+                    
+                if not df_sub_break.empty:
+                    fig_sub_break = px.bar(
+                        df_sub_break, x='subject', y='bunks',
+                        color='bunks', color_continuous_scale='Reds',
+                        labels={'subject':'Subject', 'bunks':'Missed Hours'}
+                    )
+                    fig_sub_break.update_layout(showlegend=False, height=280)
+                    st.plotly_chart(fig_sub_break, use_container_width=True)
+                else:
+                    st.success("🎉 No absences recorded for this student.")
+                    
+            with cds2:
+                st.markdown("#### 📅 Weekday Absence Distribution")
+                if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                    if not df_precise_bunks.empty:
+                        df_stud_bunks = df_precise_bunks[df_precise_bunks['roll_no'] == selected_roll]
+                        if not df_stud_bunks.empty:
+                            df_wd_raw = df_stud_bunks.groupby('date').size().reset_index(name='absences')
+                            df_wd_raw = df_wd_raw.rename(columns={'date': 'snapshot_date'})
+                            df_wd_raw['date_obj'] = pd.to_datetime(df_wd_raw['snapshot_date'])
+                            df_wd_raw['Day'] = df_wd_raw['date_obj'].dt.day_name()
+                            weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+                            df_wd_stud = df_wd_raw.groupby('Day')['absences'].sum().reindex(weekday_order).fillna(0).reset_index()
+                        else:
+                            df_wd_stud = pd.DataFrame()
+                    else:
+                        df_wd_stud = pd.DataFrame()
+                else:
+                    tt_stud = get_timetable_for_section(conn, selected_section)
+                    weekday_dist = {'Monday':0, 'Tuesday':0, 'Wednesday':0, 'Thursday':0, 'Friday':0}
+                    period_dist = {f"P{i}":0 for i in range(1, 7)}
+                    period_weights = {1:1.0, 2:0.9, 3:1.2, 4:2.2, 5:2.8, 6:3.2}
+                    for r in student_att_rows:
+                        sub = r['subject']
+                        bunks = r['bunks']
+                        if bunks <= 0:
+                            continue
+                        occurrences = [item for item in tt_stud if item['subject'] == sub]
+                        if not occurrences:
+                            continue
+                        total_w = sum(period_weights[item['period']] for item in occurrences)
+                        for occ in occurrences:
+                            w = period_weights[occ['period']] / total_w
+                            weekday_dist[occ['day']] += bunks * w
+                            period_dist[f"P{occ['period']}"] += bunks * w
+                    df_wd_stud = pd.DataFrame({
+                        'Day': list(weekday_dist.keys()),
+                        'absences': [round(v, 1) for v in weekday_dist.values()]
+                    })
+                    
+                if not df_wd_stud.empty:
+                    fig_wd_stud = px.bar(
+                        df_wd_stud, x='Day', y='absences',
+                        color='absences', color_continuous_scale='Sunset',
+                        labels={'absences':'Missed periods'}
+                    )
+                    fig_wd_stud.update_layout(showlegend=False, height=280)
+                    st.plotly_chart(fig_wd_stud, use_container_width=True)
+                else:
+                    st.info("No day-wise records available.")
+                    
+            st.markdown("---")
+            
+            # Period Pattern & Streak Analysis
+            col_p1, col_p2 = st.columns(2)
+            with col_p1:
+                st.markdown("#### 🕒 Period Absence Distribution")
+                if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                    if not df_precise_bunks.empty:
+                        df_stud_bunks = df_precise_bunks[df_precise_bunks['roll_no'] == selected_roll]
+                        if not df_stud_bunks.empty:
+                            df_p_stud = df_stud_bunks.groupby('hour').size().reset_index(name='absences')
+                            df_p_stud['Period'] = 'P' + df_p_stud['hour'].astype(str)
+                            df_p_stud = df_p_stud.sort_values(by='hour').drop(columns=['hour'])
+                        else:
+                            df_p_stud = pd.DataFrame(columns=['Period', 'absences'])
+                    else:
+                        df_p_stud = pd.DataFrame(columns=['Period', 'absences'])
+                else:
+                    df_p_stud = pd.DataFrame({
+                        'Period': list(period_dist.keys()),
+                        'absences': [round(v, 1) for v in period_dist.values()]
+                    })
+                    
+                if not df_p_stud.empty:
+                    fig_p_stud = px.bar(
+                        df_p_stud, x='Period', y='absences',
+                        color='absences', color_continuous_scale='Burg',
+                        labels={'absences':'Missed hours'}
+                    )
+                    fig_p_stud.update_layout(showlegend=False, height=280)
+                    st.plotly_chart(fig_p_stud, use_container_width=True)
+                else:
+                    st.info("No period-wise records available.")
+                    
+            with col_p2:
+                st.markdown("#### 🚨 Consecutive Streak Analysis")
+                # Calculate consecutive missed hours
+                if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                    longest_streak = 0
+                    current_streak = 0
+                    if not df_precise_bunks.empty:
+                        df_stud_bunks = df_precise_bunks[df_precise_bunks['roll_no'] == selected_roll]
+                        if not df_stud_bunks.empty:
+                            df_events = df_stud_bunks.sort_values(by=['date', 'hour']).copy()
+                            df_events['datetime'] = pd.to_datetime(df_events['date'])
+                            prev_dt = None
+                            prev_hr = None
+                            for _, row in df_events.iterrows():
+                                curr_dt = row['datetime']
+                                curr_hr = row['hour']
+                                if prev_dt is None:
+                                    current_streak = 1
+                                else:
+                                    # Check if consecutive hour on same day
+                                    if curr_dt == prev_dt and curr_hr == prev_hr + 1:
+                                        current_streak += 1
+                                    else:
+                                        current_streak = 1
+                                longest_streak = max(longest_streak, current_streak)
+                                prev_dt = curr_dt
+                                prev_hr = curr_hr
+                else:
+                    df_stud_history = query_to_dataframe(conn, """
+                        SELECT snapshot_date, subject_code, running_attended, running_conducted
+                        FROM attendance_history
+                        WHERE roll_no=?
+                        ORDER BY snapshot_date
+                    """, (selected_roll,))
+                    longest_streak = 0
+                    if not df_stud_history.empty:
+                        df_stud_history['prev_cond'] = df_stud_history.groupby('subject_code')['running_conducted'].shift(1).fillna(0).astype(int)
+                        df_stud_history['prev_att'] = df_stud_history.groupby('subject_code')['running_attended'].shift(1).fillna(0).astype(int)
+                        df_stud_history['cond_today'] = df_stud_history['running_conducted'] - df_stud_history['prev_cond']
+                        df_stud_history['att_today'] = df_stud_history['running_attended'] - df_stud_history['prev_att']
+                        df_stud_history['bunks_today'] = (df_stud_history['cond_today'] - df_stud_history['att_today']).clip(lower=0)
+                        
+                        df_stud_events = df_stud_history[df_stud_history['cond_today'] > 0].copy()
+                        current_streak = 0
+                        for _, row in df_stud_events.iterrows():
+                            if row['bunks_today'] > 0:
+                                current_streak += int(row['bunks_today'])
+                                longest_streak = max(longest_streak, current_streak)
+                            else:
+                                current_streak = 0
+                                
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(244, 63, 94, 0.1) 100%);
+                            border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 14px;
+                            padding: 25px; text-align: center; margin-top: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                    <div style="font-size: 2.5rem; margin-bottom: 5px;">🔥</div>
+                    <h4 style="color: #ef4444; margin: 0; font-size: 1.3rem;">Longest Consecutive Absence Streak</h4>
+                    <div style="font-size: 3rem; font-weight: 700; color: #f8fafc; font-family: 'Outfit', sans-serif; margin-top: 8px;">{longest_streak} Classes</div>
+                    <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 5px;">Maximum consecutive missed subject periods without attendance check-in.</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            st.markdown("---")
+            
+            # Bunk Chronological Timeline
+            st.markdown("#### 📅 Chronological Bunk Timeline")
+            st.caption("Log of all historical class absences mapped sequentially by date.")
+            
+            if data_source == "📊 Real Scraped Hour-Wise (Precise)":
+                if not df_precise_bunks.empty:
+                    df_stud_bunks = df_precise_bunks[df_precise_bunks['roll_no'] == selected_roll]
+                    if not df_stud_bunks.empty:
+                        df_stud_bunk_events = df_stud_bunks.groupby(['date', 'subject']).size().reset_index(name='bunks_today')
+                        df_stud_bunk_events = df_stud_bunk_events.rename(columns={'date': 'snapshot_date', 'subject': 'subject_code'})
+                        df_stud_bunk_events = df_stud_bunk_events.sort_values(by='snapshot_date')
+                    else:
+                        df_stud_bunk_events = pd.DataFrame(columns=['snapshot_date', 'subject_code', 'bunks_today'])
+                else:
+                    df_stud_bunk_events = pd.DataFrame(columns=['snapshot_date', 'subject_code', 'bunks_today'])
+            else:
+                if not df_stud_history.empty:
+                    df_stud_bunk_events = df_stud_events[df_stud_events['bunks_today'] > 0].copy()
+                else:
+                    df_stud_bunk_events = pd.DataFrame()
+                    
+            if not df_stud_bunk_events.empty:
+                fig_timeline = px.scatter(
+                    df_stud_bunk_events, x='snapshot_date', y='subject_code',
+                    size='bunks_today', color='bunks_today',
+                    color_continuous_scale='Reds',
+                    labels={'snapshot_date':'Date', 'subject_code':'Subject', 'bunks_today':'Classes Missed'},
+                    title="Timeline of Missed Classes"
+                )
+                fig_timeline.update_layout(height=350, margin=dict(t=20, b=20, l=20, r=20))
+                st.plotly_chart(fig_timeline, use_container_width=True)
+            else:
+                st.success("🎉 This student has not missed any classes since January 27!")
+        else:
+            st.info("No student profiles registered in this section.")
+            
+    conn.close()
 
 
 def admin_analytics():
