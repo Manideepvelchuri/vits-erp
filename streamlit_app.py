@@ -526,7 +526,7 @@ def login_page():
         with tab1:
             with st.form("student_login"):
                 st.info("**First-time login?** Use password: **`vits123`** — you'll set your DOB after login.")
-                roll = st.text_input("Roll Number", placeholder="24891A0465")
+                roll = st.text_input("Roll Number", placeholder="24891Axxxx")
                 pwd  = st.text_input("Password (DOB: YYYY-MM-DD or vits123)", type="password")
                 if st.form_submit_button("Sign In", use_container_width=True):
                     handle_student_login(roll.strip().upper(), pwd.strip())
