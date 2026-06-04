@@ -165,8 +165,18 @@ class _PGConn:
         self._conn = conn
 
     def _adapt_sql(self, sql):
-        """Convert SQLite ? placeholders to PostgreSQL %s."""
-        return sql.replace('?', '%s')
+        """Convert SQLite ? placeholders to PostgreSQL %s and escape literal %."""
+        # 1. Convert SQLite ? placeholders to %s
+        sql = sql.replace('?', '%s')
+        
+        # 2. Escape literal % to %% to prevent psycopg2 query interpolation issues, 
+        # except when they are part of %s placeholders.
+        # We replace %s with a temporary marker, double all remaining %, and swap the marker back.
+        marker = "__PERCENT_S_PLACEHOLDER__"
+        sql = sql.replace('%s', marker)
+        sql = sql.replace('%', '%%')
+        sql = sql.replace(marker, '%s')
+        return sql
 
     def execute(self, sql, params=()):
         sql_upper = sql.strip().upper()
