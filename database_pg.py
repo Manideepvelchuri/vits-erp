@@ -327,19 +327,19 @@ def _get_pool():
     """
     Create a ThreadedConnectionPool once per app session.
     Cached by Streamlit so it survives reruns — connections are REUSED.
-    minconn=2, maxconn=8 is safe for Supabase free tier (max 20 connections).
+    minconn=2, maxconn=15 handles concurrent Streamlit reruns safely.
     """
     from psycopg2 import pool as pg_pool
     url = _get_pg_url()
     try:
         p = pg_pool.ThreadedConnectionPool(
-            minconn=2, maxconn=8,
+            minconn=2, maxconn=15,
             dsn=url, sslmode='require', connect_timeout=15
         )
         return p
     except Exception:
         p = pg_pool.ThreadedConnectionPool(
-            minconn=2, maxconn=8,
+            minconn=2, maxconn=15,
             dsn=url, connect_timeout=15
         )
         return p
@@ -352,8 +352,9 @@ def get_db_connection():
     """
     Get a connection from the pool. Always call conn.close() when done —
     this returns the connection to the pool rather than closing it.
-    Validates connection and recreates the pool if it has failed.
+    Falls back to a direct connection if pool is exhausted.
     """
+    from psycopg2 import pool as pg_pool
     pool = _get_pool()
     max_retries = 3
     for attempt in range(max_retries):
@@ -362,31 +363,38 @@ def get_db_connection():
             raw = pool.getconn()
             if raw.closed != 0:
                 raise psycopg2.OperationalError("Connection is closed locally")
-            
-            # Check when this connection was last used
+
+            # Health-check only if idle > 10s
             now = time.time()
             last_used = _CONN_LAST_USED.get(id(raw), 0)
             if now - last_used > 10:
-                # Test connection health over network only if idle > 10s
                 with raw.cursor() as cur:
                     cur.execute("SELECT 1")
-                raw.rollback()  # End the transaction block started by SELECT 1
-            
+                raw.rollback()
+
             _CONN_LAST_USED[id(raw)] = now
             raw.autocommit = False
             conn = _PGConn(raw)
-            conn._pool = pool   # store reference so close() can return to pool
+            conn._pool = pool
             return conn
+
+        except pg_pool.PoolError:
+            # Pool exhausted — create a direct (non-pooled) connection as fallback
+            print("[Database Pool] Pool exhausted — using direct connection fallback")
+            raw = _make_conn()
+            conn = _PGConn(raw)
+            conn._pool = None   # no pool → close() will truly close it
+            return conn
+
         except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
             if raw:
                 try:
                     pool.putconn(raw, close=True)
                 except Exception:
                     pass
-            print(f"[Database Pool] Dead connection detected on attempt {attempt+1}/{max_retries}: {e}")
+            print(f"[Database Pool] Dead connection on attempt {attempt+1}/{max_retries}: {e}")
             if attempt == max_retries - 1:
-                # Recreate the connection pool
-                print("[Database Pool] Recreating Connection Pool...")
+                print("[Database Pool] Recreating pool...")
                 _get_pool.clear()
                 pool = _get_pool()
                 raw = pool.getconn()
