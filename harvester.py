@@ -98,9 +98,10 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                   semester='Sem 2', dynamic_conn=None, max_retries=3):
     """Main scrape function. Returns (success, message)."""
     from database import get_config_map
-    conn_cfg = get_db_connection()
+    conn_cfg = dynamic_conn if dynamic_conn is not None else get_db_connection()
     cfg      = get_config_map(conn_cfg)
-    conn_cfg.close()
+    if dynamic_conn is None:
+        conn_cfg.close()
 
     fdt = start_date or cfg.get('start_date', '2026-01-27')
     tdt = end_date   or datetime.now().strftime('%Y-%m-%d')

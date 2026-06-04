@@ -562,11 +562,12 @@ def init_db():
         row = conn.execute("SELECT COUNT(*) FROM students").fetchone()
         count = list(row._d.values())[0] if row else 0
         if count == 0:
-            seed_db_from_csvs(conn)
+            # Skip seeding on production database startup to prevent connection timeout hangs. Seeding can be done via administrative panel instead.
+            print("[init_db] Student table empty. Skipping automatic CSV seeding to prevent connection hang. Seed via admin console.")
     except Exception as e:
         try: conn._conn.rollback()
         except: pass
-        print(f"[init_db] Warning on seeding students: {e}")
+        print(f"[init_db] Warning on checking students table: {e}")
 
     # Migration: reset placeholder DOBs
     try:
