@@ -17,7 +17,6 @@ streamlit run streamlit_app.py
 Opens automatically at http://localhost:8501
 
 ## Credentials
-- Admin: `admin` / `vits@admin123`
 - Student first login: `<roll>` / `vits123`
 
 ## Files Needed (copy from main project)
