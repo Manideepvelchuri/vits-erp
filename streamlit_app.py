@@ -483,6 +483,7 @@ def apply_premium_plotly_theme(fig, title_text=""):
         },
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
+        dragmode=False,
         legend={
             'font': {'color': '#cbd5e1', 'size': 10},
             'bgcolor': 'rgba(10, 14, 26, 0.6)',
@@ -996,6 +997,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                 margin=dict(t=10, b=10, l=10, r=10),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
+                dragmode=False,
             )
             st.plotly_chart(fig_donut, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
 
@@ -1175,7 +1177,7 @@ def show_attendance_page(roll, sem, att_rows):
                  range_color=[0, 100])
     fig.add_hline(y=75, line_dash="dash", line_color="green", annotation_text="75% target")
     fig.add_hline(y=65, line_dash="dash", line_color="orange", annotation_text="65% min")
-    fig.update_layout(height=400, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+    fig.update_layout(height=400, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', dragmode=False)
     fig.update_coloraxes(showscale=False)
     st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
 
@@ -2116,7 +2118,7 @@ def admin_analytics():
                      color_continuous_scale=[[0, '#EF4444'], [0.65, '#F59E0B'], [0.75, '#00D8C6'], [1, '#00D8C6']],
                      range_color=[0, 100])
         fig.add_hline(y=75, line_dash="dash", line_color="green")
-        fig.update_layout(height=400, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+        fig.update_layout(height=400, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', dragmode=False)
         fig.update_coloraxes(showscale=False)
         st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
 
