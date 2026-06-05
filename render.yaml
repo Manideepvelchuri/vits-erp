@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: vits-academic-dashboard
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run streamlit_app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: PG_URL
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.0
