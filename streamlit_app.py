@@ -1687,11 +1687,15 @@ def admin_students():
         if st.button("💾 Save Directory Changes", use_container_width=True):
             if "student_editor" in st.session_state:
                 edits = st.session_state["student_editor"].get("edited_rows", {})
+                st.write(f"🔍 DEBUG: edits found in session state: {edits}")
+                print(f"[DEBUG] edits found: {edits}")
                 if edits:
                     conn = get_db_connection()
                     updated = False
                     for row_idx, changes in edits.items():
+                        print(f"[DEBUG] Row: {row_idx}, changes: {changes}")
                         roll_no = display_df.iloc[int(row_idx)]["Roll Number"]
+                        print(f"[DEBUG] Resolved Roll No: {roll_no}")
                         if "Reset" in changes and changes["Reset"] is True:
                             conn.execute('UPDATE students SET dob=? WHERE roll_no=?', ('PENDING', roll_no))
                             updated = True
