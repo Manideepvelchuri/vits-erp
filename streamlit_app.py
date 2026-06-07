@@ -1628,7 +1628,14 @@ def admin_overview():
 
 def admin_students():
     st.markdown("# 👥 Student Directory")
-    
+
+    if "debug_log" in st.session_state and st.session_state["debug_log"]:
+        st.subheader("🔍 Debug Console")
+        st.code(st.session_state["debug_log"])
+        if st.button("🗑️ Clear Debug Log"):
+            st.session_state["debug_log"] = ""
+            st.rerun()
+            
     # Initialize cache keys in session state
     if "students_filter_section" not in st.session_state:
         st.session_state["students_filter_section"] = "All"
@@ -1711,6 +1718,15 @@ def admin_students():
         st.caption(f"Showing {len(display_df)} students (max 200)")
 
         if st.button("💾 Save Directory Changes", use_container_width=True):
+            # Debug logging
+            debug_info = []
+            debug_info.append(f"Session State student_editor: {st.session_state.get('student_editor')}")
+            if edited_df is not None:
+                debug_info.append(f"edited_df columns: {list(edited_df.columns)}")
+                # Convert first few rows to dict for readable format
+                debug_info.append(f"edited_df records:\n{edited_df.head(10).to_dict(orient='records')}")
+            st.session_state["debug_log"] = "\n".join(debug_info)
+            
             if edited_df is not None:
                 updated = False
                 conn = get_db_connection()
