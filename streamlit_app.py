@@ -1628,35 +1628,61 @@ def admin_overview():
 
 def admin_students():
     st.markdown("# 👥 Student Directory")
-    conn = get_db_connection()
+    
+    # Initialize cache keys in session state
+    if "students_filter_section" not in st.session_state:
+        st.session_state["students_filter_section"] = "All"
+    if "students_filter_search" not in st.session_state:
+        st.session_state["students_filter_search"] = ""
+    if "students_df" not in st.session_state:
+        st.session_state["students_df"] = None
+
     c1, c2 = st.columns([2, 1])
     section_filter = c1.selectbox("Filter by Section", ['All'] + CLASSES)
     search = c2.text_input("Search (roll/name)")
 
-    sql = 'SELECT * FROM students WHERE 1=1'; params = []
-    if section_filter != 'All':
-        sql += ' AND section=?'; params.append(section_filter)
-    if search:
-        sql += ' AND (UPPER(roll_no) LIKE ? OR UPPER(name) LIKE ?)'
-        s = f'%{search.upper()}%'; params.extend([s, s])
-    sql += ''' ORDER BY 
-        CASE WHEN dob IS NOT NULL AND dob != 'PENDING' AND dob != '2007-01-01' AND dob != '' THEN 0 ELSE 1 END ASC,
-        section ASC, 
-        roll_no ASC 
-        LIMIT 200'''
-    rows = conn.execute(sql, params).fetchall()
-    conn.close()
+    # Check if filters changed or cache is empty
+    filters_changed = (
+        section_filter != st.session_state["students_filter_section"] or
+        search != st.session_state["students_filter_search"] or
+        st.session_state["students_df"] is None
+    )
 
-    if rows:
-        df = pd.DataFrame([dict(r) for r in rows])
-        df['DOB Set'] = df['dob'].apply(lambda d: '⚠️ Pending' if d in ('PENDING', '2007-01-01') else '✅ Set')
-        df['DOB'] = pd.to_datetime(df['dob'], errors='coerce').dt.date
-        df['Reset'] = False
-        display_df = df[['roll_no', 'name', 'section', 'branch', 'DOB Set', 'DOB', 'Reset']].rename(columns={
-            'roll_no': 'Roll Number', 'name': 'Name',
-            'section': 'Section', 'branch': 'Branch', 'DOB Set': 'Status', 'DOB': 'DOB', 'Reset': 'Reset'
-        })
+    if filters_changed:
+        st.session_state["students_filter_section"] = section_filter
+        st.session_state["students_filter_search"] = search
+        
+        conn = get_db_connection()
+        sql = 'SELECT * FROM students WHERE 1=1'; params = []
+        if section_filter != 'All':
+            sql += ' AND section=?'; params.append(section_filter)
+        if search:
+            sql += ' AND (UPPER(roll_no) LIKE ? OR UPPER(name) LIKE ?)'
+            s = f'%{search.upper()}%'; params.extend([s, s])
+        sql += ''' ORDER BY 
+            CASE WHEN dob IS NOT NULL AND dob != 'PENDING' AND dob != '2007-01-01' AND dob != '' THEN 0 ELSE 1 END ASC,
+            section ASC, 
+            roll_no ASC 
+            LIMIT 200'''
+        rows = conn.execute(sql, params).fetchall()
+        conn.close()
 
+        if rows:
+            df = pd.DataFrame([dict(r) for r in rows])
+            df['DOB Set'] = df['dob'].apply(lambda d: '⚠️ Pending' if d in ('PENDING', '2007-01-01') else '✅ Set')
+            df['DOB'] = pd.to_datetime(df['dob'], errors='coerce').dt.date
+            df['Reset'] = False
+            display_df = df[['roll_no', 'name', 'section', 'branch', 'DOB Set', 'DOB', 'Reset']].rename(columns={
+                'roll_no': 'Roll Number', 'name': 'Name',
+                'section': 'Section', 'branch': 'Branch', 'DOB Set': 'Status', 'DOB': 'DOB', 'Reset': 'Reset'
+            })
+            st.session_state["students_df"] = display_df
+        else:
+            st.session_state["students_df"] = pd.DataFrame()
+
+    display_df = st.session_state["students_df"]
+
+    if not display_df.empty:
         edited_df = st.data_editor(
             display_df,
             column_config={
@@ -1682,7 +1708,7 @@ def admin_students():
             use_container_width=True,
             hide_index=True
         )
-        st.caption(f"Showing {len(rows)} students (max 200)")
+        st.caption(f"Showing {len(display_df)} students (max 200)")
 
         if st.button("💾 Save Directory Changes", use_container_width=True):
             if edited_df is not None:
@@ -1709,6 +1735,7 @@ def admin_students():
                     conn.commit()
                 conn.close()
                 if updated:
+                    st.session_state["students_df"] = None  # Clear cache to force reload
                     st.success("Student records updated successfully!")
                     st.rerun()
                 else:
@@ -1745,6 +1772,7 @@ def admin_students():
                                 name=excluded.name, section=excluded.section, branch=excluded.branch
                         ''', (roll, name, 'PENDING', sec, branch, branch))
                     conn.commit(); conn.close()
+                    st.session_state["students_df"] = None  # Clear cache to force reload
                     st.success(f"Student {roll} saved."); st.rerun()
 
     with st.expander("🗑️ Delete Student"):
@@ -1768,6 +1796,7 @@ def admin_students():
                         conn.execute("DELETE FROM students WHERE roll_no=?",    (del_roll,))
                         conn.commit()
                         conn.close()
+                        st.session_state["students_df"] = None  # Clear cache to force reload
                         st.success(f"✅ Student {del_roll} and all their records deleted.")
                         st.rerun()
 
