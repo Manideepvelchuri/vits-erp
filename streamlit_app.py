@@ -1639,7 +1639,11 @@ def admin_students():
     if search:
         sql += ' AND (UPPER(roll_no) LIKE ? OR UPPER(name) LIKE ?)'
         s = f'%{search.upper()}%'; params.extend([s, s])
-    sql += ' ORDER BY section, roll_no LIMIT 200'
+    sql += ''' ORDER BY 
+        CASE WHEN dob IS NOT NULL AND dob != 'PENDING' AND dob != '2007-01-01' AND dob != '' THEN 0 ELSE 1 END ASC,
+        section ASC, 
+        roll_no ASC 
+        LIMIT 200'''
     rows = conn.execute(sql, params).fetchall()
     conn.close()
 
