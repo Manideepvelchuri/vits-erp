@@ -830,12 +830,16 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         best_subj = max(subj_data, key=lambda x: x['pct'])
         worst_subj = min(subj_data, key=lambda x: x['pct'])
 
-    # HEADER ROW
+    # Welcome Header
+    hour = dt.now().hour
+    greeting = "Good Morning" if hour < 12 else "Good Afternoon" if hour < 17 else "Good Evening"
     st.markdown(
-        "<div style='display:flex;align-items:center;border-left:4px solid #8B5CF6;padding-left:12px;margin-bottom:25px;margin-top:5px;'>"
-        "<h1 style='font-family:Outfit;font-weight:800;font-size:2.1rem;"
-        "color:#fff;margin:0;letter-spacing:-0.5px;'>Academic Summary</h1>"
-        "</div>",
+        f"<div style='margin-bottom:20px;margin-top:5px;'>"
+        f"  <h1 style='font-family:Outfit;font-weight:800;font-size:2.4rem;color:#fff;margin:0;letter-spacing:-0.5px;'>{greeting}, {student['name'].split(' ')[0]}! 👋</h1>"
+        f"  <div style='font-family:Inter;font-size:0.95rem;color:#94a3b8;margin-top:4px;font-weight:500;'>"
+        f"    Here's your {sem} academic summary · Roll: <span style='color:#00D8C6;font-weight:600;'>{student['roll_no']}</span> · Section: <span style='color:#8B5CF6;font-weight:600;'>{student['section']}</span>"
+        f"  </div>"
+        f"</div>",
         unsafe_allow_html=True
     )
 
@@ -859,18 +863,34 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             f"</div>",
             unsafe_allow_html=True
         )
+
     with k2:
+        show_cgpa = st.toggle("Show CGPA", value=False, key=f"gpa_toggle_{sem}")
+        if show_cgpa:
+            gpa_title = "CURRENT CGPA"
+            gpa_val_display = gpa_display_val if gpa_display_val and gpa_display_val != "-" else "N/A"
+            val_inner = gpa_scale_10 / 10.0 if gpa_scale_10 > 0 else 0.0
+            inner_label = "CGPA"
+            inner_val_text = f"{gpa_scale_10:.2f}"
+        else:
+            gpa_title = "CURRENT SGPA"
+            gpa_val_display = sgpa_display_str if sgpa_display_str and sgpa_display_str != "-" else "N/A"
+            val_inner = sgpa_val / 10.0 if sgpa_val > 0 else 0.0
+            inner_label = "SGPA"
+            inner_val_text = f"{sgpa_val:.2f}" if sgpa_val > 0 else "N/A"
+
         st.markdown(
             f"<div style='{_card_wrapper_style}'>"
             f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
-            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>CURRENT SGPA</div>"
-            f"    <div style='font-size:2.1rem;font-weight:800;color:#ffffff;line-height:1.1;margin:2px 0;'>{sgpa_display_str}</div>"
+            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>{gpa_title}</div>"
+            f"    <div style='font-size:2.1rem;font-weight:800;color:#ffffff;line-height:1.1;margin:2px 0;'>{gpa_val_display}</div>"
             f"    <div style='font-size:0.75rem;color:#64748b;'>{completed_credits:.0f} credits earned</div>"
             f"  </div>"
             f"  <div style='font-size:1.8rem;color:#b388ff;opacity:0.85;'>🎓</div>"
             f"</div>",
             unsafe_allow_html=True
         )
+
     with k3:
         status_subtext = f"Can skip {can_miss} hrs ≈ {can_miss_days} days" if overall >= 75 else f"Attend {need} hrs ≈ {need_days} days"
         if overall >= 75:
@@ -890,6 +910,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             f"</div>",
             unsafe_allow_html=True
         )
+
     with k4:
         st.markdown(
             f"<div style='{_card_wrapper_style}'>"
@@ -903,14 +924,56 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             unsafe_allow_html=True
         )
 
-    st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
-    # SPLIT COLUMNS (Circular meter + Best/Worst VS Subject Health)
-    col_l, col_r = st.columns([1.1, 1.8])
+    # Status banner (glowing card below KPI cards)
+    if total_c == 0:
+        st.info("🔍 No attendance data yet for this semester. Visit the Attendance tab to sync.")
+    elif overall >= 75:
+        st.markdown(f"""
+        <div class="status-banner" style="background:rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); 
+                    box-shadow: 0 0 25px rgba(16, 185, 129, 0.12); margin-bottom: 25px;">
+            <h3 style="color:#10B981 !important;margin:0;font-family:'Outfit';font-weight:700;font-size:1.2rem;display:flex;align-items:center;gap:8px;">
+                <span>🟢</span> Safe Zone
+            </h3>
+            <p style="margin:8px 0 0 0;color:#cbd5e1 !important;font-size:0.92rem;line-height:1.4;font-family:'Inter';">
+                Current Attendance: <strong style="color:#fff;">{overall}%</strong>. 
+                You can miss <strong style="color:#10B981;font-weight:700;">{can_miss}</strong> more classes (approx. <strong style="color:#10B981;font-weight:700;">{can_miss_days}</strong> days) and stay above the 75% threshold.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    elif overall >= 65:
+        st.markdown(f"""
+        <div class="status-banner" style="background:rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); 
+                    box-shadow: 0 0 25px rgba(245, 158, 11, 0.12); margin-bottom: 25px;">
+            <h3 style="color:#F59E0B !important;margin:0;font-family:'Outfit';font-weight:700;font-size:1.2rem;display:flex;align-items:center;gap:8px;">
+                <span>🟠</span> Risk Zone
+            </h3>
+            <p style="margin:8px 0 0 0;color:#cbd5e1 !important;font-size:0.92rem;line-height:1.4;font-family:'Inter';">
+                Current Attendance: <strong style="color:#fff;">{overall}%</strong>. 
+                Attend <strong style="color:#F59E0B;font-weight:700;">{need}</strong> consecutive classes (approx. <strong style="color:#F59E0B;font-weight:700;">{need_days}</strong> days) to reach the 75% target.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="status-banner" style="background:rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); 
+                    box-shadow: 0 0 25px rgba(239, 68, 68, 0.12); margin-bottom: 25px;">
+            <h3 style="color:#EF4444 !important;margin:0;font-family:'Outfit';font-weight:700;font-size:1.2rem;display:flex;align-items:center;gap:8px;">
+                <span>🔴</span> Debarred Zone
+            </h3>
+            <p style="margin:8px 0 0 0;color:#cbd5e1 !important;font-size:0.92rem;line-height:1.4;font-family:'Inter';">
+                Current Attendance: <strong style="color:#fff;">{overall}%</strong>. 
+                You need <strong style="color:#EF4444;font-weight:700;">{need}</strong> classes (approx. <strong style="color:#EF4444;font-weight:700;">{need_days}</strong> days) to recover to the 75% requirement.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # SPLIT COLUMNS (Circular meter + Weekly Timetable + Subject Health)
+    col_l, col_m, col_r = st.columns([1.1, 1.2, 1.5])
 
     with col_l:
         val_outer = overall / 100.0 if overall > 0 else 0.78
-        val_inner = gpa_scale_10 / 10.0 if gpa_scale_10 > 0 else 0.70
 
         st.markdown(f"""
         <div style="background: rgba(10, 14, 26, 0.45); border: 1px solid rgba(255,255,255,0.05); 
@@ -933,9 +996,9 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                     <div style="font-family: 'Inter'; font-size: 0.65rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Attendance</div>
                 </div>
             </div>
-            <div style="text-align: center; font-size: 0.75rem; color: #64748b; font-weight: 600; font-family: 'Inter'; margin-bottom: 5px;">
+            <div style="text-align: center; font-size: 0.72rem; color: #64748b; font-weight: 600; font-family: 'Inter'; margin-bottom: 5px;">
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#00D8C6; margin-right:5px;"></span>Attendance &nbsp;&nbsp;&nbsp; 
-                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#8B5CF6; margin-right:5px;"></span>GPA
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#8B5CF6; margin-right:5px;"></span>{inner_label} ({inner_val_text})
             </div>
         </div>
         """.replace('\n', ' '), unsafe_allow_html=True)
@@ -957,6 +1020,59 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                 <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 2px;">{worst_subj['attended']}/{worst_subj['conducted']} hrs - <span style="color: #EF4444; font-weight: bold;">{worst_subj['pct']}%</span></div>
             </div>
             """, unsafe_allow_html=True)
+
+    with col_m:
+        st.markdown(
+            "<div style='font-family:Outfit;font-weight:700;font-size:0.95rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:15px;'>"
+            "📅 Daily Schedule"
+            "</div>",
+            unsafe_allow_html=True
+        )
+        
+        today_day = dt.now().strftime('%a')
+        days_list = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        default_idx = days_list.index(today_day) if today_day in days_list else 0
+        
+        selected_day = st.selectbox("View Day", days_list, index=default_idx, label_visibility="collapsed", key=f"schedule_day_home_{sem}")
+        
+        conn = get_db_connection()
+        day_classes = conn.execute(
+            'SELECT period, subject FROM timetable WHERE section=? AND day=? ORDER BY period',
+            (student['section'], selected_day)
+        ).fetchall()
+        conn.close()
+        
+        times_map = {
+            1: "08:45 - 09:35",
+            2: "09:35 - 10:25",
+            3: "10:40 - 11:30",
+            4: "11:30 - 12:20",
+            5: "01:10 - 02:00",
+            6: "02:00 - 02:45",
+            7: "02:45 - 03:30"
+        }
+        
+        schedule_html = "<div style='background:rgba(10, 14, 26, 0.45);border:1px solid rgba(255,255,255,0.05);border-radius:16px;padding:20px;min-height:450px;max-height:450px;overflow-y:auto;backdrop-filter:blur(10px);box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);'>"
+        if day_classes:
+            for idx, c in enumerate(day_classes):
+                t_range = times_map.get(c['period'], "Class Period")
+                border_color = "#00D8C6" if idx == 0 else "#8B5CF6" if idx == 1 else "rgba(255,255,255,0.15)"
+                schedule_html += f"""
+                <div style="background: rgba(20, 28, 48, 0.45); border: 1px solid rgba(255, 255, 255, 0.05); 
+                             border-left: 3px solid {border_color}; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;
+                             display: flex; justify-content: space-between; align-items: center;">
+                     <div style="font-size: 0.85rem; font-weight: 700; color: #fff; font-family: 'Outfit';">
+                         {c['subject']}
+                     </div>
+                     <div style="font-size: 0.65rem; color: #94a3b8; font-family: 'JetBrains Mono'; font-weight: 500; text-align: right;">
+                         P{c['period']}<br/><span style="color:#64748b;font-size:0.6rem;">{t_range}</span>
+                     </div>
+                 </div>
+                 """
+        else:
+            schedule_html += "<div style='color:#64748b;text-align:center;padding-top:180px;font-family:Inter;font-size:0.85rem;'>🎉 No classes scheduled for this day!</div>"
+        schedule_html += "</div>"
+        st.markdown(schedule_html.replace('\n', ' '), unsafe_allow_html=True)
 
     with col_r:
         if not subj_data:
