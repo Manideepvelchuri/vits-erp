@@ -481,8 +481,7 @@ def sync_sgpa_records(roll_no, conn):
                 gp = m['grade_point'] or 0.0
                 credits = SUBJECT_CREDITS.get(sub, 3.0)
                 
-                grade, _ = score_to_grade(score)
-                if grade in ['F', 'Ab']:
+                if gp == 0.0:
                     has_failed = True
                 
                 if credits > 0:
@@ -823,8 +822,7 @@ def parse_and_load_csv_results(csv_path, section="ECE_B", semester="Sem 2"):
                     weighted_gp += gp * credits
                     total_credits += credits
                     
-                    grade, _ = score_to_grade(score)
-                    if grade in ['F', 'Ab']:
+                    if gp == 0.0:
                         has_failed = True
             
             # Insert SGPA record

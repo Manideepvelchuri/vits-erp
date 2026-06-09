@@ -28,14 +28,14 @@ if _DB_BACKEND == "pg":
     from database_pg import (
         init_db, get_db_connection, get_config_map,
         CLASSES, SECTION_SUBJECTS, SUBJECT_CREDITS, SEM1_SUBJECTS,
-        score_to_grade, compute_sgpa, backup_db, compute_cgpa,
+        score_to_grade, gp_to_grade, compute_sgpa, backup_db, compute_cgpa,
         parse_sem1_results_csv, decode_roll_branch
     )
 else:
     from database import (
         init_db, get_db_connection, get_config_map,
         CLASSES, SECTION_SUBJECTS, SUBJECT_CREDITS, SEM1_SUBJECTS,
-        score_to_grade, compute_sgpa, backup_db, compute_cgpa,
+        score_to_grade, gp_to_grade, compute_sgpa, backup_db, compute_cgpa,
         parse_sem1_results_csv, decode_roll_branch
     )
 import harvester
@@ -749,7 +749,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     
     # Completed Credits & Backlogs calculation
     final_marks = conn.execute('''
-        SELECT subject, score FROM marks
+        SELECT subject, score, grade_point FROM marks
         WHERE roll_no=? AND exam_type LIKE '%Final Examinations'
     ''', (student['roll_no'],)).fetchall()
 
@@ -777,7 +777,8 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     for m in final_marks:
         sub = m['subject']
         score = m['score']
-        grade, _ = score_to_grade(score)
+        gp_val = m['grade_point'] or 0.0
+        grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if score is None else 'F')
         c_val = SUBJECT_CREDITS.get(sub, 3.0)
         if grade in ['F', 'Ab']:
             backlogs_count += 1
@@ -1076,7 +1077,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             'Subject': r['subject'],
             'Exam Type': r['exam_type'].replace(f"{sem} ", ""),
             'Score': r['score'] if r['score'] is not None else 'Ab',
-            'Grade': score_to_grade(r['score'])[0],
+            'Grade': gp_to_grade(r['grade_point']) if (r['grade_point'] or 0.0) > 0.0 else ('Ab' if r['score'] is None else 'F'),
             'Credits': SUBJECT_CREDITS.get(r['subject'], 3.0)
         } for r in sem_final_marks])
         st_premium_table(grades_df)
@@ -1217,8 +1218,8 @@ def show_marks_page(sem, marks_rows):
         for r in marks_rows:
             is_final = "Final" in r['exam_type']
             if is_final:
-                grade, _ = score_to_grade(r['score'])
-                gp_val = r['grade_point'] or 0
+                gp_val = r['grade_point'] or 0.0
+                grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if r['score'] is None else 'F')
             else:
                 grade, gp_val = '-', '-'
             by_exam.setdefault(r['exam_type'], []).append({
@@ -1545,7 +1546,8 @@ def generate_student_pdf(student, sem="Sem 2"):
     conn.close()
     marks_by_type = {}
     for r in marks:
-        grade, _ = score_to_grade(r['score'])
+        gp_val = r['grade_point'] or 0.0
+        grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if r['score'] is None else 'F')
         marks_by_type.setdefault(r['exam_type'], []).append({
             'subject': r['subject'], 'score': r['score'],
             'grade_point': r['grade_point'], 'grade': grade})
