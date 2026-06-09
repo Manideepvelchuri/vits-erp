@@ -631,71 +631,43 @@ def decode_roll_branch(roll_no):
 
 
 def parse_sem1_results_csv(csv_content):
-    """Identical logic to database.py — parses JNTUH results CSV format."""
+    """Parse: Hall no, Name, IEE[Total,GP], ED[Total,GP], ..., SGPA"""
+    reader = csv.reader(io.StringIO(csv_content))
+    rows = list(reader)
+    if len(rows) < 3:
+        return []
+    header = rows[0]
+    subjects_in_order = []
+    i = 2
+    while i < len(header) - 1:
+        if header[i].strip():
+            subjects_in_order.append(header[i].strip())
+        i += 2
+
     results = []
-    reader = csv.DictReader(io.StringIO(csv_content))
-    headers = reader.fieldnames or []
-
-    subj_codes = []
-    i = 0
-    while i < len(headers):
-        h = headers[i].strip()
-        if h.lower() in ('hall no', 'name', 'sgpa', 'remarks', 'result'):
-            i += 1
+    for row in rows[2:]:
+        if not row or len(row) < 4 or not row[0].strip():
             continue
-        if i + 1 < len(headers):
-            next_h = headers[i+1].strip().lower()
-            if next_h in ('total', 'gp', 'grade point', 'grade_point'):
-                subj_codes.append(h)
-                i += 2
-                continue
-        i += 1
-
-    for row in reader:
-        hall_no = (row.get('Hall No') or row.get('Hall no') or '').strip().upper()
-        name    = (row.get('Name') or '').strip()
-        if not hall_no:
-            continue
-
+        roll_no = row[0].strip().upper()
+        name = row[1].strip()
         subj_marks = {}
-        for subj in subj_codes:
-            total_key = None
-            gp_key    = None
-            for k in row.keys():
-                ks = k.strip().lower()
-                if k.strip() == subj:
-                    total_key = k
-                elif ks in ('total', 'gp', 'grade point', 'grade_point') and total_key and gp_key is None:
-                    gp_key = k
-
-            total = None
-            gp    = None
-            if total_key:
-                try:
-                    total = float(row[total_key])
-                except Exception:
-                    pass
-            if gp_key:
-                try:
-                    gp = float(row[gp_key])
-                except Exception:
-                    pass
-            subj_marks[subj] = {'total': total, 'gp': gp}
-
-        sgpa   = None
-        failed = False
-        for k, v in row.items():
-            ks = k.strip().lower()
-            if ks == 'sgpa':
-                try:
-                    sgpa = float(v)
-                except Exception:
-                    pass
-            if ks in ('result', 'remarks') and v and 'fail' in v.lower():
-                failed = True
-
+        col = 2
+        for subj in subjects_in_order:
+            if col + 1 < len(row):
+                try:    total = float(row[col]) if row[col].strip() else None
+                except: total = None
+                try:    gp = float(row[col+1]) if row[col+1].strip() else 0.0
+                except: gp = 0.0
+                subj_marks[subj] = {'total': total, 'gp': gp}
+            col += 2
+        sgpa_val = row[col].strip() if col < len(row) else ''
+        failed = sgpa_val.lower() == 'fail'
+        try:
+            sgpa = float(sgpa_val) if not failed and sgpa_val else 0.0
+        except ValueError:
+            sgpa, failed = 0.0, True
         results.append({
-            'roll_no': hall_no, 'name': name,
+            'roll_no': roll_no, 'name': name,
             'subjects': subj_marks, 'sgpa': sgpa, 'failed': failed
         })
     return results

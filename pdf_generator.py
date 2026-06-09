@@ -24,7 +24,7 @@ def _att_color(pct):
     return DANGER
 
 
-def generate_report_pdf(student, attendance_rows, marks_by_type, sgpa, cgpa, semester='Sem 2'):
+def generate_report_pdf(student, attendance_rows, marks_by_type, sgpa, cgpa, semester='Sem 2', attendance_semester=None):
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
         rightMargin=1.5*cm, leftMargin=1.5*cm,
@@ -48,7 +48,7 @@ def generate_report_pdf(student, attendance_rows, marks_by_type, sgpa, cgpa, sem
     info_data = [
         ['Name',     student.get('name','-'),    'Roll No', student.get('roll_no','-')],
         ['Section',  student.get('section','-'), 'Branch',  student.get('branch','-')],
-        ['Semester', semester, 'Email', student.get('email','-')],
+        ['Semester', semester,                   '',        ''],
     ]
     info_t = Table(info_data, colWidths=[3*cm, 7*cm, 3*cm, 5*cm])
     info_t.setStyle(TableStyle([
@@ -61,12 +61,14 @@ def generate_report_pdf(student, attendance_rows, marks_by_type, sgpa, cgpa, sem
         ('ROWBACKGROUNDS', (0,0), (-1,-1), [LIGHT_BG, colors.white]),
         ('GRID', (0,0), (-1,-1), 0.3, colors.HexColor('#e2e8f0')),
         ('PADDING', (0,0), (-1,-1), 6),
+        ('SPAN', (1,2), (3,2)),
     ]))
     story.append(info_t)
     story.append(Spacer(1, 12))
 
     # Attendance
-    story.append(Paragraph('Attendance Summary', section))
+    att_sem_label = attendance_semester if attendance_semester else semester
+    story.append(Paragraph(f'Attendance Summary ({att_sem_label})', section))
     att_data = [['Subject','Conducted','Attended','%','Status']]
     tc = ta = 0
     for r in attendance_rows:

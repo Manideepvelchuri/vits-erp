@@ -1539,6 +1539,21 @@ def generate_student_pdf(student, sem="Sem 2"):
     att = conn.execute(
         'SELECT subject,hours_attended,hours_conducted FROM attendance WHERE roll_no=? AND semester=?',
         (roll, sem)).fetchall()
+        
+    attendance_semester = sem
+    if not att:
+        other_sems = conn.execute(
+            'SELECT DISTINCT semester FROM attendance WHERE roll_no=?', (roll,)).fetchall()
+        for os_row in other_sems:
+            osem = os_row['semester']
+            alt_att = conn.execute(
+                'SELECT subject,hours_attended,hours_conducted FROM attendance WHERE roll_no=? AND semester=?',
+                (roll, osem)).fetchall()
+            if alt_att:
+                att = alt_att
+                attendance_semester = osem
+                break
+
     marks = conn.execute(
         'SELECT subject,score,grade_point,exam_type FROM marks WHERE roll_no=? AND semester=?',
         (roll, sem)).fetchall()
@@ -1554,7 +1569,7 @@ def generate_student_pdf(student, sem="Sem 2"):
     finals = marks_by_type.get(f"{sem} Final Examinations", [])
     sgpa = compute_sgpa([{'subject': r['subject'], 'grade_point': r['grade_point']}
                          for r in finals if r['score'] is not None])
-    buf = pdf_generator.generate_report_pdf(dict(student), att, marks_by_type, sgpa, cgpa, semester=sem)
+    buf = pdf_generator.generate_report_pdf(dict(student), att, marks_by_type, sgpa, cgpa, semester=sem, attendance_semester=attendance_semester)
     st.download_button("⬇️ Click to Download Report",
         data=buf.getvalue(), file_name=f"Report_{roll}_{sem.replace(' ', '')}.pdf",
         mime="application/pdf")
