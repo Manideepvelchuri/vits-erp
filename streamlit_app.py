@@ -834,10 +834,12 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     hour = dt.now().hour
     greeting = "Good Morning" if hour < 12 else "Good Afternoon" if hour < 17 else "Good Evening"
     st.markdown(
-        f"<div style='margin-bottom:20px;margin-top:5px;'>"
-        f"  <h1 style='font-family:Outfit;font-weight:800;font-size:2.4rem;color:#fff;margin:0;letter-spacing:-0.5px;'>{greeting}, {student['name'].split(' ')[0]}! 👋</h1>"
-        f"  <div style='font-family:Inter;font-size:0.95rem;color:#94a3b8;margin-top:4px;font-weight:500;'>"
-        f"    Here's your {sem} academic summary · Roll: <span style='color:#00D8C6;font-weight:600;'>{student['roll_no']}</span> · Section: <span style='color:#8B5CF6;font-weight:600;'>{student['section']}</span>"
+        f"<div style='margin-bottom:25px;margin-top:5px;'>"
+        f"  <h1 style='font-family:Outfit;font-weight:800;font-size:2.5rem;color:#fff;margin:0;letter-spacing:-0.5px;'>{greeting}, {student['name'].split(' ')[0]}! 👋</h1>"
+        f"  <div style='font-family:Inter;font-size:0.85rem;color:#94a3b8;margin-top:8px;font-weight:500;display:flex;align-items:center;gap:12px;flex-wrap:wrap;'>"
+        f"    <span style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);padding:4px 12px;border-radius:20px;color:#00D8C6;font-weight:600;'>🆔 {student['roll_no']}</span>"
+        f"    <span style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);padding:4px 12px;border-radius:20px;color:#8B5CF6;font-weight:600;'>🏫 SECTION {student['section']}</span>"
+        f"    <span style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);padding:4px 12px;border-radius:20px;color:#F97316;font-weight:600;'>📅 {sem} SUMMARY</span>"
         f"  </div>"
         f"</div>",
         unsafe_allow_html=True
