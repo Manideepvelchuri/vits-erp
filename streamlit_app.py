@@ -671,7 +671,12 @@ def student_dashboard():
             </div>
         </div>
         """, unsafe_allow_html=True)
-        st.metric("CGPA", cgpa_display)
+        st.markdown(f"""
+        <div style="background: rgba(10, 14, 26, 0.45); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px; margin-bottom: 12px; text-align: center; font-family: 'Outfit';">
+            <div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">CGPA</div>
+            <div style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin-top: 2px;">{cgpa_display}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         sems_in_db = [r['semester'] for r in conn.execute(
             'SELECT DISTINCT semester FROM sgpa_records WHERE roll_no=?', (roll,)
@@ -732,344 +737,261 @@ def student_dashboard():
 
 # ── HOME / SUMMARY PAGE ───────────────────────────────────────
 def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
-    hour = dt.now().hour
-    greeting = "Good Morning" if hour < 12 else "Good Afternoon" if hour < 17 else "Good Evening"
+    # Font Import
+    st.markdown("""
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    """.replace('\n', ' '), unsafe_allow_html=True)
 
+    # 1. Calculate Attendance
     total_c = sum((r['hours_conducted'] or 0) for r in att_rows)
     total_a = sum((r['hours_attended']  or 0) for r in att_rows)
     overall = round(total_a / total_c * 100, 1) if total_c else 0.0
-    can_miss = can_miss_classes(total_a, total_c)
-    need = classes_needed(total_a, total_c)
-
-    # SGPA for this sem and average timetable classes
-    conn = get_db_connection()
-    sgpa_row = conn.execute(
-        'SELECT sgpa, failed FROM sgpa_records WHERE roll_no=? AND semester=?',
-        (student['roll_no'], sem)).fetchone()
     
-    # Completed Credits & Backlogs calculation
-    final_marks = conn.execute('''
+    # 2. Calculate Credits Earned
+    conn = get_db_connection()
+    all_final_marks = conn.execute('''
         SELECT subject, score, grade_point FROM marks
         WHERE roll_no=? AND exam_type LIKE '%Final Examinations'
     ''', (student['roll_no'],)).fetchall()
-
-    sec = student['section']
-    avg_classes = 7.0
-    if sec:
-        days_count = conn.execute('SELECT COUNT(DISTINCT day) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
-        total_periods = conn.execute('SELECT COUNT(*) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
-        if days_count > 0:
-            avg_classes = total_periods / days_count
     conn.close()
 
-    can_miss_days = round(can_miss / avg_classes, 1) if avg_classes > 0 else 0.0
-    need_days = round(need / avg_classes, 1) if avg_classes > 0 else 0.0
-
-    if sgpa_row and not sgpa_row['failed'] and sgpa_row['sgpa'] > 0:
-        sgpa_text = f"{sgpa_row['sgpa']:.2f}"
-    elif sgpa_row and sgpa_row['failed']:
-        sgpa_text = "Pending"
-    else:
-        sgpa_text = "-"
-
     completed_credits = 0.0
-    backlogs_count = 0
-    for m in final_marks:
+    for m in all_final_marks:
         sub = m['subject']
         score = m['score']
         gp_val = m['grade_point'] or 0.0
         grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if score is None else 'F')
         c_val = SUBJECT_CREDITS.get(sub, 3.0)
-        if grade in ['F', 'Ab']:
-            backlogs_count += 1
-        else:
+        if grade not in ['F', 'Ab']:
             completed_credits += c_val
 
-    status = "✅ SAFE" if overall >= 75 else "⚠️ RISK" if overall >= 65 else "🚫 DEBARRED"
+    # JNTUH GPA scale conversion
+    gpa_scale_10 = 0.0
+    if cgpa_display != "Pending" and cgpa_display != "-":
+        try: gpa_scale_10 = float(cgpa_display)
+        except ValueError: pass
+    gpa_display_val = f"{gpa_scale_10:.2f}" if gpa_scale_10 > 0 else cgpa_display
 
-    # Build subject data before columns so it's accessible full-width below
+    # Calculate backlogs
+    backlogs_count = 0
+    for m in all_final_marks:
+        score = m['score']
+        gp_val = m['grade_point'] or 0.0
+        grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if score is None else 'F')
+        if grade in ['F', 'Ab']:
+            backlogs_count += 1
+
+    # Skip Predictor / Status calculations
+    can_miss = can_miss_classes(total_a, total_c)
+    need = classes_needed(total_a, total_c)
+    
+    sec = student['section']
+    avg_classes = 7.0
+    if sec:
+        conn = get_db_connection()
+        days_count = conn.execute('SELECT COUNT(DISTINCT day) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
+        total_periods = conn.execute('SELECT COUNT(*) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
+        if days_count > 0:
+            avg_classes = total_periods / days_count
+        conn.close()
+
+    can_miss_days = round(can_miss / avg_classes, 1) if avg_classes > 0 else 0.0
+    need_days = round(need / avg_classes, 1) if avg_classes > 0 else 0.0
+
+    status_text = "SAFE ZONE" if overall >= 75 else "RISK ZONE" if overall >= 65 else "DEBARRED"
+    status_color = "#10B981" if overall >= 75 else "#F59E0B" if overall >= 65 else "#EF4444"
+    status_icon = "✅" if overall >= 75 else "⚠️" if overall >= 65 else "🚫"
+
+    # Current Semester SGPA
+    sem_finals = [r for r in marks_rows if r['exam_type'] == f"{sem} Final Examinations"]
+    if sem_finals:
+        sgpa_val = compute_sgpa([{'subject': r['subject'], 'grade_point': r['grade_point']} for r in sem_finals if r['score'] is not None])
+        sgpa_display_str = f"{sgpa_val:.2f}" if sgpa_val > 0 else "-"
+    else:
+        sgpa_display_str = "N/A"
+
+    # Subject Attendance list
     subj_data = []
     for r in att_rows:
         _c = r['hours_conducted'] or 0
         _a = r['hours_attended'] or 0
         _p = round(_a / _c * 100, 1) if _c else 0.0
-        subj_data.append({'subject': r['subject'], 'conducted': _c,
-                          'attended': _a, 'pct': _p,
-                          'absent': _c - _a,
-                          'can_miss': can_miss_classes(_a, _c),
-                          'need': classes_needed(_a, _c)})
+        subj_data.append({
+            'subject': r['subject'], 'conducted': _c,
+            'attended': _a, 'pct': _p,
+            'absent': _c - _a,
+            'can_miss': can_miss_classes(_a, _c),
+            'need': classes_needed(_a, _c)
+        })
 
-    # Set up column layout
-    col_main, col_side = st.columns([2.2, 1.0])
-
-    with col_main:
-        st.markdown(f"# {greeting}, {student['name'].split(' ')[0]}! 👋")
-        st.caption(f"Here's your {sem} academic summary · Roll: {student['roll_no']} · {student['section']}")
-        st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
-
-        # 4 KPI cards
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("Attendance", f"{overall}%")
-        k2.metric("SGPA", sgpa_text)
-        k3.metric("Credits Earned", f"{completed_credits:.1f}")
-        k4.metric("Backlogs", backlogs_count)
-
-        # Status banner
-        if total_c == 0:
-            st.info("🔍 No attendance data yet for this semester. Visit the Attendance tab to sync.")
-        elif overall >= 75:
-            st.markdown(f"""<div class="status-banner" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);">
-                <h3 style="color:#10B981 !important;margin:0;">🟢 Safe Zone</h3>
-                <p style="margin:8px 0 0 0;color:#cbd5e1 !important;">Current Attendance: <strong style="color:#fff;">{overall}%</strong>.
-                You can miss <strong style="color:#10B981;">{can_miss}</strong> more classes (approx. <strong style="color:#10B981;">{can_miss_days}</strong> days) and stay above 75%.</p>
-                </div>""", unsafe_allow_html=True)
-        elif overall >= 65:
-            st.markdown(f"""<div class="status-banner" style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);">
-                <h3 style="color:#F59E0B !important;margin:0;">🟠 Risk Zone</h3>
-                <p style="margin:8px 0 0 0;color:#cbd5e1 !important;">Current Attendance: <strong style="color:#fff;">{overall}%</strong>.
-                Attend <strong style="color:#F59E0B;">{need}</strong> consecutive classes (approx. <strong style="color:#F59E0B;">{need_days}</strong> days) to reach 75%.</p>
-                </div>""", unsafe_allow_html=True)
-        else:
-            st.markdown(f"""<div class="status-banner" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);">
-                <h3 style="color:#EF4444 !important;margin:0;">🔴 Debarred Zone</h3>
-                <p style="margin:8px 0 0 0;color:#cbd5e1 !important;">Current Attendance: <strong style="color:#fff;">{overall}%</strong>.
-                You need <strong style="color:#EF4444;">{need}</strong> classes (approx. <strong style="color:#EF4444;">{need_days}</strong> days) to recover to 75%.</p>
-                </div>""", unsafe_allow_html=True)
-
-        # Overall attendance skip predictor
-        if total_c > 0:
-            st.markdown("### 🔮 Overall Attendance Skip Predictor")
-            st.caption(f"💡 One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
-
-            miss_days = st.slider("If I miss the next ___ days (overall)", 0, 15, 0, key=f"skip_days_home_{sem}")
-            miss_classes = int(round(miss_days * avg_classes))
-            if miss_days > 0:
-                proj_overall = round(total_a / (total_c + miss_classes) * 100, 1)
-                if proj_overall >= 75:
-                    st.success(f"Projected Overall Attendance: **{proj_overall}%** (Safe Zone) ✅ (Missing {miss_days} days / {miss_classes} classes)")
-                elif proj_overall >= 65:
-                    st.warning(f"Projected Overall Attendance: **{proj_overall}%** (Condonation Zone) ⚠️ (Missing {miss_days} days / {miss_classes} classes)")
-                else:
-                    st.error(f"Projected Overall Attendance: **{proj_overall}%** (Debarred Zone) 🚫 (Missing {miss_days} days / {miss_classes} classes)")
-
-    with col_side:
-        # View schedule scheduler at the top
-        today_day = dt.now().strftime('%a')
-        days_list = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-        default_idx = days_list.index(today_day) if today_day in days_list else 0
-        
-        selected_day = st.selectbox("📅 View Schedule Day", days_list, index=default_idx)
-        
-        conn = get_db_connection()
-        day_classes = conn.execute(
-            'SELECT period, subject FROM timetable WHERE section=? AND day=? ORDER BY period',
-            (student['section'], selected_day)
-        ).fetchall()
-        conn.close()
-        
-        times_map = {
-            1: "08:45 - 09:35",
-            2: "09:35 - 10:25",
-            3: "10:40 - 11:30",
-            4: "11:30 - 12:20",
-            5: "01:10 - 02:00",
-            6: "02:00 - 02:45",
-            7: "02:45 - 03:30"
-        }
-        
-        if day_classes:
-            st.markdown(f"### ⏰ {selected_day}'s Schedule")
-            for idx, c in enumerate(day_classes):
-                t_range = times_map.get(c['period'], "Class Period")
-                border_color = "#00D8C6" if idx == 0 else "#8B5CF6" if idx == 1 else "rgba(255,255,255,0.15)"
-                st.markdown(f"""
-                <div style="background: rgba(20, 28, 48, 0.45); border: 1px solid rgba(255, 255, 255, 0.05); 
-                            border-left: 3px solid {border_color}; border-radius: 8px; padding: 6px 12px; margin-bottom: 5px;
-                            backdrop-filter: blur(10px); display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-size: 0.85rem; font-weight: 700; color: #fff; font-family: 'Outfit';">
-                        {c['subject']}
-                    </div>
-                    <div style="font-size: 0.65rem; color: #94a3b8; font-family: 'JetBrains Mono'; font-weight: 500; text-align: right;">
-                        P{c['period']} · {t_range}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-    # ── Full-width Academic Summary — REDESIGNED ──────────────────────
+    best_subj = None
+    worst_subj = None
     if subj_data:
-        best  = max(subj_data, key=lambda x: x['pct'])
-        worst = min(subj_data, key=lambda x: x['pct'])
+        best_subj = max(subj_data, key=lambda x: x['pct'])
+        worst_subj = min(subj_data, key=lambda x: x['pct'])
 
-        # ── Section header ─────────────────────────────────────────────
-        st.markdown("""
-        <div style="display:flex;align-items:center;gap:12px;margin:28px 0 18px 0;">
-            <div style="width:4px;height:32px;background:linear-gradient(180deg,#00D8C6,#8B5CF6);border-radius:2px;"></div>
-            <h2 style="margin:0;font-family:'Outfit',sans-serif;font-size:1.55rem;font-weight:800;
-                        background:linear-gradient(90deg,#fff 0%,#94a3b8 100%);
-                        -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
-                Academic Summary
-            </h2>
-        </div>
-        """, unsafe_allow_html=True)
+    # HEADER ROW
+    st.markdown(
+        "<div style='display:flex;align-items:center;border-left:4px solid #8B5CF6;padding-left:12px;margin-bottom:25px;margin-top:5px;'>"
+        "<h1 style='font-family:Outfit;font-weight:800;font-size:2.1rem;"
+        "color:#fff;margin:0;letter-spacing:-0.5px;'>Academic Summary</h1>"
+        "</div>",
+        unsafe_allow_html=True
+    )
 
-        # ── Hero Stats Row (4 cards) ───────────────────────────────────
-        if overall >= 75:
-            risk_color = "#10B981"; risk_icon = "✅"; risk_label = "SAFE ZONE"
-            risk_detail = f"Can skip <strong style='color:#10B981'>{can_miss} hrs</strong> ≈ {can_miss_days} days"
-        elif overall >= 65:
-            risk_color = "#F59E0B"; risk_icon = "⚠️"; risk_label = "RISK ZONE"
-            risk_detail = f"Attend <strong style='color:#F59E0B'>{need} more hrs</strong> ≈ {need_days} days"
-        else:
-            risk_color = "#EF4444"; risk_icon = "🚫"; risk_label = "DEBARRED"
-            risk_detail = f"Need <strong style='color:#EF4444'>{need} hrs</strong> to recover"
+    # 4 KPI ROW CARDS
+    k1, k2, k3, k4 = st.columns(4)
+    _card_style = ("background:rgba(10, 14, 26, 0.45);"
+                   "border-radius:12px;padding:15px;box-shadow:0 4px 20px rgba(0, 0, 0, 0.15);"
+                   "backdrop-filter:blur(5px);height:120px;display:flex;flex-direction:column;"
+                   "justify-content:space-between;text-align:center;position:relative;")
 
-        sgpa_display = sgpa_text if sgpa_text and sgpa_text != "-" else "N/A"
-        sgpa_color = "#8B5CF6" if sgpa_display != "N/A" else "#475569"
+    with k1:
+        st.markdown(
+            f"<div style='{_card_style} border:1px solid rgba(0, 216, 198, 0.15);'>"
+            f"<div style='font-family:\"Outfit\";font-weight:700;font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>OVERALL ATTENDANCE</div>"
+            f"<div style='font-family:\"Outfit\";font-size:1.85rem;font-weight:800;color:#00D8C6;line-height:1.1;margin:2px 0;'>{overall}%</div>"
+            f"<div style='font-family:\"Inter\";font-size:0.72rem;color:#64748b;'>{total_a}/{total_c} hrs</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+    with k2:
+        st.markdown(
+            f"<div style='{_card_style} border:1px solid rgba(255, 255, 255, 0.05);'>"
+            f"<div style='font-family:\"Outfit\";font-weight:700;font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>CURRENT SGPA</div>"
+            f"<div style='font-family:\"Outfit\";font-size:1.85rem;font-weight:800;color:#fff;line-height:1.1;margin:2px 0;'>{sgpa_display_str}</div>"
+            f"<div style='font-family:\"Inter\";font-size:0.72rem;color:#64748b;'>{completed_credits:.0f} credits earned</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+    with k3:
+        status_subtext = f"Can skip {can_miss} hrs ≈ {can_miss_days} days" if overall >= 75 else f"Attend {need} hrs ≈ {need_days} days"
+        st.markdown(
+            f"<div style='{_card_style} border:1px solid {status_color}26;'>"
+            f"<div style='font-family:\"Outfit\";font-weight:700;font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>STATUS</div>"
+            f"<div style='font-family:\"Outfit\";font-size:1.45rem;font-weight:800;color:{status_color};line-height:1.1;margin:2px 0;'>{status_icon} {status_text}</div>"
+            f"<div style='font-family:\"Inter\";font-size:0.72rem;color:#64748b;'>{status_subtext}</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+    with k4:
+        st.markdown(
+            f"<div style='{_card_style} border:1px solid rgba(249, 115, 22, 0.15);'>"
+            f"<div style='font-family:\"Outfit\";font-weight:700;font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>SUBJECTS</div>"
+            f"<div style='font-family:\"Outfit\";font-size:1.85rem;font-weight:800;color:#F97316;line-height:1.1;margin:2px 0;'>{len(att_rows)}</div>"
+            f"<div style='font-family:\"Inter\";font-size:0.72rem;color:#64748b;'>{backlogs_count} backlog(s)</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
 
-        h1, h2, h3, h4 = st.columns(4)
-        hero_css = """
-            background: linear-gradient(135deg, rgba(20,28,48,0.9) 0%, rgba(12,18,36,0.95) 100%);
-            border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 16px;
-            padding: 20px 18px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        """
-        h1.markdown(f"""
-        <div style="{hero_css} border-top: 3px solid #00D8C6;">
-            <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;font-family:'Inter';font-weight:600;">Overall Attendance</div>
-            <div style="font-size:2.4rem;font-weight:900;color:#00D8C6;font-family:'Outfit';line-height:1.1;margin:6px 0 2px 0;">{overall}%</div>
-            <div style="font-size:0.72rem;color:#94a3b8;">{total_a}/{total_c} hrs</div>
-        </div>""", unsafe_allow_html=True)
+    st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
 
-        h2.markdown(f"""
-        <div style="{hero_css} border-top: 3px solid {sgpa_color};">
-            <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;font-family:'Inter';font-weight:600;">Current SGPA</div>
-            <div style="font-size:2.4rem;font-weight:900;color:{sgpa_color};font-family:'Outfit';line-height:1.1;margin:6px 0 2px 0;">{sgpa_display}</div>
-            <div style="font-size:0.72rem;color:#94a3b8;">{completed_credits:.0f} credits earned</div>
-        </div>""", unsafe_allow_html=True)
+    # SPLIT COLUMNS (Circular meter + Best/Worst VS Subject Health)
+    col_l, col_r = st.columns([1.1, 1.8])
 
-        h3.markdown(f"""
-        <div style="{hero_css} border-top: 3px solid {risk_color};">
-            <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;font-family:'Inter';font-weight:600;">Status</div>
-            <div style="font-size:1.4rem;font-weight:900;color:{risk_color};font-family:'Outfit';line-height:1.1;margin:6px 0 4px 0;">{risk_icon} {risk_label}</div>
-            <div style="font-size:0.72rem;color:#94a3b8;">{risk_detail}</div>
-        </div>""", unsafe_allow_html=True)
+    with col_l:
+        val_outer = overall / 100.0 if overall > 0 else 0.78
+        val_inner = gpa_scale_10 / 10.0 if gpa_scale_10 > 0 else 0.70
 
-        h4.markdown(f"""
-        <div style="{hero_css} border-top: 3px solid #F59E0B;">
-            <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;font-family:'Inter';font-weight:600;">Subjects</div>
-            <div style="font-size:2.4rem;font-weight:900;color:#F59E0B;font-family:'Outfit';line-height:1.1;margin:6px 0 2px 0;">{len(subj_data)}</div>
-            <div style="font-size:0.72rem;color:#94a3b8;">{backlogs_count} backlog(s)</div>
-        </div>""", unsafe_allow_html=True)
-
-        st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
-
-        # ── Two-column layout: Donut + Subject Health Bars ─────────────
-        left_col, right_col = st.columns([1, 1.6])
-
-        with left_col:
-            # Donut chart for overall attendance
-            donut_color = "#10B981" if overall >= 75 else "#F59E0B" if overall >= 65 else "#EF4444"
-            fig_donut = go.Figure(go.Pie(
-                values=[overall, 100 - overall],
-                hole=0.72,
-                marker_colors=[donut_color, "rgba(255,255,255,0.04)"],
-                textinfo="none",
-                hoverinfo="skip",
-                sort=False,
-            ))
-            fig_donut.add_annotation(
-                text=f"<b>{overall}%</b>",
-                x=0.5, y=0.55, showarrow=False,
-                font=dict(size=30, color=donut_color, family="Outfit"),
-                xanchor="center"
-            )
-            fig_donut.add_annotation(
-                text="Attendance",
-                x=0.5, y=0.38, showarrow=False,
-                font=dict(size=13, color="#94a3b8", family="Inter"),
-                xanchor="center"
-            )
-            fig_donut.update_layout(
-                height=260,
-                showlegend=False,
-                margin=dict(t=10, b=10, l=10, r=10),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                dragmode=False,
-            )
-            st.plotly_chart(fig_donut, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
-
-            # Best vs Worst mini cards
-            st.markdown(f"""
-            <div style="background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.2);
-                        border-radius:12px;padding:12px 14px;margin-bottom:8px;">
-                <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Best Subject 🏆</div>
-                <div style="font-size:1.05rem;font-weight:800;color:#10B981;font-family:'Outfit';margin-top:3px;">{best['subject']}</div>
-                <div style="font-size:0.8rem;color:#94a3b8;">{best['attended']}/{best['conducted']} hrs · <strong style='color:#10B981'>{best['pct']}%</strong></div>
+        st.markdown(f"""
+        <div style="background: rgba(10, 14, 26, 0.45); border: 1px solid rgba(255,255,255,0.05); 
+                    border-radius: 16px; padding: 20px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15); 
+                    height: 280px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-top: 15px;">
+                <svg width="140" height="140" viewBox="0 0 160 160">
+                    <!-- Outer Ring: Attendance (Teal) -->
+                    <circle cx="80" cy="80" r="65" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="9"/>
+                    <circle cx="80" cy="80" r="65" fill="none" stroke="#00D8C6" stroke-width="9"
+                            stroke-dasharray="408.4" stroke-dashoffset="{408.4 * (1 - val_outer)}" stroke-linecap="round" transform="rotate(-90 80 80)"/>
+                    
+                    <!-- Inner Ring: Academic Performance (GPA - Purple) -->
+                    <circle cx="80" cy="80" r="50" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="9"/>
+                    <circle cx="80" cy="80" r="50" fill="none" stroke="#8B5CF6" stroke-width="9"
+                            stroke-dasharray="314.16" stroke-dashoffset="{314.16 * (1 - val_inner)}" stroke-linecap="round" transform="rotate(-90 80 80)"/>
+                </svg>
+                <div style="position: absolute; text-align: center; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                    <div style="font-family: 'Outfit'; font-size: 1.8rem; font-weight: 800; color: #fff; line-height: 1;">{overall}%</div>
+                    <div style="font-family: 'Inter'; font-size: 0.62rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">Attendance</div>
+                </div>
             </div>
-            <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);
-                        border-radius:12px;padding:12px 14px;">
-                <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Needs Attention ⚠️</div>
-                <div style="font-size:1.05rem;font-weight:800;color:#EF4444;font-family:'Outfit';margin-top:3px;">{worst['subject']}</div>
-                <div style="font-size:0.8rem;color:#94a3b8;">{worst['attended']}/{worst['conducted']} hrs · <strong style='color:#EF4444'>{worst['pct']}%</strong></div>
+            <div style="text-align: center; font-size: 0.72rem; color: #64748b; font-weight: 600; font-family: 'Inter';">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#00D8C6; margin-right:5px;"></span>Attendance &nbsp;&nbsp;&nbsp; 
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#8B5CF6; margin-right:5px;"></span>GPA
+            </div>
+        </div>
+        """.replace('\n', ' '), unsafe_allow_html=True)
+
+        if best_subj:
+            st.markdown(f"""
+            <div style="background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: 12px; padding: 15px; margin-top: 15px; font-family: 'Outfit';">
+                <div style="font-size: 0.75rem; color: #10B981; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Best Subject 🏆</div>
+                <div style="font-size: 1.15rem; font-weight: 800; color: #ffffff; margin-top: 4px;">{best_subj['subject']}</div>
+                <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 2px;">{best_subj['attended']}/{best_subj['conducted']} hrs - <span style="color: #10B981; font-weight: bold;">{best_subj['pct']}%</span></div>
             </div>
             """, unsafe_allow_html=True)
 
-        with right_col:
-            st.markdown("""
-            <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;
-                        letter-spacing:0.12em;font-weight:600;margin-bottom:12px;font-family:'Inter';">
-                Subject Health
-            </div>""", unsafe_allow_html=True)
+        if worst_subj:
+            st.markdown(f"""
+            <div style="background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.15); border-radius: 12px; padding: 15px; margin-top: 12px; font-family: 'Outfit';">
+                <div style="font-size: 0.75rem; color: #EF4444; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Needs Attention ⚠️</div>
+                <div style="font-size: 1.15rem; font-weight: 800; color: #ffffff; margin-top: 4px;">{worst_subj['subject']}</div>
+                <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 2px;">{worst_subj['attended']}/{worst_subj['conducted']} hrs - <span style="color: #EF4444; font-weight: bold;">{worst_subj['pct']}%</span></div>
+            </div>
+            """, unsafe_allow_html=True)
 
-            sorted_subjs = sorted(subj_data, key=lambda x: x['pct'])
-            for s in sorted_subjs:
+    with col_r:
+        if not subj_data:
+            st.markdown(
+                "<div style='background:rgba(10, 14, 26, 0.45); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:30px; text-align:center; color:#64748b;'>No subject details available.</div>",
+                unsafe_allow_html=True
+            )
+        else:
+            health_html = (
+                "<div style='background: rgba(10, 14, 26, 0.45); border: 1px solid rgba(255,255,255,0.05); "
+                "border-radius: 16px; padding: 20px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15); "
+                "height: 485px; overflow-y: auto;'>"
+                "<div style=\"font-family: 'Outfit'; font-weight: 700; font-size: 0.95rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 15px;\">Subject Health</div>"
+            )
+            for s in sorted(subj_data, key=lambda x: x['pct']):
                 pct = s['pct']
                 bar_color = "#10B981" if pct >= 75 else "#F59E0B" if pct >= 65 else "#EF4444"
-                status_icon = "✅" if pct >= 75 else "⚠️" if pct >= 65 else "🚫"
+                status_char = "✓" if pct >= 75 else "⚠️" if pct >= 65 else "🚫"
                 absent_hrs = s['conducted'] - s['attended']
-                # truncate long subject names
-                subj_label = s['subject'][:16] + "…" if len(s['subject']) > 16 else s['subject']
-                st.markdown(f"""
-                <div style="margin-bottom:10px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
-                        <span style="font-size:0.8rem;font-weight:600;color:#e2e8f0;font-family:'Inter';">{subj_label}</span>
-                        <span style="font-size:0.75rem;color:{bar_color};font-weight:700;font-family:'JetBrains Mono';">{status_icon} {pct}%</span>
-                    </div>
-                    <div style="background:rgba(255,255,255,0.06);border-radius:999px;height:7px;overflow:hidden;">
-                        <div style="width:{min(pct,100)}%;height:100%;
-                                    background:linear-gradient(90deg,{bar_color}aa,{bar_color});
-                                    border-radius:999px;transition:width 0.4s ease;"></div>
-                    </div>
-                    <div style="font-size:0.65rem;color:#475569;margin-top:2px;">{s['attended']}/{s['conducted']} hrs · {absent_hrs} absent</div>
-                </div>
-                """, unsafe_allow_html=True)
+                subj_label = s['subject']
+                
+                health_html += (
+                    f"<div style='margin-bottom: 15px; font-family: \"Inter\";'>"
+                    f"  <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;'>"
+                    f"    <span style='font-size: 0.85rem; font-weight: 700; color: #ffffff;'>{subj_label}</span>"
+                    f"    <span style='font-size: 0.8rem; color: {bar_color}; font-weight: 700;'>{status_char} {pct}%</span>"
+                    f"  </div>"
+                    f"  <div style='background: rgba(255,255,255,0.06); border-radius: 999px; height: 7px; overflow: hidden; width: 100%;'>"
+                    f"    <div style='width: {min(pct, 100)}%; height: 100%; background: {bar_color}; border-radius: 999px;'></div>"
+                    f"  </div>"
+                    f"  <div style='font-size: 0.7rem; color: #64748b; margin-top: 3px;'>{s['attended']}/{s['conducted']} hrs · {absent_hrs} absent</div>"
+                    f"</div>"
+                )
+            health_html += "</div>"
+            st.markdown(health_html.replace('\n', ' '), unsafe_allow_html=True)
 
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-        st.markdown("""<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:8px 0 20px 0;">""", unsafe_allow_html=True)
+    # ── Bottom Section (Skip Calculator + Exam Grades) ──
+    st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
+    st.markdown("<hr style='border:none;border-top:1px solid rgba(255,255,255,0.06);margin:15px 0 25px 0;'>", unsafe_allow_html=True)
+    
+    with st.expander("🔮 Projected Attendance Calculator", expanded=False):
+        st.markdown("<p style='font-size:0.85rem;color:#cbd5e1;'>Simulate skipping future classes to see the impact on your overall attendance status.</p>", unsafe_allow_html=True)
+        miss_days = st.slider("Projected Missed Days:", 0, 15, 0, key=f"skip_days_home_{sem}")
+        if miss_days > 0:
+            miss_classes = int(round(miss_days * avg_classes))
+            proj_overall = round(total_a / (total_c + miss_classes) * 100, 1)
+            if proj_overall >= 75:
+                st.success(f"Projected Attendance: {proj_overall}% (Safe Zone) ✅")
+            elif proj_overall >= 65:
+                st.warning(f"Projected Attendance: {proj_overall}% (Risk Zone) ⚠️")
+            else:
+                st.error(f"Projected Attendance: {proj_overall}% (Debarred Zone) 🚫")
 
-        # ── Bar chart (kept below) ─────────────────────────────────────
-        st.markdown("""
-        <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;
-                    letter-spacing:0.12em;font-weight:600;margin-bottom:8px;font-family:'Inter';">
-            Subject Attendance Chart
-        </div>""", unsafe_allow_html=True)
-        df = pd.DataFrame(subj_data)
-        fig = px.bar(df, x='subject', y='pct', color='pct',
-                     color_continuous_scale=[[0, '#EF4444'], [0.65, '#F59E0B'], [0.75, '#00D8C6'], [1, '#00D8C6']],
-                     range_color=[0, 100], labels={'pct': 'Attendance %', 'subject': 'Subject'})
-        fig.add_hline(y=75, line_dash="dash", line_color="#10B981", annotation_text="75% target")
-        fig.add_hline(y=65, line_dash="dash", line_color="#F59E0B", annotation_text="65% min")
-        fig.update_layout(height=380, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-                          margin=dict(t=10, b=10))
-        fig.update_coloraxes(showscale=False)
-        apply_premium_plotly_theme(fig)
-        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
-
-    # Grades table – full width
+    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
     st.markdown("### 📝 Exam & Assignment Grades")
     sem_final_marks = [r for r in marks_rows if r['exam_type'] == f"{sem} Final Examinations"]
     if sem_final_marks:
