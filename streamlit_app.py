@@ -808,7 +808,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         sgpa_val = compute_sgpa([{'subject': r['subject'], 'grade_point': r['grade_point']} for r in sem_finals if r['score'] is not None])
         sgpa_display_str = f"{sgpa_val:.2f}" if sgpa_val > 0 else "-"
     else:
-        sgpa_display_str = "N/A"
+        sgpa_display_str = "-"
 
     # Subject Attendance list
     subj_data = []
@@ -864,54 +864,20 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             unsafe_allow_html=True
         )
 
-    if "show_cgpa" not in st.session_state:
-        st.session_state.show_cgpa = False
-    show_cgpa = st.session_state.show_cgpa
+    val_inner = gpa_scale_10 / 10.0 if gpa_scale_10 > 0 else 0.0
+    inner_label = "CGPA / SGPA"
+    inner_val_text = f"{gpa_display_val} / {sgpa_display_str}"
 
     with k2:
-        # Hidden button to trigger click callback in Streamlit
-        st.markdown("""
-        <style>
-        .hidden-btn-container {
-            display: none !important;
-        }
-        .gpa-clickable-card {
-            transition: all 0.25s ease-in-out;
-        }
-        .gpa-clickable-card:hover {
-            border-color: rgba(139, 92, 246, 0.4) !important;
-            box-shadow: 0 8px 30px rgba(139, 92, 246, 0.25) !important;
-            transform: translateY(-2px);
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        st.markdown('<div class="hidden-btn-container">', unsafe_allow_html=True)
-        if st.button("Toggle GPA Mode", key=f"gpa_toggle_btn_{sem}"):
-            st.session_state.show_cgpa = not st.session_state.get('show_cgpa', False)
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        if show_cgpa:
-            gpa_title = "CURRENT CGPA"
-            gpa_val_display = gpa_display_val if gpa_display_val and gpa_display_val != "-" else "N/A"
-            val_inner = gpa_scale_10 / 10.0 if gpa_scale_10 > 0 else 0.0
-            inner_label = "CGPA"
-            inner_val_text = f"{gpa_scale_10:.2f}"
-        else:
-            gpa_title = "CURRENT SGPA"
-            gpa_val_display = sgpa_display_str if sgpa_display_str and sgpa_display_str != "-" else "N/A"
-            val_inner = sgpa_val / 10.0 if sgpa_val > 0 else 0.0
-            inner_label = "SGPA"
-            inner_val_text = f"{sgpa_val:.2f}" if sgpa_val > 0 else "N/A"
-
+        gpa_title = "CGPA / SGPA"
+        gpa_val_display = f"{gpa_display_val} / {sgpa_display_str}"
+        gpa_font_size = "1.7rem" if len(gpa_val_display) > 6 else "2.1rem"
         st.markdown(
-            f"<div class='gpa-clickable-card' onclick=\"const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Toggle GPA Mode')); if(btn) btn.click();\" "
-            f"     style='{_card_wrapper_style} cursor:pointer;'>"
+            f"<div style='{_card_wrapper_style}'>"
             f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
             f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>{gpa_title}</div>"
-            f"    <div style='font-size:2.1rem;font-weight:800;color:#ffffff;line-height:1.1;margin:2px 0;'>{gpa_val_display}</div>"
-            f"    <div style='font-size:0.72rem;color:#b388ff;font-weight:600;'>🔄 Click to switch</div>"
+            f"    <div style='font-size:{gpa_font_size};font-weight:800;color:#ffffff;line-height:1.2;margin:2px 0;'>{gpa_val_display}</div>"
+            f"    <div style='font-size:0.75rem;color:#64748b;'>academic performance</div>"
             f"  </div>"
             f"  <div style='font-size:1.8rem;color:#b388ff;opacity:0.85;'>🎓</div>"
             f"</div>",
