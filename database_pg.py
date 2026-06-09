@@ -421,7 +421,8 @@ CREATE TABLE IF NOT EXISTS students (
     branch       TEXT,
     phone        TEXT,
     parent_phone TEXT,
-    theme_pref   TEXT DEFAULT 'dark'
+    theme_pref   TEXT DEFAULT 'dark',
+    last_login   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS subjects (
@@ -585,6 +586,14 @@ def init_db():
         try: conn._conn.rollback()
         except: pass
         print(f"[init_db] Warning on DOB reset migration: {e}")
+
+    # Migration: ensure last_login column exists in students table
+    try:
+        conn.execute("ALTER TABLE students ADD COLUMN last_login TEXT")
+        conn.commit()
+    except Exception as e:
+        try: conn._conn.rollback()
+        except: pass
 
     conn.close()
 
