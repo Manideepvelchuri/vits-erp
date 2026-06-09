@@ -864,8 +864,34 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             unsafe_allow_html=True
         )
 
+    if "show_cgpa" not in st.session_state:
+        st.session_state.show_cgpa = False
+    show_cgpa = st.session_state.show_cgpa
+
     with k2:
-        show_cgpa = st.toggle("Show CGPA", value=False, key=f"gpa_toggle_{sem}")
+        # Hidden button to trigger click callback in Streamlit
+        st.markdown("""
+        <style>
+        .hidden-btn-container {
+            display: none !important;
+        }
+        .gpa-clickable-card {
+            transition: all 0.25s ease-in-out;
+        }
+        .gpa-clickable-card:hover {
+            border-color: rgba(139, 92, 246, 0.4) !important;
+            box-shadow: 0 8px 30px rgba(139, 92, 246, 0.25) !important;
+            transform: translateY(-2px);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<div class="hidden-btn-container">', unsafe_allow_html=True)
+        if st.button("Toggle GPA Mode", key=f"gpa_toggle_btn_{sem}"):
+            st.session_state.show_cgpa = not st.session_state.get('show_cgpa', False)
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
         if show_cgpa:
             gpa_title = "CURRENT CGPA"
             gpa_val_display = gpa_display_val if gpa_display_val and gpa_display_val != "-" else "N/A"
@@ -880,11 +906,12 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             inner_val_text = f"{sgpa_val:.2f}" if sgpa_val > 0 else "N/A"
 
         st.markdown(
-            f"<div style='{_card_wrapper_style}'>"
+            f"<div class='gpa-clickable-card' onclick=\"const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Toggle GPA Mode')); if(btn) btn.click();\" "
+            f"     style='{_card_wrapper_style} cursor:pointer;'>"
             f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
             f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>{gpa_title}</div>"
             f"    <div style='font-size:2.1rem;font-weight:800;color:#ffffff;line-height:1.1;margin:2px 0;'>{gpa_val_display}</div>"
-            f"    <div style='font-size:0.75rem;color:#64748b;'>{completed_credits:.0f} credits earned</div>"
+            f"    <div style='font-size:0.72rem;color:#b388ff;font-weight:600;'>🔄 Click to switch</div>"
             f"  </div>"
             f"  <div style='font-size:1.8rem;color:#b388ff;opacity:0.85;'>🎓</div>"
             f"</div>",
@@ -892,21 +919,15 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         )
 
     with k3:
-        status_subtext = f"Can skip {can_miss} hrs ≈ {can_miss_days} days" if overall >= 75 else f"Attend {need} hrs ≈ {need_days} days"
-        if overall >= 75:
-            icon_html = "<div style='background:#10B981;color:#070d19;width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:bold;'>✓</div>"
-        elif overall >= 65:
-            icon_html = "<div style='background:#F59E0B;color:#070d19;width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:bold;'>!</div>"
-        else:
-            icon_html = "<div style='background:#EF4444;color:#ffffff;width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:bold;'>✕</div>"
+        credits_display = f"{completed_credits:.0f}" if completed_credits.is_integer() else f"{completed_credits:.1f}"
         st.markdown(
             f"<div style='{_card_wrapper_style}'>"
             f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
-            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>STATUS</div>"
-            f"    <div style='font-size:1.45rem;font-weight:800;color:{status_color};line-height:1.1;margin:2px 0;'>{status_text}</div>"
-            f"    <div style='font-size:0.75rem;color:#64748b;'>{status_subtext}</div>"
+            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>CREDITS EARNED</div>"
+            f"    <div style='font-size:2.1rem;font-weight:800;color:#10B981;line-height:1.1;margin:2px 0;'>{credits_display}</div>"
+            f"    <div style='font-size:0.75rem;color:#64748b;'>credits completed</div>"
             f"  </div>"
-            f"  <div>{icon_html}</div>"
+            f"  <div style='font-size:1.8rem;color:#10B981;opacity:0.85;'>⚡</div>"
             f"</div>",
             unsafe_allow_html=True
         )
@@ -969,8 +990,8 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         </div>
         """, unsafe_allow_html=True)
 
-    # SPLIT COLUMNS (Circular meter + Weekly Timetable + Subject Health)
-    col_l, col_m, col_r = st.columns([1.1, 1.2, 1.5])
+    # SPLIT COLUMNS (Circular meter + Subject Health + Weekly Timetable)
+    col_l, col_m, col_r = st.columns([1.1, 1.5, 1.2])
 
     with col_l:
         val_outer = overall / 100.0 if overall > 0 else 0.78
@@ -1022,6 +1043,41 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             """, unsafe_allow_html=True)
 
     with col_m:
+        if not subj_data:
+            st.markdown(
+                "<div style='background:rgba(10, 14, 26, 0.45); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:30px; text-align:center; color:#64748b;'>No subject details available.</div>",
+                unsafe_allow_html=True
+            )
+        else:
+            health_html = (
+                "<div style='background: rgba(10, 14, 26, 0.45); border: 1px solid rgba(255,255,255,0.05); "
+                "border-radius: 16px; padding: 20px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15); "
+                "height: 520px; overflow-y: auto;'>"
+                "<div style=\"font-family: 'Outfit'; font-weight: 700; font-size: 0.95rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 15px;\">Subject Health</div>"
+            )
+            for s in sorted(subj_data, key=lambda x: x['pct']):
+                pct = s['pct']
+                bar_color = "#10B981" if pct >= 75 else "#F59E0B" if pct >= 65 else "#EF4444"
+                status_char = "✓" if pct >= 75 else "⚠️" if pct >= 65 else "🚫"
+                absent_hrs = s['conducted'] - s['attended']
+                subj_label = s['subject']
+                
+                health_html += (
+                    f"<div style='margin-bottom: 15px; font-family: \"Inter\";'>"
+                    f"  <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;'>"
+                    f"    <span style='font-size: 0.85rem; font-weight: 700; color: #ffffff;'>{subj_label}</span>"
+                    f"    <span style='font-size: 0.8rem; color: {bar_color}; font-weight: 700;'>{status_char} {pct}%</span>"
+                    f"  </div>"
+                    f"  <div style='background: rgba(255,255,255,0.06); border-radius: 999px; height: 7px; overflow: hidden; width: 100%;'>"
+                    f"    <div style='width: {min(pct, 100)}%; height: 100%; background: {bar_color}; border-radius: 999px;'></div>"
+                    f"  </div>"
+                    f"  <div style='font-size: 0.7rem; color: #64748b; margin-top: 3px;'>{s['attended']}/{s['conducted']} hrs · {absent_hrs} absent</div>"
+                    f"</div>"
+                )
+            health_html += "</div>"
+            st.markdown(health_html.replace('\n', ' '), unsafe_allow_html=True)
+
+    with col_r:
         st.markdown(
             "<div style='font-family:Outfit;font-weight:700;font-size:0.95rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:15px;'>"
             "📅 Daily Schedule"
@@ -1073,41 +1129,6 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             schedule_html += "<div style='color:#64748b;text-align:center;padding-top:180px;font-family:Inter;font-size:0.85rem;'>🎉 No classes scheduled for this day!</div>"
         schedule_html += "</div>"
         st.markdown(schedule_html.replace('\n', ' '), unsafe_allow_html=True)
-
-    with col_r:
-        if not subj_data:
-            st.markdown(
-                "<div style='background:rgba(10, 14, 26, 0.45); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:30px; text-align:center; color:#64748b;'>No subject details available.</div>",
-                unsafe_allow_html=True
-            )
-        else:
-            health_html = (
-                "<div style='background: rgba(10, 14, 26, 0.45); border: 1px solid rgba(255,255,255,0.05); "
-                "border-radius: 16px; padding: 20px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15); "
-                "height: 520px; overflow-y: auto;'>"
-                "<div style=\"font-family: 'Outfit'; font-weight: 700; font-size: 0.95rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 15px;\">Subject Health</div>"
-            )
-            for s in sorted(subj_data, key=lambda x: x['pct']):
-                pct = s['pct']
-                bar_color = "#10B981" if pct >= 75 else "#F59E0B" if pct >= 65 else "#EF4444"
-                status_char = "✓" if pct >= 75 else "⚠️" if pct >= 65 else "🚫"
-                absent_hrs = s['conducted'] - s['attended']
-                subj_label = s['subject']
-                
-                health_html += (
-                    f"<div style='margin-bottom: 15px; font-family: \"Inter\";'>"
-                    f"  <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;'>"
-                    f"    <span style='font-size: 0.85rem; font-weight: 700; color: #ffffff;'>{subj_label}</span>"
-                    f"    <span style='font-size: 0.8rem; color: {bar_color}; font-weight: 700;'>{status_char} {pct}%</span>"
-                    f"  </div>"
-                    f"  <div style='background: rgba(255,255,255,0.06); border-radius: 999px; height: 7px; overflow: hidden; width: 100%;'>"
-                    f"    <div style='width: {min(pct, 100)}%; height: 100%; background: {bar_color}; border-radius: 999px;'></div>"
-                    f"  </div>"
-                    f"  <div style='font-size: 0.7rem; color: #64748b; margin-top: 3px;'>{s['attended']}/{s['conducted']} hrs · {absent_hrs} absent</div>"
-                    f"</div>"
-                )
-            health_html += "</div>"
-            st.markdown(health_html.replace('\n', ' '), unsafe_allow_html=True)
 
     # ── Middle Section: Attendance Predictor + Bar Graph (Full Width) ──
     st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
