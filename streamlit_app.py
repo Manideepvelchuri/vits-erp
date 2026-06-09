@@ -839,47 +839,66 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         unsafe_allow_html=True
     )
 
-    # 4 KPI ROW CARDS
+    # 4 KPI ROW CARDS (Redesigned matching the user's custom layout)
     k1, k2, k3, k4 = st.columns(4)
-    _card_style = ("background:rgba(10, 14, 26, 0.45);"
-                   "border-radius:12px;padding:15px;box-shadow:0 4px 20px rgba(0, 0, 0, 0.15);"
-                   "backdrop-filter:blur(5px);height:120px;display:flex;flex-direction:column;"
-                   "justify-content:space-between;text-align:center;position:relative;")
+    _card_wrapper_style = ("background:rgba(10, 14, 26, 0.45);"
+                           "border: 1px solid rgba(255, 255, 255, 0.05);"
+                           "border-radius:12px;padding:16px 20px;box-shadow:0 4px 20px rgba(0, 0, 0, 0.15);"
+                           "backdrop-filter:blur(5px);height:125px;display:flex;justify-content:space-between;"
+                           "align-items:center;font-family:'Outfit',sans-serif;position:relative;")
 
     with k1:
         st.markdown(
-            f"<div style='{_card_style} border:1px solid rgba(0, 216, 198, 0.15);'>"
-            f"<div style='font-family:\"Outfit\";font-weight:700;font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>OVERALL ATTENDANCE</div>"
-            f"<div style='font-family:\"Outfit\";font-size:1.85rem;font-weight:800;color:#00D8C6;line-height:1.1;margin:2px 0;'>{overall}%</div>"
-            f"<div style='font-family:\"Inter\";font-size:0.72rem;color:#64748b;'>{total_a}/{total_c} hrs</div>"
+            f"<div style='{_card_wrapper_style}'>"
+            f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
+            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>OVERALL ATTENDANCE</div>"
+            f"    <div style='font-size:2.1rem;font-weight:800;color:#00D8C6;line-height:1.1;margin:2px 0;'>{overall}%</div>"
+            f"    <div style='font-size:0.75rem;color:#64748b;'>{total_a}/{total_c} hrs attended</div>"
+            f"  </div>"
+            f"  <div style='font-size:1.8rem;color:#00e676;font-weight:700;'>↑</div>"
             f"</div>",
             unsafe_allow_html=True
         )
     with k2:
         st.markdown(
-            f"<div style='{_card_style} border:1px solid rgba(255, 255, 255, 0.05);'>"
-            f"<div style='font-family:\"Outfit\";font-weight:700;font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>CURRENT SGPA</div>"
-            f"<div style='font-family:\"Outfit\";font-size:1.85rem;font-weight:800;color:#fff;line-height:1.1;margin:2px 0;'>{sgpa_display_str}</div>"
-            f"<div style='font-family:\"Inter\";font-size:0.72rem;color:#64748b;'>{completed_credits:.0f} credits earned</div>"
+            f"<div style='{_card_wrapper_style}'>"
+            f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
+            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>CURRENT SGPA</div>"
+            f"    <div style='font-size:2.1rem;font-weight:800;color:#ffffff;line-height:1.1;margin:2px 0;'>{sgpa_display_str}</div>"
+            f"    <div style='font-size:0.75rem;color:#64748b;'>{completed_credits:.0f} credits earned</div>"
+            f"  </div>"
+            f"  <div style='font-size:1.8rem;color:#b388ff;opacity:0.85;'>🎓</div>"
             f"</div>",
             unsafe_allow_html=True
         )
     with k3:
         status_subtext = f"Can skip {can_miss} hrs ≈ {can_miss_days} days" if overall >= 75 else f"Attend {need} hrs ≈ {need_days} days"
+        if overall >= 75:
+            icon_html = "<div style='background:#10B981;color:#070d19;width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:bold;'>✓</div>"
+        elif overall >= 65:
+            icon_html = "<div style='background:#F59E0B;color:#070d19;width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:bold;'>!</div>"
+        else:
+            icon_html = "<div style='background:#EF4444;color:#ffffff;width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:bold;'>✕</div>"
         st.markdown(
-            f"<div style='{_card_style} border:1px solid {status_color}26;'>"
-            f"<div style='font-family:\"Outfit\";font-weight:700;font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>STATUS</div>"
-            f"<div style='font-family:\"Outfit\";font-size:1.45rem;font-weight:800;color:{status_color};line-height:1.1;margin:2px 0;'>{status_icon} {status_text}</div>"
-            f"<div style='font-family:\"Inter\";font-size:0.72rem;color:#64748b;'>{status_subtext}</div>"
+            f"<div style='{_card_wrapper_style}'>"
+            f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
+            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>STATUS</div>"
+            f"    <div style='font-size:1.45rem;font-weight:800;color:{status_color};line-height:1.1;margin:2px 0;'>{status_text}</div>"
+            f"    <div style='font-size:0.75rem;color:#64748b;'>{status_subtext}</div>"
+            f"  </div>"
+            f"  <div>{icon_html}</div>"
             f"</div>",
             unsafe_allow_html=True
         )
     with k4:
         st.markdown(
-            f"<div style='{_card_style} border:1px solid rgba(249, 115, 22, 0.15);'>"
-            f"<div style='font-family:\"Outfit\";font-weight:700;font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>SUBJECTS</div>"
-            f"<div style='font-family:\"Outfit\";font-size:1.85rem;font-weight:800;color:#F97316;line-height:1.1;margin:2px 0;'>{len(att_rows)}</div>"
-            f"<div style='font-family:\"Inter\";font-size:0.72rem;color:#64748b;'>{backlogs_count} backlog(s)</div>"
+            f"<div style='{_card_wrapper_style}'>"
+            f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
+            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>SUBJECTS</div>"
+            f"    <div style='font-size:2.1rem;font-weight:800;color:#F97316;line-height:1.1;margin:2px 0;'>{len(att_rows)}</div>"
+            f"    <div style='font-size:0.75rem;color:#64748b;'>{backlogs_count} backlog(s)</div>"
+            f"  </div>"
+            f"  <div style='font-size:1.8rem;opacity:0.85;'>📚</div>"
             f"</div>",
             unsafe_allow_html=True
         )
@@ -896,9 +915,9 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         st.markdown(f"""
         <div style="background: rgba(10, 14, 26, 0.45); border: 1px solid rgba(255,255,255,0.05); 
                     border-radius: 16px; padding: 20px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15); 
-                    height: 280px; display: flex; flex-direction: column; justify-content: space-between;">
+                    height: 330px; display: flex; flex-direction: column; justify-content: space-between;">
             <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-top: 15px;">
-                <svg width="140" height="140" viewBox="0 0 160 160">
+                <svg width="190" height="190" viewBox="0 0 160 160">
                     <!-- Outer Ring: Attendance (Teal) -->
                     <circle cx="80" cy="80" r="65" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="9"/>
                     <circle cx="80" cy="80" r="65" fill="none" stroke="#00D8C6" stroke-width="9"
@@ -910,11 +929,11 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                             stroke-dasharray="314.16" stroke-dashoffset="{314.16 * (1 - val_inner)}" stroke-linecap="round" transform="rotate(-90 80 80)"/>
                 </svg>
                 <div style="position: absolute; text-align: center; top: 50%; left: 50%; transform: translate(-50%, -50%);">
-                    <div style="font-family: 'Outfit'; font-size: 1.8rem; font-weight: 800; color: #fff; line-height: 1;">{overall}%</div>
-                    <div style="font-family: 'Inter'; font-size: 0.62rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">Attendance</div>
+                    <div style="font-family: 'Outfit'; font-size: 2.2rem; font-weight: 800; color: #fff; line-height: 1;">{overall}%</div>
+                    <div style="font-family: 'Inter'; font-size: 0.65rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Attendance</div>
                 </div>
             </div>
-            <div style="text-align: center; font-size: 0.72rem; color: #64748b; font-weight: 600; font-family: 'Inter';">
+            <div style="text-align: center; font-size: 0.75rem; color: #64748b; font-weight: 600; font-family: 'Inter'; margin-bottom: 5px;">
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#00D8C6; margin-right:5px;"></span>Attendance &nbsp;&nbsp;&nbsp; 
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#8B5CF6; margin-right:5px;"></span>GPA
             </div>
@@ -949,7 +968,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             health_html = (
                 "<div style='background: rgba(10, 14, 26, 0.45); border: 1px solid rgba(255,255,255,0.05); "
                 "border-radius: 16px; padding: 20px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15); "
-                "height: 485px; overflow-y: auto;'>"
+                "height: 520px; overflow-y: auto;'>"
                 "<div style=\"font-family: 'Outfit'; font-weight: 700; font-size: 0.95rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 15px;\">Subject Health</div>"
             )
             for s in sorted(subj_data, key=lambda x: x['pct']):
@@ -974,46 +993,85 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             health_html += "</div>"
             st.markdown(health_html.replace('\n', ' '), unsafe_allow_html=True)
 
-    # ── Bottom Section (Skip Calculator + Exam Grades) ──
+    # ── Middle Section: Attendance Predictor + Bar Graph (Full Width) ──
     st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
     st.markdown("<hr style='border:none;border-top:1px solid rgba(255,255,255,0.06);margin:15px 0 25px 0;'>", unsafe_allow_html=True)
     
-    with st.expander("🔮 Projected Attendance Calculator", expanded=False):
-        st.markdown("<p style='font-size:0.85rem;color:#cbd5e1;'>Simulate skipping future classes to see the impact on your overall attendance status.</p>", unsafe_allow_html=True)
-        miss_days = st.slider("Projected Missed Days:", 0, 15, 0, key=f"skip_days_home_{sem}")
+    # 1. Skip Predictor (Reverted back to big/full-width)
+    if total_c > 0:
+        st.markdown("### 🔮 Overall Attendance Skip Predictor")
+        st.caption(f"💡 One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
+
+        miss_days = st.slider("If I miss the next ___ days (overall)", 0, 15, 0, key=f"skip_days_home_{sem}")
+        miss_classes = int(round(miss_days * avg_classes))
         if miss_days > 0:
-            miss_classes = int(round(miss_days * avg_classes))
             proj_overall = round(total_a / (total_c + miss_classes) * 100, 1)
             if proj_overall >= 75:
-                st.success(f"Projected Attendance: {proj_overall}% (Safe Zone) ✅")
+                st.success(f"Projected Overall Attendance: **{proj_overall}%** (Safe Zone) ✅ (Missing {miss_days} days / {miss_classes} classes)")
             elif proj_overall >= 65:
-                st.warning(f"Projected Attendance: {proj_overall}% (Risk Zone) ⚠️")
+                st.warning(f"Projected Overall Attendance: **{proj_overall}%** (Condonation Zone) ⚠️ (Missing {miss_days} days / {miss_classes} classes)")
             else:
-                st.error(f"Projected Attendance: {proj_overall}% (Debarred Zone) 🚫")
+                st.error(f"Projected Overall Attendance: **{proj_overall}%** (Debarred Zone) 🚫 (Missing {miss_days} days / {miss_classes} classes)")
 
-    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
-    st.markdown("### 📝 Exam & Assignment Grades")
-    sem_final_marks = [r for r in marks_rows if r['exam_type'] == f"{sem} Final Examinations"]
-    if sem_final_marks:
-        grades_df = pd.DataFrame([{
-            'Subject': r['subject'],
-            'Exam Type': r['exam_type'].replace(f"{sem} ", ""),
-            'Score': r['score'] if r['score'] is not None else 'Ab',
-            'Grade': gp_to_grade(r['grade_point']) if (r['grade_point'] or 0.0) > 0.0 else ('Ab' if r['score'] is None else 'F'),
-            'Credits': SUBJECT_CREDITS.get(r['subject'], 3.0)
-        } for r in sem_final_marks])
-        st_premium_table(grades_df)
-    else:
-        mid_marks = [r for r in marks_rows if 'Mid' in r['exam_type'] or 'Lab' in r['exam_type']]
-        if mid_marks:
+    # 2. Plotly Bar Graph (Reverted back)
+    st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;
+                letter-spacing:0.12em;font-weight:600;margin-bottom:8px;font-family:'Inter';">
+        Subject Attendance Chart
+    </div>""", unsafe_allow_html=True)
+    df_bar = pd.DataFrame(subj_data)
+    fig = px.bar(df_bar, x='subject', y='pct', color='pct',
+                 color_continuous_scale=[[0, '#EF4444'], [0.65, '#F59E0B'], [0.75, '#00D8C6'], [1, '#00D8C6']],
+                 range_color=[0, 100], labels={'pct': 'Attendance %', 'subject': 'Subject'})
+    fig.add_hline(y=75, line_dash="dash", line_color="#10B981", annotation_text="75% target")
+    fig.add_hline(y=65, line_dash="dash", line_color="#F59E0B", annotation_text="65% min")
+    fig.update_layout(height=380, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+                      margin=dict(t=10, b=10))
+    fig.update_coloraxes(showscale=False)
+    apply_premium_plotly_theme(fig)
+    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
+
+    # ── Bottom Section: Grades Table + Cloud Resources Link ──
+    st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
+    st.markdown("<hr style='border:none;border-top:1px solid rgba(255,255,255,0.06);margin:15px 0 25px 0;'>", unsafe_allow_html=True)
+
+    col_bl, col_br = st.columns([1.8, 1.2])
+    with col_bl:
+        st.markdown("### 📝 Exam & Assignment Grades")
+        sem_final_marks = [r for r in marks_rows if r['exam_type'] == f"{sem} Final Examinations"]
+        if sem_final_marks:
             grades_df = pd.DataFrame([{
                 'Subject': r['subject'],
-                'Exam': r['exam_type'].replace(f"{sem} ", ""),
-                'Score': r['score'] if r['score'] is not None else 'Ab'
-            } for r in mid_marks])
+                'Exam Type': r['exam_type'].replace(f"{sem} ", ""),
+                'Score': r['score'] if r['score'] is not None else 'Ab',
+                'Grade': gp_to_grade(r['grade_point']) if (r['grade_point'] or 0.0) > 0.0 else ('Ab' if r['score'] is None else 'F'),
+                'Credits': SUBJECT_CREDITS.get(r['subject'], 3.0)
+            } for r in sem_final_marks])
             st_premium_table(grades_df)
         else:
-            st.info("🔍 No academic marks uploaded for this semester yet.")
+            mid_marks = [r for r in marks_rows if 'Mid' in r['exam_type'] or 'Lab' in r['exam_type']]
+            if mid_marks:
+                grades_df = pd.DataFrame([{
+                    'Subject': r['subject'],
+                    'Exam': r['exam_type'].replace(f"{sem} ", ""),
+                    'Score': r['score'] if r['score'] is not None else 'Ab'
+                } for r in mid_marks])
+                st_premium_table(grades_df)
+            else:
+                st.info("🔍 No academic marks uploaded for this semester yet.")
+
+    with col_br:
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, rgba(0, 216, 198, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+                    border: 1px solid rgba(0, 216, 198, 0.15); border-radius: 16px; padding: 20px; text-align: center; height: 180px; display: flex; flex-direction: column; justify-content: center; font-family: 'Outfit';">
+            <div style="font-size: 2rem; margin-bottom: 8px;">📂</div>
+            <h4 style="margin: 0; color: #ffffff; font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 700;">Cloud Resources</h4>
+            <p style="margin: 6px 0 0 0; font-size: 0.8rem; color: #94a3b8; line-height: 1.3;">Access lecture slides, textbook PDF drives, syllabus copies, and previous lab materials.</p>
+        </div>
+        """.replace('\n', ' '), unsafe_allow_html=True)
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        st.link_button("📂 Open Cloud Drive", "https://drive.google.com/drive/folders/1bInXkRc9mQFdbVbUMNxG1VVnrpKEyoPN?usp=drive_link", use_container_width=True)
 
 
 
