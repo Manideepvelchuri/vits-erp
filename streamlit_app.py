@@ -774,12 +774,15 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
 
     # Calculate backlogs
     backlogs_count = 0
+    failed_subjects = []
     for m in all_final_marks:
+        sub = m['subject']
         score = m['score']
         gp_val = m['grade_point'] or 0.0
         grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if score is None else 'F')
         if grade in ['F', 'Ab']:
             backlogs_count += 1
+            failed_subjects.append(sub)
 
     # Skip Predictor / Status calculations
     can_miss = can_miss_classes(total_a, total_c)
@@ -866,20 +869,40 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             unsafe_allow_html=True
         )
 
+    is_pending = (cgpa_display == "Pending" or backlogs_count > 0)
+
+    if is_pending:
+        gpa_val_display = "Pending"
+        gpa_font_size = "1.95rem"
+        if failed_subjects:
+            short_subs = [s[:12] + ".." if len(s) > 12 else s for s in failed_subjects]
+            display_subs = short_subs[:3]
+            sub_stack = "<div style='display:flex; flex-direction:column; gap:2px; font-size:0.68rem; color:#EF4444; font-weight:600; line-height:1.1; margin-top:2px;'>"
+            for s in display_subs:
+                sub_stack += f"<span>• {s.lower()}</span>"
+            if len(short_subs) > 3:
+                sub_stack += f"<span style='color:#64748b; font-size:0.6rem;'>+ {len(short_subs) - 3} more</span>"
+            sub_stack += "</div>"
+            gpa_subtext = sub_stack
+        else:
+            gpa_subtext = "<div style='font-size:0.75rem;color:#64748b;'>academic performance</div>"
+    else:
+        gpa_val_display = f"{gpa_display_val} / {sgpa_display_str}"
+        gpa_font_size = "1.7rem" if len(gpa_val_display) > 6 else "2.1rem"
+        gpa_subtext = "<div style='font-size:0.75rem;color:#64748b;'>academic performance</div>"
+
     val_inner = gpa_scale_10 / 10.0 if gpa_scale_10 > 0 else 0.0
     inner_label = "CGPA / SGPA"
-    inner_val_text = f"{gpa_display_val} / {sgpa_display_str}"
+    inner_val_text = f"{gpa_display_val} / {sgpa_display_str}" if not is_pending else "Pending"
 
     with k2:
         gpa_title = "CGPA / SGPA"
-        gpa_val_display = f"{gpa_display_val} / {sgpa_display_str}"
-        gpa_font_size = "1.7rem" if len(gpa_val_display) > 6 else "2.1rem"
         st.markdown(
             f"<div style='{_card_wrapper_style}'>"
             f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
             f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>{gpa_title}</div>"
             f"    <div style='font-size:{gpa_font_size};font-weight:800;color:#ffffff;line-height:1.2;margin:2px 0;'>{gpa_val_display}</div>"
-            f"    <div style='font-size:0.75rem;color:#64748b;'>academic performance</div>"
+            f"    {gpa_subtext}"
             f"  </div>"
             f"  <div style='font-size:1.8rem;color:#b388ff;opacity:0.85;'>🎓</div>"
             f"</div>",
