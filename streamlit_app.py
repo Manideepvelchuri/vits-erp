@@ -460,6 +460,272 @@ div[data-testid="stPlotlyChart"] iframe {
 .js-plotly-plot, .plot-container, .svg-container {
     touch-action: pan-y !important;
 }
+
+/* Custom Responsive KPI Cards Row */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.kpi-card {
+    background: rgba(10, 14, 26, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(5px);
+    height: 125px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Outfit', sans-serif;
+    position: relative;
+    transition: all 0.3s ease;
+}
+.kpi-card:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.55);
+}
+.kpi-card-attendance:hover { border-color: rgba(0, 216, 198, 0.3); }
+.kpi-card-gpa:hover { border-color: rgba(139, 92, 246, 0.3); }
+.kpi-card-credits:hover { border-color: rgba(16, 185, 129, 0.3); }
+.kpi-card-subjects:hover { border-color: rgba(249, 115, 22, 0.3); }
+.kpi-card-backlog {
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    background: rgba(239, 68, 68, 0.03);
+}
+.kpi-card-backlog:hover {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.kpi-card-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    text-align: left;
+    width: 100%;
+}
+.kpi-card-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.kpi-card-title.text-red {
+    color: #EF4444;
+}
+.kpi-card-val {
+    font-size: 2.1rem;
+    font-weight: 800;
+    line-height: 1.1;
+    margin: 2px 0;
+}
+.text-teal { color: #00D8C6; }
+.text-emerald { color: #10B981; }
+.text-orange { color: #F97316; }
+.text-white { color: #ffffff; }
+.text-red { color: #EF4444; }
+
+.kpi-card-sub {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+.kpi-card-icon {
+    font-size: 1.8rem;
+    opacity: 0.85;
+}
+.text-green { color: #00e676; font-weight: 700; }
+.text-purple { color: #b388ff; }
+
+/* Concentric circular progress card responsive class */
+.circular-progress-card {
+    background: rgba(10, 14, 26, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);
+    height: 330px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+}
+.circular-svg-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin-top: 10px;
+    width: 190px;
+    height: 190px;
+}
+.circular-svg {
+    width: 100%;
+    height: 100%;
+}
+.circular-inner-text {
+    position: absolute;
+    text-align: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+.circular-legend {
+    text-align: center;
+    font-size: 0.72rem;
+    color: #64748b;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    margin-bottom: 5px;
+}
+
+/* Subject Health card class */
+.subject-health-card {
+    background: rgba(10, 14, 26, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);
+    height: 520px;
+    overflow-y: auto;
+}
+
+/* Daily Schedule card class */
+.daily-schedule-card {
+    background: rgba(10, 14, 26, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 20px;
+    min-height: 450px;
+    max-height: 450px;
+    overflow-y: auto;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* Cloud Resources card class */
+.cloud-resources-card {
+    background: linear-gradient(135deg, rgba(0, 216, 198, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+    border: 1px solid rgba(0, 216, 198, 0.15);
+    border-radius: 16px;
+    padding: 20px;
+    text-align: center;
+    height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    font-family: 'Outfit', sans-serif;
+}
+
+/* Welcome badges layout class */
+.greeting-badge-container {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-top: 8px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.greeting-badge-pill {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+.badge-roll { color: #00D8C6; }
+.badge-section { color: #8B5CF6; }
+.badge-sem { color: #F97316; }
+
+/* ── Mobile Layout Optimization Media Queries ── */
+@media (max-width: 1024px) {
+    .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Reduce page side padding on mobile to maximize viewable area */
+    .block-container {
+        padding: 1.5rem 1rem !important;
+    }
+    
+    /* Responsive header elements */
+    h1 {
+        font-size: 1.95rem !important;
+    }
+    .greeting-badge-container {
+        gap: 6px !important;
+        margin-top: 10px !important;
+    }
+    .greeting-badge-pill {
+        padding: 3px 10px !important;
+        font-size: 0.72rem !important;
+    }
+    
+    /* Responsive KPI cards */
+    .kpi-card {
+        height: auto;
+        min-height: 110px;
+        padding: 12px 16px;
+    }
+    .kpi-card-val {
+        font-size: 1.7rem;
+    }
+    .kpi-card-val.val-dynamic {
+        font-size: 1.45rem !important;
+    }
+    .kpi-card-icon {
+        font-size: 1.5rem;
+    }
+    
+    /* Responsive middle section cards */
+    .circular-progress-card {
+        height: auto;
+        padding: 16px;
+    }
+    .circular-svg-wrapper {
+        width: 160px;
+        height: 160px;
+    }
+    .circular-inner-text div[style*="font-size: 2.2rem"] {
+        font-size: 1.8rem !important;
+    }
+    
+    .subject-health-card {
+        height: auto;
+        max-height: 400px;
+        padding: 16px;
+    }
+    
+    .daily-schedule-card {
+        min-height: auto;
+        max-height: 350px;
+        padding: 16px;
+    }
+    
+    .cloud-resources-card {
+        height: auto;
+        padding: 20px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .kpi-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -839,112 +1105,94 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     st.markdown(
         f"<div style='margin-bottom:25px;margin-top:5px;'>"
         f"  <h1 style='font-family:Outfit;font-weight:800;font-size:2.5rem;color:#fff;margin:0;letter-spacing:-0.5px;'>{greeting}, {student['name'].split(' ')[0]}! 👋</h1>"
-        f"  <div style='font-family:Inter;font-size:0.85rem;color:#94a3b8;margin-top:8px;font-weight:500;display:flex;align-items:center;gap:12px;flex-wrap:wrap;'>"
-        f"    <span style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);padding:4px 12px;border-radius:20px;color:#00D8C6;font-weight:600;'>🆔 {student['roll_no']}</span>"
-        f"    <span style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);padding:4px 12px;border-radius:20px;color:#8B5CF6;font-weight:600;'>🏫 SECTION {student['section']}</span>"
-        f"    <span style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);padding:4px 12px;border-radius:20px;color:#F97316;font-weight:600;'>📅 {sem.upper()} SUMMARY</span>"
+        f"  <div class='greeting-badge-container'>"
+        f"    <span class='greeting-badge-pill badge-roll'>🆔 {student['roll_no']}</span>"
+        f"    <span class='greeting-badge-pill badge-section'>🏫 SECTION {student['section']}</span>"
+        f"    <span class='greeting-badge-pill badge-sem'>📅 {sem.upper()} SUMMARY</span>"
         f"  </div>"
         f"</div>",
         unsafe_allow_html=True
     )
 
-    # 4 KPI ROW CARDS (Redesigned matching the user's custom layout)
-    k1, k2, k3, k4 = st.columns(4)
-    _card_wrapper_style = ("background:rgba(10, 14, 26, 0.45);"
-                           "border: 1px solid rgba(255, 255, 255, 0.05);"
-                           "border-radius:12px;padding:16px 20px;box-shadow:0 4px 20px rgba(0, 0, 0, 0.15);"
-                           "backdrop-filter:blur(5px);height:125px;display:flex;justify-content:space-between;"
-                           "align-items:center;font-family:'Outfit',sans-serif;position:relative;")
-
-    with k1:
-        st.markdown(
-            f"<div style='{_card_wrapper_style}'>"
-            f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
-            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>OVERALL ATTENDANCE</div>"
-            f"    <div style='font-size:2.1rem;font-weight:800;color:#00D8C6;line-height:1.1;margin:2px 0;'>{overall}%</div>"
-            f"    <div style='font-size:0.75rem;color:#64748b;'>{total_a}/{total_c} hrs attended</div>"
-            f"  </div>"
-            f"  <div style='font-size:1.8rem;color:#00e676;font-weight:700;'>↑</div>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-
+    # 4 KPI ROW CARDS (Cleaned up from st.columns and inline styles to utilize responsive CSS grid)
     is_pending = (cgpa_display == "Pending" or backlogs_count > 0)
 
     if is_pending:
         gpa_val_display = "Pending"
-        gpa_font_size = "1.95rem"
+        gpa_font_size_class = "val-dynamic"
     else:
         gpa_val_display = f"{gpa_display_val} / {sgpa_display_str}"
-        gpa_font_size = "1.7rem" if len(gpa_val_display) > 6 else "2.1rem"
+        gpa_font_size_class = "val-dynamic" if len(gpa_val_display) > 6 else ""
 
     val_inner = gpa_scale_10 / 10.0 if gpa_scale_10 > 0 else 0.0
     inner_label = "CGPA / SGPA"
     inner_val_text = f"{gpa_display_val} / {sgpa_display_str}" if not is_pending else "Pending"
 
-    with k2:
-        gpa_title = "CGPA / SGPA"
-        st.markdown(
-            f"<div style='{_card_wrapper_style}'>"
-            f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
-            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>{gpa_title}</div>"
-            f"    <div style='font-size:{gpa_font_size};font-weight:800;color:#ffffff;line-height:1.2;margin:2px 0;'>{gpa_val_display}</div>"
-            f"    <div style='font-size:0.75rem;color:#64748b;'>academic performance</div>"
-            f"  </div>"
-            f"  <div style='font-size:1.8rem;color:#b388ff;opacity:0.85;'>🎓</div>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
+    credits_display = f"{completed_credits:.0f}" if completed_credits.is_integer() else f"{completed_credits:.1f}"
 
-    with k3:
-        credits_display = f"{completed_credits:.0f}" if completed_credits.is_integer() else f"{completed_credits:.1f}"
-        st.markdown(
-            f"<div style='{_card_wrapper_style}'>"
-            f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
-            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>CREDITS EARNED</div>"
-            f"    <div style='font-size:2.1rem;font-weight:800;color:#10B981;line-height:1.1;margin:2px 0;'>{credits_display}</div>"
-            f"    <div style='font-size:0.75rem;color:#64748b;'>credits completed</div>"
-            f"  </div>"
-            f"  <div style='font-size:1.8rem;color:#10B981;opacity:0.85;'>⚡</div>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-
-    with k4:
-        if backlogs_count > 0:
-            short_subs = [s[:12] + ".." if len(s) > 12 else s for s in failed_subjects]
-            display_subs = short_subs[:3]
-            sub_stack_html = "<div style='display:flex; flex-direction:column; gap:3px; margin:4px 0;'>"
-            for s in display_subs:
-                sub_stack_html += f"  <div style='font-size:1.0rem; font-weight:800; color:#EF4444; line-height:1.2;'>• {s.upper()}</div>"
-            if len(short_subs) > 3:
-                sub_stack_html += f"  <div style='color:#64748b; font-size:0.75rem; font-weight:600;'>+ {len(short_subs) - 3} more</div>"
-            else:
-                sub_stack_html += f"  <div style='font-size:0.8rem; color:#64748b; font-weight:500;'>{backlogs_count} backlog(s)</div>"
-            sub_stack_html += "</div>"
-
-            st.markdown(
-                f"<div style='{_card_wrapper_style}'>"
-                f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
-                f"    <div style='font-size:0.75rem;font-weight:700;color:#EF4444;text-transform:uppercase;letter-spacing:0.5px;'>BACKLOGS</div>"
-                f"    {sub_stack_html}"
-                f"  </div>"
-                f"  <div style='font-size:1.8rem;color:#EF4444;opacity:0.85;'>⚠️</div>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
+    if backlogs_count > 0:
+        short_subs = [s[:12] + ".." if len(s) > 12 else s for s in failed_subjects]
+        display_subs = short_subs[:3]
+        sub_stack_html = "<div style='display:flex; flex-direction:column; gap:3px; margin:4px 0;'>"
+        for s in display_subs:
+            sub_stack_html += f"  <div style='font-size:1.0rem; font-weight:800; color:#EF4444; line-height:1.2;'>• {s.upper()}</div>"
+        if len(short_subs) > 3:
+            sub_stack_html += f"  <div style='color:#64748b; font-size:0.75rem; font-weight:600;'>+ {len(short_subs) - 3} more</div>"
         else:
-            st.markdown(
-                f"<div style='{_card_wrapper_style}'>"
-                f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
-                f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>SUBJECTS</div>"
-                f"    <div style='font-size:2.1rem;font-weight:800;color:#F97316;line-height:1.1;margin:2px 0;'>{len(att_rows)}</div>"
-                f"    <div style='font-size:0.75rem;color:#64748b;'>{backlogs_count} backlog(s)</div>"
-                f"  </div>"
-                f"  <div style='font-size:1.8rem;opacity:0.85;'>📚</div>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
+            sub_stack_html += f"  <div style='font-size:0.8rem; color:#64748b; font-weight:500;'>{backlogs_count} backlog(s)</div>"
+        sub_stack_html += "</div>"
+
+        backlog_card_html = f"""
+        <div class="kpi-card kpi-card-backlog">
+            <div class="kpi-card-content">
+                <div class="kpi-card-title text-red">BACKLOGS</div>
+                {sub_stack_html}
+            </div>
+            <div class="kpi-card-icon text-red">⚠️</div>
+        </div>
+        """
+    else:
+        backlog_card_html = f"""
+        <div class="kpi-card kpi-card-subjects">
+            <div class="kpi-card-content">
+                <div class="kpi-card-title">SUBJECTS</div>
+                <div class="kpi-card-val text-orange">{len(att_rows)}</div>
+                <div class="kpi-card-sub">{backlogs_count} backlog(s)</div>
+            </div>
+            <div class="kpi-card-icon">📚</div>
+        </div>
+        """
+
+    gpa_title = "CGPA / SGPA"
+    st.markdown(f"""
+    <div class="kpi-grid">
+        <div class="kpi-card kpi-card-attendance">
+            <div class="kpi-card-content">
+                <div class="kpi-card-title">OVERALL ATTENDANCE</div>
+                <div class="kpi-card-val text-teal">{overall}%</div>
+                <div class="kpi-card-sub">{total_a}/{total_c} hrs attended</div>
+            </div>
+            <div class="kpi-card-icon text-green">↑</div>
+        </div>
+        <div class="kpi-card kpi-card-gpa">
+            <div class="kpi-card-content">
+                <div class="kpi-card-title">{gpa_title}</div>
+                <div class="kpi-card-val text-white {gpa_font_size_class}">{gpa_val_display}</div>
+                <div class="kpi-card-sub">academic performance</div>
+            </div>
+            <div class="kpi-card-icon text-purple">🎓</div>
+        </div>
+        <div class="kpi-card kpi-card-credits">
+            <div class="kpi-card-content">
+                <div class="kpi-card-title">CREDITS EARNED</div>
+                <div class="kpi-card-val text-emerald">{credits_display}</div>
+                <div class="kpi-card-sub">credits completed</div>
+            </div>
+            <div class="kpi-card-icon text-emerald">⚡</div>
+        </div>
+        {backlog_card_html}
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
@@ -998,11 +1246,9 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         val_outer = overall / 100.0 if overall > 0 else 0.78
 
         st.markdown(f"""
-        <div style="background: rgba(10, 14, 26, 0.45); border: 1px solid rgba(255,255,255,0.05); 
-                    border-radius: 16px; padding: 20px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15); 
-                    height: 330px; display: flex; flex-direction: column; justify-content: space-between;">
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-top: 15px;">
-                <svg width="190" height="190" viewBox="0 0 160 160">
+        <div class="circular-progress-card">
+            <div class="circular-svg-wrapper">
+                <svg class="circular-svg" viewBox="0 0 160 160">
                     <!-- Outer Ring: Attendance (Teal) -->
                     <circle cx="80" cy="80" r="65" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="9"/>
                     <circle cx="80" cy="80" r="65" fill="none" stroke="#00D8C6" stroke-width="9"
@@ -1013,12 +1259,12 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                     <circle cx="80" cy="80" r="50" fill="none" stroke="#8B5CF6" stroke-width="9"
                             stroke-dasharray="314.16" stroke-dashoffset="{314.16 * (1 - val_inner)}" stroke-linecap="round" transform="rotate(-90 80 80)"/>
                 </svg>
-                <div style="position: absolute; text-align: center; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                <div class="circular-inner-text">
                     <div style="font-family: 'Outfit'; font-size: 2.2rem; font-weight: 800; color: #fff; line-height: 1;">{overall}%</div>
                     <div style="font-family: 'Inter'; font-size: 0.65rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Attendance</div>
                 </div>
             </div>
-            <div style="text-align: center; font-size: 0.72rem; color: #64748b; font-weight: 600; font-family: 'Inter'; margin-bottom: 5px;">
+            <div class="circular-legend">
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#00D8C6; margin-right:5px;"></span>Attendance &nbsp;&nbsp;&nbsp; 
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#8B5CF6; margin-right:5px;"></span>{inner_label} ({inner_val_text})
             </div>
@@ -1051,9 +1297,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             )
         else:
             health_html = (
-                "<div style='background: rgba(10, 14, 26, 0.45); border: 1px solid rgba(255,255,255,0.05); "
-                "border-radius: 16px; padding: 20px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15); "
-                "height: 520px; overflow-y: auto;'>"
+                "<div class='subject-health-card'>"
                 "<div style=\"font-family: 'Outfit'; font-weight: 700; font-size: 0.95rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 15px;\">Subject Health</div>"
             )
             for s in sorted(subj_data, key=lambda x: x['pct']):
@@ -1109,7 +1353,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             7: "02:45 - 03:30"
         }
         
-        schedule_html = "<div style='background:rgba(10, 14, 26, 0.45);border:1px solid rgba(255,255,255,0.05);border-radius:16px;padding:20px;min-height:450px;max-height:450px;overflow-y:auto;backdrop-filter:blur(10px);box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);'>"
+        schedule_html = "<div class='daily-schedule-card'>"
         if day_classes:
             for idx, c in enumerate(day_classes):
                 t_range = times_map.get(c['period'], "Class Period")
@@ -1201,8 +1445,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
 
     with col_br:
         st.markdown(f"""
-        <div style="background: linear-gradient(135deg, rgba(0, 216, 198, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
-                    border: 1px solid rgba(0, 216, 198, 0.15); border-radius: 16px; padding: 20px; text-align: center; height: 180px; display: flex; flex-direction: column; justify-content: center; font-family: 'Outfit';">
+        <div class="cloud-resources-card">
             <div style="font-size: 2rem; margin-bottom: 8px;">📂</div>
             <h4 style="margin: 0; color: #ffffff; font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 700;">Cloud Resources</h4>
             <p style="margin: 6px 0 0 0; font-size: 0.8rem; color: #94a3b8; line-height: 1.3;">Access lecture slides, textbook PDF drives, syllabus copies, and previous lab materials.</p>
