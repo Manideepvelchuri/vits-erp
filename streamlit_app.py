@@ -822,9 +822,13 @@ def login_page():
         tab1, tab2 = st.tabs(["👤 Student", "🛡️ Admin"])
         with tab1:
             with st.form("student_login"):
-                st.info("**First-time login?** Use password: **`vits123`** — you'll set your DOB after login.")
-                roll = st.text_input("Roll Number", placeholder="24891Axxxx")
-                pwd  = st.text_input("Password (DOB: YYYY-MM-DD or vits123)", type="password")
+                st.info(
+                    "🔑 **Password Instructions:**\n\n"
+                    "* **First-Time Login:** Use **`vits123`** as the password. You will then set your Date of Birth (DOB) as your permanent password.\n"
+                    "* **Returning Students:** Use your configured **Date of Birth** as the password (format: **`YYYY-MM-DD`** or **`DD-MM-YYYY`**, e.g., `2007-12-01` or `01-12-2007`)."
+                )
+                roll = st.text_input("Roll Number", placeholder="e.g. 25891A04C9")
+                pwd  = st.text_input("Password", type="password", placeholder="Enter 'vits123' or your DOB")
                 if st.form_submit_button("Sign In", use_container_width=True):
                     handle_student_login(roll.strip().upper(), pwd.strip())
         with tab2:
