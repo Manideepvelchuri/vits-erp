@@ -896,7 +896,7 @@ def render_college_header(role="student", student_data=None):
         f'    {logo_html}'
         f'    <div class="header-college-info">'
         f'      <div class="college-title">{college_name}</div>'
-        f'      <div class="college-sub">(Autonomous) · Kokapet, Hyderabad</div>'
+        f'      <div class="college-sub">(Autonomous) · Deshmukhi, Hyderabad</div>'
         f'    </div>'
         f'  </div>'
         f'  <div class="header-right">'
