@@ -1178,17 +1178,38 @@ def setup_dob_page():
             st.rerun()
 
 
+# ── Semester sync callbacks ─────────────────────────────────
+# CRITICAL: callbacks only set selected_sem and delete the OTHER
+# widget's key so it re-initialises cleanly from the index param.
+# They NEVER touch student navigation state.
+def on_sidebar_sem_change():
+    new_sem = st.session_state.get('sidebar_sem_select', 'Sem 2')
+    st.session_state['selected_sem'] = new_sem
+    # Force the result selectbox to reinitialise from selected_sem
+    st.session_state.pop('result_sem_select', None)
+
+def on_result_sem_change():
+    new_sem = st.session_state.get('result_sem_select', 'Sem 2')
+    st.session_state['selected_sem'] = new_sem
+    # Force the sidebar selectbox to reinitialise from selected_sem
+    st.session_state.pop('sidebar_sem_select', None)
+
+# ── Navigation page callback ─────────────────────────────────
+# The nav page is stored SEPARATELY in _current_page so semester
+# callbacks can never accidentally reset it.
+def on_nav_change():
+    st.session_state['_current_page'] = st.session_state.get('_nav_radio_widget', '🏠 Home')
+
+
 # ══════════════════════════════════════════════════════════════
 # STUDENT DASHBOARD
 # ══════════════════════════════════════════════════════════════
 def student_dashboard():
+    # ── Initialise state ──────────────────────────────────────
     if 'selected_sem' not in st.session_state:
-        st.session_state['selected_sem'] = "Sem 2"
-
-    if 'sidebar_sem_select' in st.session_state and st.session_state['sidebar_sem_select'] != st.session_state['selected_sem']:
-        st.session_state['selected_sem'] = st.session_state['sidebar_sem_select']
-    elif 'result_sem_select' in st.session_state and st.session_state['result_sem_select'] != st.session_state['selected_sem']:
-        st.session_state['selected_sem'] = st.session_state['result_sem_select']
+        st.session_state['selected_sem'] = 'Sem 2'
+    if '_current_page' not in st.session_state:
+        st.session_state['_current_page'] = '🏠 Home'
     roll = st.session_state.user_id
     conn = get_db_connection()
     student = conn.execute('SELECT * FROM students WHERE roll_no=?', (roll,)).fetchone()
@@ -1240,20 +1261,35 @@ def student_dashboard():
                 </div>""", unsafe_allow_html=True)
 
         st.markdown("---")
-        sidebar_sem = st.selectbox(
+        _sem_options = ["Sem 1", "Sem 2"]
+        _cur_sem = st.session_state.get('selected_sem', 'Sem 2')
+        st.selectbox(
             "Viewing Semester",
-            ["Sem 1", "Sem 2"],
-            index=1 if st.session_state['selected_sem'] == "Sem 2" else 0,
-            key="sidebar_sem_select"
+            _sem_options,
+            index=_sem_options.index(_cur_sem) if _cur_sem in _sem_options else 1,
+            key="sidebar_sem_select",
+            on_change=on_sidebar_sem_change
         )
-        if sidebar_sem != st.session_state['selected_sem']:
-            st.session_state['selected_sem'] = sidebar_sem
-            st.rerun()
         st.markdown("---")
-        page = st.radio("Navigation", [
+        nav_options = [
             "🏠 Home", "📅 Attendance", "📊 Marks", "🧮 SGPA Calculator",
             "📈 Analytics", "🗓️ Timetable"
-        ])
+        ]
+        _cur_page = st.session_state.get('_current_page', '🏠 Home')
+        if _cur_page not in nav_options:
+            _cur_page = '🏠 Home'
+            st.session_state['_current_page'] = _cur_page
+        # Use a dedicated widget key (_nav_radio_widget) that is separate
+        # from _current_page. on_change writes to _current_page.
+        st.radio(
+            "Navigation",
+            nav_options,
+            index=nav_options.index(_cur_page),
+            key="_nav_radio_widget",
+            on_change=on_nav_change
+        )
+        # page is always read from _current_page – NEVER from the widget
+        page = st.session_state.get('_current_page', '🏠 Home')
         st.markdown("---")
         if st.button("📄 Download Report PDF", use_container_width=True):
             generate_student_pdf(student, st.session_state['selected_sem'])
@@ -1870,20 +1906,20 @@ def show_attendance_page(roll, sem, att_rows):
 
 
 def show_marks_page(sem, marks_rows):
+    _sem_options = ["Sem 1", "Sem 2"]
+    _cur_sem = st.session_state.get('selected_sem', 'Sem 2')
     col_title, col_sem = st.columns([3.5, 1.5])
     with col_title:
         st.markdown("## 📊 Academic Results")
     with col_sem:
-        selected_sem = st.selectbox(
+        st.selectbox(
             "Semester",
-            ["Sem 1", "Sem 2"],
-            index=1 if sem == "Sem 2" else 0,
+            _sem_options,
+            index=_sem_options.index(_cur_sem) if _cur_sem in _sem_options else 1,
             key="result_sem_select",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            on_change=on_result_sem_change
         )
-        if selected_sem != sem:
-            st.session_state['selected_sem'] = selected_sem
-            st.rerun()
     by_exam = {}
     if marks_rows:
         for r in marks_rows:
@@ -2261,11 +2297,21 @@ def admin_dashboard():
         </div>
         """, unsafe_allow_html=True)
         st.markdown("---")
-        page = st.radio("Navigation", [
+        admin_options = [
             "🏠 Dashboard", "👥 Students", "📝 Marks Editor",
             "📤 CSV Upload", "🔄 Scraper",
             "📈 Analytics", "🗓️ Timetable", "💾 Backup", "⚙️ Settings"
-        ])
+        ]
+        default_admin = "🏠 Dashboard"
+        current_admin = st.session_state.get('admin_nav_page', default_admin)
+        if current_admin not in admin_options:
+            current_admin = default_admin
+        page = st.radio(
+            "Navigation", 
+            admin_options, 
+            index=admin_options.index(current_admin),
+            key="admin_nav_page"
+        )
         st.markdown("---")
         if st.button("🚪 Logout", use_container_width=True):
             for k in list(st.session_state.keys()):
