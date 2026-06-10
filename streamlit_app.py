@@ -916,7 +916,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             display_subs = short_subs[:3]
             sub_stack_html = "<div style='display:flex; flex-direction:column; gap:3px; margin:4px 0;'>"
             for s in display_subs:
-                sub_stack_html += f"  <div style='font-size:1.0rem; font-weight:800; color:#EF4444; line-height:1.2;'>• {s.lower()}</div>"
+                sub_stack_html += f"  <div style='font-size:1.0rem; font-weight:800; color:#EF4444; line-height:1.2;'>• {s.upper()}</div>"
             if len(short_subs) > 3:
                 sub_stack_html += f"  <div style='color:#64748b; font-size:0.75rem; font-weight:600;'>+ {len(short_subs) - 3} more</div>"
             else:
