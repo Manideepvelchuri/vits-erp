@@ -783,17 +783,74 @@ def color_for_pct(p):
 # AUTH PAGES
 # ══════════════════════════════════════════════════════════════
 def login_page():
-    # ── suppress h1 anchor icons globally on this page ────────
+    # ── suppress h1 anchor icons globally on this page & style login elements ────────
     st.markdown("""
     <style>
     h1 a, h2 a, h3 a { display: none !important; }
-    .login-card {
-        background: linear-gradient(135deg, rgba(20,28,48,0.95) 0%, rgba(12,18,36,0.98) 100%);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 20px;
-        padding: 36px 32px 28px 32px;
-        max-width: 480px;
-        margin: 0 auto;
+    
+    /* Login Header Styling */
+    .login-header {
+        text-align: center;
+        padding: 40px 0 24px 0;
+    }
+    .login-title {
+        color: #00D8C6;
+        font-family: 'Outfit', sans-serif;
+        font-size: 2.2rem;
+        font-weight: 800;
+        margin: 8px 0 4px 0;
+        text-shadow: 0 0 30px rgba(0,216,198,0.3);
+    }
+    .login-subtitle {
+        color: #94a3b8;
+        font-family: 'Inter', sans-serif;
+        font-size: 1rem;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Mobile Layout Optimizations for Login Page Columns */
+    @media (max-width: 768px) {
+        .login-header {
+            padding: 20px 0 12px 0 !important;
+        }
+        .login-title {
+            font-size: 1.65rem !important;
+        }
+        .login-subtitle {
+            font-size: 0.85rem !important;
+        }
+        
+        /* Hide empty side columns on mobile to prevent empty vertical space */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(1) {
+            display: none !important;
+        }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(3) {
+            display: none !important;
+        }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(2) {
+            width: 100% !important;
+            max-width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+        
+        /* Reduce padding inside forms on mobile to maximize input field area */
+        div[data-testid="stForm"] {
+            padding: 16px !important;
+        }
+        
+        /* Make alert box more compact on mobile */
+        div[data-testid="stAlert"] {
+            padding: 10px 14px !important;
+        }
+        div[data-testid="stAlert"] [data-testid="stMarkdownContainer"] p {
+            font-size: 0.82rem !important;
+        }
+        
+        /* Adjust tab spacing on mobile */
+        button[role="tab"] {
+            padding: 8px 14px !important;
+            font-size: 0.9rem !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -803,17 +860,10 @@ def login_page():
     logo_html   = f'<img src="data:image/png;base64,{logo_base64}" width="80" style="margin-bottom:10px;filter:drop-shadow(0 4px 12px rgba(0,216,198,0.3));"/>' if logo_base64 else '🎓'
 
     st.markdown(f"""
-    <div style="text-align:center; padding: 40px 0 24px 0;">
+    <div class="login-header">
         {logo_html}
-        <div style="color:#00D8C6; font-family:'Outfit',sans-serif; font-size:2.2rem;
-                    font-weight:800; margin:8px 0 4px 0;
-                    text-shadow:0 0 30px rgba(0,216,198,0.3);">
-            VITS Student Academic Dashboard
-        </div>
-        <div style="color:#94a3b8; font-family:'Inter',sans-serif; font-size:1rem;
-                    letter-spacing:0.5px;">
-            Vignan Institute of Technology and Science
-        </div>
+        <div class="login-title">VITS Student Academic Dashboard</div>
+        <div class="login-subtitle">Vignan Institute of Technology and Science</div>
     </div>
     """, unsafe_allow_html=True)
 
