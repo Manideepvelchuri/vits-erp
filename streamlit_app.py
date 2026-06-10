@@ -874,22 +874,9 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     if is_pending:
         gpa_val_display = "Pending"
         gpa_font_size = "1.95rem"
-        if failed_subjects:
-            short_subs = [s[:12] + ".." if len(s) > 12 else s for s in failed_subjects]
-            display_subs = short_subs[:3]
-            sub_stack = "<div style='display:flex; flex-direction:column; gap:2px; font-size:0.68rem; color:#EF4444; font-weight:600; line-height:1.1; margin-top:2px;'>"
-            for s in display_subs:
-                sub_stack += f"<span>• {s.lower()}</span>"
-            if len(short_subs) > 3:
-                sub_stack += f"<span style='color:#64748b; font-size:0.6rem;'>+ {len(short_subs) - 3} more</span>"
-            sub_stack += "</div>"
-            gpa_subtext = sub_stack
-        else:
-            gpa_subtext = "<div style='font-size:0.75rem;color:#64748b;'>academic performance</div>"
     else:
         gpa_val_display = f"{gpa_display_val} / {sgpa_display_str}"
         gpa_font_size = "1.7rem" if len(gpa_val_display) > 6 else "2.1rem"
-        gpa_subtext = "<div style='font-size:0.75rem;color:#64748b;'>academic performance</div>"
 
     val_inner = gpa_scale_10 / 10.0 if gpa_scale_10 > 0 else 0.0
     inner_label = "CGPA / SGPA"
@@ -902,7 +889,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
             f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>{gpa_title}</div>"
             f"    <div style='font-size:{gpa_font_size};font-weight:800;color:#ffffff;line-height:1.2;margin:2px 0;'>{gpa_val_display}</div>"
-            f"    {gpa_subtext}"
+            f"    <div style='font-size:0.75rem;color:#64748b;'>academic performance</div>"
             f"  </div>"
             f"  <div style='font-size:1.8rem;color:#b388ff;opacity:0.85;'>🎓</div>"
             f"</div>",
@@ -924,17 +911,40 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         )
 
     with k4:
-        st.markdown(
-            f"<div style='{_card_wrapper_style}'>"
-            f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
-            f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>SUBJECTS</div>"
-            f"    <div style='font-size:2.1rem;font-weight:800;color:#F97316;line-height:1.1;margin:2px 0;'>{len(att_rows)}</div>"
-            f"    <div style='font-size:0.75rem;color:#64748b;'>{backlogs_count} backlog(s)</div>"
-            f"  </div>"
-            f"  <div style='font-size:1.8rem;opacity:0.85;'>📚</div>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
+        if backlogs_count > 0:
+            short_subs = [s[:12] + ".." if len(s) > 12 else s for s in failed_subjects]
+            display_subs = short_subs[:3]
+            sub_stack_html = "<div style='display:flex; flex-direction:column; gap:3px; margin:4px 0;'>"
+            for s in display_subs:
+                sub_stack_html += f"  <div style='font-size:0.85rem; font-weight:800; color:#EF4444; line-height:1.15;'>• {s.lower()}</div>"
+            if len(short_subs) > 3:
+                sub_stack_html += f"  <div style='color:#64748b; font-size:0.65rem; font-weight:600;'>+ {len(short_subs) - 3} more</div>"
+            else:
+                sub_stack_html += f"  <div style='font-size:0.7rem; color:#64748b; font-weight:500;'>{backlogs_count} backlog(s)</div>"
+            sub_stack_html += "</div>"
+
+            st.markdown(
+                f"<div style='{_card_wrapper_style}'>"
+                f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
+                f"    <div style='font-size:0.75rem;font-weight:700;color:#EF4444;text-transform:uppercase;letter-spacing:0.5px;'>BACKLOGS</div>"
+                f"    {sub_stack_html}"
+                f"  </div>"
+                f"  <div style='font-size:1.8rem;color:#EF4444;opacity:0.85;'>⚠️</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                f"<div style='{_card_wrapper_style}'>"
+                f"  <div style='display:flex;flex-direction:column;justify-content:space-between;height:100%;text-align:left;'>"
+                f"    <div style='font-size:0.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;'>SUBJECTS</div>"
+                f"    <div style='font-size:2.1rem;font-weight:800;color:#F97316;line-height:1.1;margin:2px 0;'>{len(att_rows)}</div>"
+                f"    <div style='font-size:0.75rem;color:#64748b;'>{backlogs_count} backlog(s)</div>"
+                f"  </div>"
+                f"  <div style='font-size:1.8rem;opacity:0.85;'>📚</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
 
     st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
