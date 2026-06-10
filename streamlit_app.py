@@ -729,16 +729,19 @@ div[data-testid="stPlotlyChart"] iframe {
 
 /* College Header Bar styling */
 .college-header-bar {
+    position: sticky !important;
+    top: 0px !important;
+    z-index: 9999 !important;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: linear-gradient(135deg, rgba(20, 28, 48, 0.45) 0%, rgba(12, 18, 36, 0.55) 100%) !important;
+    background: rgba(7, 9, 19, 0.95) !important;
     border: 1px solid rgba(0, 216, 198, 0.12) !important;
     border-radius: 16px !important;
     padding: 12px 24px !important;
     margin-bottom: 25px !important;
     backdrop-filter: blur(25px) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
     width: 100% !important;
 }
 
@@ -818,6 +821,7 @@ div[data-testid="stPlotlyChart"] iframe {
 
 @media (max-width: 992px) {
     .college-header-bar {
+        position: relative !important;
         flex-direction: column !important;
         align-items: flex-start !important;
         gap: 12px !important;
@@ -866,41 +870,41 @@ def render_college_header(role="student", student_data=None):
     right_html = ""
     if role == "student" and student_data:
         name_part = student_data['name'].title()
-        right_html = f"""
-        <div class="header-student-details">
-            <span class="detail-item"><strong class="detail-label">HTNo:</strong> {student_data['roll_no']}</span>
-            <span class="detail-divider">|</span>
-            <span class="detail-item"><strong class="detail-label">Name:</strong> {name_part}</span>
-            <span class="detail-divider">|</span>
-            <span class="detail-item"><strong class="detail-label">Branch:</strong> {student_data['branch']}</span>
-            <span class="detail-divider">|</span>
-            <span class="detail-item"><strong class="detail-label">Sem:</strong> {student_data['semester'] if 'semester' in student_data else 'II'}</span>
-        </div>
-        """
+        right_html = (
+            f'<div class="header-student-details">'
+            f'<span class="detail-item"><strong class="detail-label">HTNo:</strong> {student_data["roll_no"]}</span>'
+            f'<span class="detail-divider">|</span>'
+            f'<span class="detail-item"><strong class="detail-label">Name:</strong> {name_part}</span>'
+            f'<span class="detail-divider">|</span>'
+            f'<span class="detail-item"><strong class="detail-label">Branch:</strong> {student_data["branch"]}</span>'
+            f'<span class="detail-divider">|</span>'
+            f'<span class="detail-item"><strong class="detail-label">Sem:</strong> {student_data["semester"] if "semester" in student_data else "II"}</span>'
+            f'</div>'
+        )
     elif role == "admin":
-        right_html = """
-        <div class="header-student-details">
-            <span class="detail-item"><strong class="detail-label">Role:</strong> Portal Admin</span>
-            <span class="detail-divider">|</span>
-            <span class="detail-item"><strong class="detail-label">Console:</strong> System Control</span>
-        </div>
-        """
+        right_html = (
+            f'<div class="header-student-details">'
+            f'<span class="detail-item"><strong class="detail-label">Role:</strong> Portal Admin</span>'
+            f'<span class="detail-divider">|</span>'
+            f'<span class="detail-item"><strong class="detail-label">Console:</strong> System Control</span>'
+            f'</div>'
+        )
         
-    st.markdown(f"""
-    <div class="college-header-bar">
-        <div class="header-left">
-            {logo_html}
-            <div class="header-college-info">
-                <div class="college-title">{college_name}</div>
-                <div class="college-sub">(Autonomous) · Kokapet, Hyderabad</div>
-            </div>
-        </div>
-        <div class="header-right">
-            {right_html}
-        </div>
-    </div>
-    <div class="header-spacing"></div>
-    """, unsafe_allow_html=True)
+    header_html = (
+        f'<div class="college-header-bar">'
+        f'  <div class="header-left">'
+        f'    {logo_html}'
+        f'    <div class="header-college-info">'
+        f'      <div class="college-title">{college_name}</div>'
+        f'      <div class="college-sub">(Autonomous) · Kokapet, Hyderabad</div>'
+        f'    </div>'
+        f'  </div>'
+        f'  <div class="header-right">'
+        f'    {right_html}'
+        f'  </div>'
+        f'</div>'
+    )
+    st.markdown(header_html, unsafe_allow_html=True)
 
 
 # ── Premium Table Helper ─────────────────────────────────────
