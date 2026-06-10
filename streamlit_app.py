@@ -992,7 +992,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         """, unsafe_allow_html=True)
 
     # SPLIT COLUMNS (Circular meter + Subject Health + Weekly Timetable)
-    col_l, col_m, col_r = st.columns([1.1, 1.5, 1.2])
+    col_l, col_m, col_r = st.columns([1.3, 1.4, 1.2])
 
     with col_l:
         val_outer = overall / 100.0 if overall > 0 else 0.78
