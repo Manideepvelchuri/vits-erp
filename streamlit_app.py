@@ -648,6 +648,9 @@ div[data-testid="stPlotlyChart"] iframe {
 
 /* ── Mobile Layout Optimization Media Queries ── */
 @media (max-width: 1024px) {
+    .block-container {
+        padding-top: 3.5rem !important;
+    }
     .kpi-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 12px;
@@ -655,9 +658,12 @@ div[data-testid="stPlotlyChart"] iframe {
 }
 
 @media (max-width: 768px) {
-    /* Reduce page side padding on mobile to maximize viewable area */
+    /* Reduce page side padding on mobile and push top down to clear Streamlit's fixed header */
     .block-container {
-        padding: 1.5rem 1rem !important;
+        padding-top: 3.5rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-bottom: 1.5rem !important;
     }
     
     /* Responsive header elements */
