@@ -1184,6 +1184,11 @@ def setup_dob_page():
 def student_dashboard():
     if 'selected_sem' not in st.session_state:
         st.session_state['selected_sem'] = "Sem 2"
+
+    if 'sidebar_sem_select' in st.session_state and st.session_state['sidebar_sem_select'] != st.session_state['selected_sem']:
+        st.session_state['selected_sem'] = st.session_state['sidebar_sem_select']
+    elif 'result_sem_select' in st.session_state and st.session_state['result_sem_select'] != st.session_state['selected_sem']:
+        st.session_state['selected_sem'] = st.session_state['result_sem_select']
     roll = st.session_state.user_id
     conn = get_db_connection()
     student = conn.execute('SELECT * FROM students WHERE roll_no=?', (roll,)).fetchone()
@@ -1683,17 +1688,25 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                 letter-spacing:0.12em;font-weight:600;margin-bottom:8px;font-family:'Inter';">
         Subject Attendance Chart
     </div>""", unsafe_allow_html=True)
-    df_bar = pd.DataFrame(subj_data)
-    fig = px.bar(df_bar, x='subject', y='pct', color='pct',
-                 color_continuous_scale=[[0, '#EF4444'], [0.65, '#F59E0B'], [0.75, '#00D8C6'], [1, '#00D8C6']],
-                 range_color=[0, 100], labels={'pct': 'Attendance %', 'subject': 'Subject'})
-    fig.add_hline(y=75, line_dash="dash", line_color="#10B981", annotation_text="75% target")
-    fig.add_hline(y=65, line_dash="dash", line_color="#F59E0B", annotation_text="65% min")
-    fig.update_layout(height=380, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-                      margin=dict(t=10, b=10))
-    fig.update_coloraxes(showscale=False)
-    apply_premium_plotly_theme(fig)
-    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
+    if subj_data:
+        df_bar = pd.DataFrame(subj_data)
+        fig = px.bar(df_bar, x='subject', y='pct', color='pct',
+                     color_continuous_scale=[[0, '#EF4444'], [0.65, '#F59E0B'], [0.75, '#00D8C6'], [1, '#00D8C6']],
+                     range_color=[0, 100], labels={'pct': 'Attendance %', 'subject': 'Subject'})
+        fig.add_hline(y=75, line_dash="dash", line_color="#10B981", annotation_text="75% target")
+        fig.add_hline(y=65, line_dash="dash", line_color="#F59E0B", annotation_text="65% min")
+        fig.update_layout(height=380, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+                          margin=dict(t=10, b=10))
+        fig.update_coloraxes(showscale=False)
+        apply_premium_plotly_theme(fig)
+        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
+    else:
+        st.markdown("""
+        <div style="background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.05);
+                    border-radius:12px;padding:30px;text-align:center;color:#64748b;font-size:0.95rem;font-family:'Inter';">
+            No attendance data available to display chart.
+        </div>
+        """, unsafe_allow_html=True)
 
     # ── Bottom Section: Grades Table + Cloud Resources Link ──
     st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
@@ -1739,6 +1752,9 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
 
 def show_attendance_page(roll, sem, att_rows):
     st.markdown("## 📅 Attendance Overview")
+    if not att_rows:
+        st.info("🔍 No attendance records found for this semester.")
+        return
     total_c = sum((r['hours_conducted'] or 0) for r in att_rows)
     total_a = sum((r['hours_attended']  or 0) for r in att_rows)
     overall = round(total_a / total_c * 100, 1) if total_c else 0.0
