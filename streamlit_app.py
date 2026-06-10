@@ -820,6 +820,10 @@ div[data-testid="stPlotlyChart"] iframe {
 }
 
 @media (max-width: 992px) {
+    /* Hide the header bar on mobile for all pages EXCEPT the home page */
+    .college-header-bar:not(.page-home) {
+        display: none !important;
+    }
     .college-header-bar {
         position: relative !important;
         flex-direction: column !important;
@@ -842,17 +846,28 @@ div[data-testid="stPlotlyChart"] iframe {
     }
 }
 
-@media (max-width: 480px) {
-    .college-title {
-        font-size: 1.05rem !important;
+@media (max-width: 768px) {
+    .college-header-bar {
+        padding: 8px 12px !important;
+        margin-bottom: 15px !important;
+        gap: 8px !important;
     }
     .header-logo {
-        width: 36px !important;
-        height: 36px !important;
+        width: 32px !important;
+        height: 32px !important;
+    }
+    .college-title {
+        font-size: 0.95rem !important;
+    }
+    .college-sub {
+        font-size: 0.62rem !important;
+        letter-spacing: 0.5px !important;
     }
     .header-student-details {
-        font-size: 0.72rem !important;
-        padding: 6px 12px !important;
+        font-size: 0.68rem !important;
+        padding: 5px 10px !important;
+        gap: 4px 8px !important;
+        border-radius: 8px !important;
     }
 }
 </style>
@@ -860,7 +875,7 @@ div[data-testid="stPlotlyChart"] iframe {
 
 
 # ── College Header Helper ────────────────────────────────────
-def render_college_header(role="student", student_data=None):
+def render_college_header(role="student", student_data=None, active_page=None):
     logo_path = os.path.join(os.path.dirname(__file__), 'vits_logo.png')
     logo_base64 = get_image_base64(logo_path)
     logo_html = f'<img src="data:image/png;base64,{logo_base64}" class="header-logo"/>' if logo_base64 else '🎓'
@@ -890,8 +905,18 @@ def render_college_header(role="student", student_data=None):
             f'</div>'
         )
         
+    page_class = ""
+    if active_page:
+        clean_page = active_page.lower()
+        for char in ['🏠', '📅', '📊', '🧮', '📈', '🗓️', '👥', '📝', '📤', '🔄', '💾', '⚙️', ' ']:
+            clean_page = clean_page.replace(char, '')
+        clean_page = clean_page.strip()
+        if clean_page in ('home', 'dashboard', 'overview'):
+            clean_page = 'home'
+        page_class = f"page-{clean_page}"
+        
     header_html = (
-        f'<div class="college-header-bar">'
+        f'<div class="college-header-bar {page_class}">'
         f'  <div class="header-left">'
         f'    {logo_html}'
         f'    <div class="header-college-info">'
@@ -1226,7 +1251,7 @@ def student_dashboard():
         (roll, sem)).fetchall()
     conn.close()
 
-    render_college_header("student", student)
+    render_college_header("student", student, active_page=page)
 
     if page == "🏠 Home":
         show_home_page(student, sem, att_rows, marks_rows, cgpa_display)
@@ -2203,7 +2228,7 @@ def admin_dashboard():
                 del st.session_state[k]
             st.rerun()
 
-    render_college_header("admin")
+    render_college_header("admin", active_page=page)
 
     pages = {
         "🏠 Dashboard": admin_overview,
