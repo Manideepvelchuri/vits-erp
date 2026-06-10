@@ -1085,7 +1085,7 @@ def login_page():
                     "* **First-Time Login:** Use **`vits123`** as the password. You will then set your Date of Birth (DOB) as your permanent password.\n"
                     "* **Returning Students:** Use your configured **Date of Birth** as the password (format: **`YYYY-MM-DD`** or **`DD-MM-YYYY`**, e.g., `2005-08-15` or `15-08-2005`)."
                 )
-                roll = st.text_input("Roll Number", placeholder="e.g. 25891A04C9")
+                roll = st.text_input("Roll Number", placeholder="e.g. 23891A0401")
                 pwd  = st.text_input("Password", type="password", placeholder="Enter 'vits123' or your DOB")
                 if st.form_submit_button("Sign In", use_container_width=True):
                     handle_student_login(roll.strip().upper(), pwd.strip())
