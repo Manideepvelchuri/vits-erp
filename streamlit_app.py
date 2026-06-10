@@ -1233,22 +1233,24 @@ def student_dashboard():
                 </div>""", unsafe_allow_html=True)
 
         st.markdown("---")
-        selected_sem = st.selectbox("Viewing Semester",
-            [f"Sem {i}" for i in range(1, 9)], index=1)
-        st.markdown("---")
         page = st.radio("Navigation", [
             "🏠 Home", "📅 Attendance", "📊 Marks", "🧮 SGPA Calculator",
             "📈 Analytics", "🗓️ Timetable"
         ])
         st.markdown("---")
         if st.button("📄 Download Report PDF", use_container_width=True):
-            generate_student_pdf(student, selected_sem)
+            generate_student_pdf(student, st.session_state.get('selected_sem', 'Sem 2'))
         if st.button("🚪 Logout", use_container_width=True):
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.rerun()
 
-    sem = selected_sem
+    if 'selected_sem' not in st.session_state:
+        st.session_state['selected_sem'] = "Sem 2"
+
+    render_college_header("student", student, active_page=page)
+
+    sem = st.session_state['selected_sem']
     att_rows = conn.execute(
         'SELECT subject,hours_attended,hours_conducted FROM attendance WHERE roll_no=? AND semester=?',
         (roll, sem)).fetchall()
@@ -1256,8 +1258,6 @@ def student_dashboard():
         'SELECT subject,score,grade_point,exam_type FROM marks WHERE roll_no=? AND semester=?',
         (roll, sem)).fetchall()
     conn.close()
-
-    render_college_header("student", student, active_page=page)
 
     if page == "🏠 Home":
         show_home_page(student, sem, att_rows, marks_rows, cgpa_display)
@@ -1845,7 +1845,20 @@ def show_attendance_page(roll, sem, att_rows):
 
 
 def show_marks_page(sem, marks_rows):
-    st.markdown("## 📊 Academic Results")
+    col_title, col_sem = st.columns([3.5, 1.5])
+    with col_title:
+        st.markdown("## 📊 Academic Results")
+    with col_sem:
+        selected_sem = st.selectbox(
+            "Semester",
+            ["Sem 1", "Sem 2"],
+            index=1 if sem == "Sem 2" else 0,
+            key="result_sem_select",
+            label_visibility="collapsed"
+        )
+        if selected_sem != sem:
+            st.session_state['selected_sem'] = selected_sem
+            st.rerun()
     by_exam = {}
     if marks_rows:
         for r in marks_rows:
