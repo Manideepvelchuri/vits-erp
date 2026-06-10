@@ -1182,6 +1182,8 @@ def setup_dob_page():
 # STUDENT DASHBOARD
 # ══════════════════════════════════════════════════════════════
 def student_dashboard():
+    if 'selected_sem' not in st.session_state:
+        st.session_state['selected_sem'] = "Sem 2"
     roll = st.session_state.user_id
     conn = get_db_connection()
     student = conn.execute('SELECT * FROM students WHERE roll_no=?', (roll,)).fetchone()
@@ -1233,20 +1235,27 @@ def student_dashboard():
                 </div>""", unsafe_allow_html=True)
 
         st.markdown("---")
+        sidebar_sem = st.selectbox(
+            "Viewing Semester",
+            ["Sem 1", "Sem 2"],
+            index=1 if st.session_state['selected_sem'] == "Sem 2" else 0,
+            key="sidebar_sem_select"
+        )
+        if sidebar_sem != st.session_state['selected_sem']:
+            st.session_state['selected_sem'] = sidebar_sem
+            st.rerun()
+        st.markdown("---")
         page = st.radio("Navigation", [
             "🏠 Home", "📅 Attendance", "📊 Marks", "🧮 SGPA Calculator",
             "📈 Analytics", "🗓️ Timetable"
         ])
         st.markdown("---")
         if st.button("📄 Download Report PDF", use_container_width=True):
-            generate_student_pdf(student, st.session_state.get('selected_sem', 'Sem 2'))
+            generate_student_pdf(student, st.session_state['selected_sem'])
         if st.button("🚪 Logout", use_container_width=True):
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.rerun()
-
-    if 'selected_sem' not in st.session_state:
-        st.session_state['selected_sem'] = "Sem 2"
 
     render_college_header("student", student, active_page=page)
 
