@@ -842,7 +842,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         f"  <div style='font-family:Inter;font-size:0.85rem;color:#94a3b8;margin-top:8px;font-weight:500;display:flex;align-items:center;gap:12px;flex-wrap:wrap;'>"
         f"    <span style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);padding:4px 12px;border-radius:20px;color:#00D8C6;font-weight:600;'>🆔 {student['roll_no']}</span>"
         f"    <span style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);padding:4px 12px;border-radius:20px;color:#8B5CF6;font-weight:600;'>🏫 SECTION {student['section']}</span>"
-        f"    <span style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);padding:4px 12px;border-radius:20px;color:#F97316;font-weight:600;'>📅 {sem} SUMMARY</span>"
+        f"    <span style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);padding:4px 12px;border-radius:20px;color:#F97316;font-weight:600;'>📅 {sem.upper()} SUMMARY</span>"
         f"  </div>"
         f"</div>",
         unsafe_allow_html=True
