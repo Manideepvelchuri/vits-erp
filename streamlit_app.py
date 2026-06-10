@@ -1142,26 +1142,26 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             sub_stack_html += f"  <div style='font-size:0.8rem; color:#64748b; font-weight:500;'>{backlogs_count} backlog(s)</div>"
         sub_stack_html += "</div>"
 
-        backlog_card_html = f"""
-        <div class="kpi-card kpi-card-backlog">
-            <div class="kpi-card-content">
-                <div class="kpi-card-title text-red">BACKLOGS</div>
-                {sub_stack_html}
-            </div>
-            <div class="kpi-card-icon text-red">⚠️</div>
-        </div>
-        """
+        backlog_card_html = (
+            f'<div class="kpi-card kpi-card-backlog">'
+            f'  <div class="kpi-card-content">'
+            f'    <div class="kpi-card-title text-red">BACKLOGS</div>'
+            f'    {sub_stack_html}'
+            f'  </div>'
+            f'  <div class="kpi-card-icon text-red">⚠️</div>'
+            f'</div>'
+        )
     else:
-        backlog_card_html = f"""
-        <div class="kpi-card kpi-card-subjects">
-            <div class="kpi-card-content">
-                <div class="kpi-card-title">SUBJECTS</div>
-                <div class="kpi-card-val text-orange">{len(att_rows)}</div>
-                <div class="kpi-card-sub">{backlogs_count} backlog(s)</div>
-            </div>
-            <div class="kpi-card-icon">📚</div>
-        </div>
-        """
+        backlog_card_html = (
+            f'<div class="kpi-card kpi-card-subjects">'
+            f'  <div class="kpi-card-content">'
+            f'    <div class="kpi-card-title">SUBJECTS</div>'
+            f'    <div class="kpi-card-val text-orange">{len(att_rows)}</div>'
+            f'    <div class="kpi-card-sub">{backlogs_count} backlog(s)</div>'
+            f'  </div>'
+            f'  <div class="kpi-card-icon">📚</div>'
+            f'</div>'
+        )
 
     gpa_title = "CGPA / SGPA"
     st.markdown(f"""
