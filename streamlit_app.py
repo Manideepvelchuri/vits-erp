@@ -726,8 +726,181 @@ div[data-testid="stPlotlyChart"] iframe {
         gap: 10px;
     }
 }
+
+/* College Header Bar styling */
+.college-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, rgba(20, 28, 48, 0.45) 0%, rgba(12, 18, 36, 0.55) 100%) !important;
+    border: 1px solid rgba(0, 216, 198, 0.12) !important;
+    border-radius: 16px !important;
+    padding: 12px 24px !important;
+    margin-bottom: 25px !important;
+    backdrop-filter: blur(25px) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+    width: 100% !important;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.header-logo {
+    width: 48px;
+    height: 48px;
+    filter: drop-shadow(0 2px 8px rgba(0, 216, 198, 0.3));
+    object-fit: contain;
+}
+
+.header-college-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.college-title {
+    color: #00D8C6 !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-weight: 800 !important;
+    font-size: 1.25rem !important;
+    letter-spacing: 0.5px !important;
+    text-shadow: 0 0 20px rgba(0, 216, 198, 0.2);
+    margin: 0 !important;
+    line-height: 1.2 !important;
+}
+
+.college-sub {
+    color: #94a3b8 !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    margin: 2px 0 0 0 !important;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+}
+
+.header-student-details {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    padding: 8px 18px !important;
+    border-radius: 30px !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.8rem !important;
+    color: #cbd5e1 !important;
+}
+
+.detail-item {
+    white-space: nowrap;
+}
+
+.detail-label {
+    color: #00D8C6 !important;
+    font-weight: 600;
+}
+
+.detail-divider {
+    color: rgba(255, 255, 255, 0.15) !important;
+}
+
+.header-spacing {
+    height: 5px;
+}
+
+@media (max-width: 992px) {
+    .college-header-bar {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+        padding: 12px 18px !important;
+    }
+    .header-right {
+        width: 100% !important;
+    }
+    .header-student-details {
+        width: 100% !important;
+        justify-content: space-between !important;
+        border-radius: 10px !important;
+        flex-wrap: wrap !important;
+        gap: 6px 12px !important;
+    }
+    .detail-divider {
+        display: none !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .college-title {
+        font-size: 1.05rem !important;
+    }
+    .header-logo {
+        width: 36px !important;
+        height: 36px !important;
+    }
+    .header-student-details {
+        font-size: 0.72rem !important;
+        padding: 6px 12px !important;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
+
+
+# ── College Header Helper ────────────────────────────────────
+def render_college_header(role="student", student_data=None):
+    logo_path = os.path.join(os.path.dirname(__file__), 'vits_logo.png')
+    logo_base64 = get_image_base64(logo_path)
+    logo_html = f'<img src="data:image/png;base64,{logo_base64}" class="header-logo"/>' if logo_base64 else '🎓'
+    
+    college_name = "VIGNAN INSTITUTE OF TECHNOLOGY AND SCIENCE"
+    
+    right_html = ""
+    if role == "student" and student_data:
+        name_part = student_data['name'].title()
+        right_html = f"""
+        <div class="header-student-details">
+            <span class="detail-item"><strong class="detail-label">HTNo:</strong> {student_data['roll_no']}</span>
+            <span class="detail-divider">|</span>
+            <span class="detail-item"><strong class="detail-label">Name:</strong> {name_part}</span>
+            <span class="detail-divider">|</span>
+            <span class="detail-item"><strong class="detail-label">Branch:</strong> {student_data['branch']}</span>
+            <span class="detail-divider">|</span>
+            <span class="detail-item"><strong class="detail-label">Sem:</strong> {student_data['semester'] if 'semester' in student_data else 'II'}</span>
+        </div>
+        """
+    elif role == "admin":
+        right_html = """
+        <div class="header-student-details">
+            <span class="detail-item"><strong class="detail-label">Role:</strong> Portal Admin</span>
+            <span class="detail-divider">|</span>
+            <span class="detail-item"><strong class="detail-label">Console:</strong> System Control</span>
+        </div>
+        """
+        
+    st.markdown(f"""
+    <div class="college-header-bar">
+        <div class="header-left">
+            {logo_html}
+            <div class="header-college-info">
+                <div class="college-title">{college_name}</div>
+                <div class="college-sub">(Autonomous) · Kokapet, Hyderabad</div>
+            </div>
+        </div>
+        <div class="header-right">
+            {right_html}
+        </div>
+    </div>
+    <div class="header-spacing"></div>
+    """, unsafe_allow_html=True)
 
 
 # ── Premium Table Helper ─────────────────────────────────────
@@ -875,7 +1048,7 @@ def login_page():
                 st.info(
                     "🔑 **Password Instructions:**\n\n"
                     "* **First-Time Login:** Use **`vits123`** as the password. You will then set your Date of Birth (DOB) as your permanent password.\n"
-                    "* **Returning Students:** Use your configured **Date of Birth** as the password (format: **`YYYY-MM-DD`** or **`DD-MM-YYYY`**, e.g., `2007-12-01` or `01-12-2007`)."
+                    "* **Returning Students:** Use your configured **Date of Birth** as the password (format: **`YYYY-MM-DD`** or **`DD-MM-YYYY`**, e.g., `2005-08-15` or `15-08-2005`)."
                 )
                 roll = st.text_input("Roll Number", placeholder="e.g. 25891A04C9")
                 pwd  = st.text_input("Password", type="password", placeholder="Enter 'vits123' or your DOB")
@@ -942,6 +1115,14 @@ def handle_student_login(roll, pwd):
 
 
 def setup_dob_page():
+    conn = get_db_connection()
+    st_row = conn.execute('SELECT * FROM students WHERE roll_no=?', (st.session_state.user_id,)).fetchone()
+    conn.close()
+    if st_row:
+        render_college_header("student", st_row)
+    else:
+        render_college_header("student")
+        
     st.markdown(f"## 🔐 Welcome, {st.session_state.user_name}")
     st.info("Please set your **Date of Birth** as your permanent password.")
     with st.form("setup_dob"):
@@ -1040,6 +1221,8 @@ def student_dashboard():
         'SELECT subject,score,grade_point,exam_type FROM marks WHERE roll_no=? AND semester=?',
         (roll, sem)).fetchall()
     conn.close()
+
+    render_college_header("student", student)
 
     if page == "🏠 Home":
         show_home_page(student, sem, att_rows, marks_rows, cgpa_display)
@@ -2015,6 +2198,8 @@ def admin_dashboard():
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.rerun()
+
+    render_college_header("admin")
 
     pages = {
         "🏠 Dashboard": admin_overview,
