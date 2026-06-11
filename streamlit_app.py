@@ -11,16 +11,34 @@ import datetime
 from datetime import datetime as dt
 
 # Auto-detect: use PostgreSQL (Supabase) if DATABASE_URL or st.secrets is set, else SQLite
+_DB_FALLBACK = False
+
 def _load_db_module():
+    global _DB_FALLBACK
+    if os.environ.get("USE_SQLITE", "").lower() == "true":
+        return "sqlite"
+        
+    pg_url = ""
     try:
         import streamlit as _st
-        _url = _st.secrets.get("database", {}).get("url", "")
-        if _url:
-            return "pg"
+        pg_url = _st.secrets.get("database", {}).get("url", "")
     except Exception:
         pass
-    if os.environ.get("DATABASE_URL"):
-        return "pg"
+    if not pg_url:
+        pg_url = os.environ.get("DATABASE_URL", "")
+
+    if pg_url:
+        try:
+            import psycopg2
+            # Connect with a short timeout to see if PG is available and has connection slots
+            conn = psycopg2.connect(pg_url, connect_timeout=3)
+            conn.close()
+            return "pg"
+        except Exception:
+            # Fall back to SQLite if PostgreSQL fails (e.g. max connections reached)
+            _DB_FALLBACK = True
+            return "sqlite"
+            
     return "sqlite"
 
 _DB_BACKEND = _load_db_module()
@@ -2993,6 +3011,9 @@ def admin_settings():
 # ══════════════════════════════════════════════════════════════
 # ROUTER
 # ══════════════════════════════════════════════════════════════
+if _DB_FALLBACK:
+    st.warning("⚠️ PostgreSQL connection failed (database connection limit reached). Operating in offline SQLite mode.")
+
 if not st.session_state.get('logged_in'):
     login_page()
 elif st.session_state.get('needs_dob_setup'):
