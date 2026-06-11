@@ -592,3 +592,28 @@ If asked: *"How do you handle the ethics of harvesting data from the college sys
   > 2. **Server Respect (Rate Limiting)**: To prevent putting any load on the college servers, we implemented rate limiting. The script makes spaced-out requests, behaving exactly like a normal human browser.
   > 3. **Read-Only Data Integration**: The scraper is strictly read-only. It gathers attendance and marks to help students visualize their progress, and never modifies any data on the college ERP portal."*
 
+---
+
+## 🔄 18. How SQLite to PostgreSQL Database Conversion Works (Simplified)
+
+For a first-year student, the easiest way to explain how we converted our database from **SQLite (local)** to **PostgreSQL (production/cloud)** is to break it down into two layers:
+
+### A. The Code Design (Zero Frontend Changes!)
+We created two database files: `database.py` (for SQLite) and `database_pg.py` (for PostgreSQL). 
+* Both files contain **exactly the same function signatures** (like `get_db_connection()`, `compute_cgpa()`, and `init_db()`).
+* In our main frontend script (`streamlit_app.py`), we wrote a simple **Auto-Detect Router** at the top.
+* The router checks: if a PostgreSQL server URL exists and is online, it dynamically imports `database_pg`. Otherwise, it falls back to importing `database` (local SQLite).
+* **Interview Point**: *"This drop-in module structure meant we didn't have to change a single line of code in our user interface files when migrating from local SQLite to cloud PostgreSQL."*
+
+### B. The 4 Key SQL & Driver Differences Under the Hood
+
+Even though the functions look identical to the frontend, under the hood, the SQL syntax and connection libraries have a few key differences:
+
+| Feature | SQLite (`database.py`) | PostgreSQL (`database_pg.py`) |
+|---|---|---|
+| **Python Library** | Uses built-in `sqlite3` driver. | Uses `psycopg2` (PostgreSQL adapter for Python). |
+| **SQL Placeholders** | Uses `?` for parameter binding.<br>*(e.g., `WHERE roll_no = ?`)* | Uses `%s` for parameter binding.<br>*(e.g., `WHERE roll_no = %s`)* |
+| **Upsert Command** | Uses direct `INSERT OR REPLACE INTO`. | Uses standard SQL conflict syntax:<br>`ON CONFLICT (constraint) DO UPDATE SET ...` |
+| **Connection Strategy** | Opens the local database file directly. | Uses a **Connection Pool** (`SimpleConnectionPool`) to reuse open sockets and manage database limits efficiently. |
+
+
