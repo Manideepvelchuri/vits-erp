@@ -534,3 +534,35 @@ Bot sends formatted reply back to student on Telegram
 ## ✅ 15. Quick Summary For Interview
 
 > "I built a full-stack Student ERP for VITS college using **Python + Streamlit** for the frontend, **SQLite** for local development and **PostgreSQL** for production. The backend handles authentication via DOB matching, stores attendance and marks data in a relational database with 8 tables, computes SGPA/CGPA using the JNTUH grading formula, and includes a web scraper for live portal data and a Telegram bot for student queries. The data was seeded from real CSV files exported from the college system."
+
+---
+
+## 🧠 16. Advanced Concepts to Impress the Interviewer (Deep Dive)
+
+### A. Web Scraping Payload & Session Maintenance
+* **HTTP POST Authentication**: In `harvester.py`, when a student requests a sync, the scraper makes an HTTP POST request to the college login URL. The request payload contains credentials in a URL-encoded form dictionary (e.g., `{'username': roll_no, 'password': password}`).
+* **Session Persistence (`requests.Session`)**: In HTTP, requests are stateless. If you log in with one request, you are logged out on the next. `requests.Session()` solves this by automatically maintaining cookies (like the session ID cookie) in memory across requests. This allows us to fetch attendance data using a subsequent GET request without logging in again.
+* **BeautifulSoup Parsing**: To parse tables, the code locates the `<table>` element, iterates over all `<tr>` (table row) tags, extracts text inside each `<td>` (table cell) tag using `.get_text(strip=True)`, and converts numbers (like hours attended and conducted) into Python integers for storage.
+
+### B. Database Performance & Multi-User Architecture (WAL Mode)
+* **WAL Mode (Write-Ahead Logging)**: SQLite is file-based and normally locks the entire database file during writes, blocking readers. We enable WAL mode by executing `PRAGMA journal_mode=WAL;`. This writes updates to a separate `-wal` file first, allowing readers to read the main database file concurrently while writes are happening. This is critical for web applications with multiple concurrent users.
+* **Query Cache (`_QUERY_CACHE`)**: To prevent database bottlenecks, we implemented a custom in-memory caching wrapper. If the same `SELECT` query runs within 5 minutes, it returns the results from a dictionary in memory, avoiding disk I/O. Any write operation (`INSERT`, `UPDATE`, `DELETE`) immediately clears this cache to ensure students always see fresh data.
+
+### C. Streamlit Execution Model & State Management
+* **The Streamlit Lifecycle**: Unlike traditional web servers (like Flask or Django) which start a persistent process and respond to specific API routes, Streamlit executes the entire script file from top to bottom every single time a user interacts with a widget.
+* **Why `st.session_state` is Essential**: Since variables are cleared on every rerun, `st.session_state` stores data in the server's memory, associated with the user's browser session. We use it to store login credentials, current navigation tabs, and the active semester selection.
+* **Widget Binding**: Passing a `key` parameter to widgets (like `st.selectbox(..., key="my_key")`) automatically binds their state to `st.session_state["my_key"]`, reducing the need for manual callback functions.
+
+### D. Git Version Control & Deployment Workflow
+* **Git**: A local tool used to track revisions of code files, create branches, and rollback mistakes (using `git status`, `git diff`, `git commit`).
+* **GitHub**: A cloud hosting platform for git repositories. It acts as our central repository.
+* **CI/CD & Deployment**: The project is deployed on **Render.com**. Render is linked to our GitHub repository. Whenever we push changes to the `main` branch (`git push origin main`), Render detects the new commit, rebuilds the container, and deploys the updated app automatically (Continuous Deployment).
+
+### E. PDF Flowables & reportlab Structure
+* **Flowables**: In ReportLab, instead of drawing text at exact x/y pixel coordinates (which breaks if the text length changes), we use **Flowables** (like `Paragraph`, `Table`, `Spacer`) inside a `story`.
+* **SimpleDocTemplate**: We build a document layout, append flowables to the `story` list, and call `doc.build(story)`. ReportLab automatically calculates page breaks and fits content dynamically, preventing text overlaps.
+
+### F. Real-World Bug Fixes You Resolved
+If the interviewer asks: *"Tell me about a challenging bug you fixed in this project."* You have two amazing answers:
+1. **Markdown Parsing Bug**: *“Streamlit's markdown renderer got confused by raw HTML tags containing vertical newlines and spaces, rendering them as plain code text. I resolved this by formatting the HTML dynamically as a single-line string with `.replace('\n', ' ')`, which forced Streamlit to compile it correctly as visual components.”*
+2. **Mobile Viewport Overlap**: *“On mobile screens, Streamlit's native top header was overlapping our custom college header. I resolved this by injecting custom CSS overrides that target the `.block-container` styling, adding top padding of `3.5rem !important` on smaller screens to ensure both headers sit neatly without covering each other.”*
