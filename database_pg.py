@@ -327,19 +327,19 @@ def _get_pool():
     """
     Create a ThreadedConnectionPool once per app session.
     Cached by Streamlit so it survives reruns — connections are REUSED.
-    minconn=2, maxconn=15 handles concurrent Streamlit reruns safely.
+    minconn=1, maxconn=4 handles concurrent Streamlit reruns safely without overloading Supabase.
     """
     from psycopg2 import pool as pg_pool
     url = _get_pg_url()
     try:
         p = pg_pool.ThreadedConnectionPool(
-            minconn=2, maxconn=15,
+            minconn=1, maxconn=4,
             dsn=url, sslmode='require', connect_timeout=15
         )
         return p
     except Exception:
         p = pg_pool.ThreadedConnectionPool(
-            minconn=2, maxconn=15,
+            minconn=1, maxconn=4,
             dsn=url, connect_timeout=15
         )
         return p
@@ -352,9 +352,10 @@ def get_db_connection():
     """
     Get a connection from the pool. Always call conn.close() when done —
     this returns the connection to the pool rather than closing it.
-    Falls back to a direct connection if pool is exhausted.
+    Falls back to sleeping/retrying and raising OperationalError if pool is exhausted.
     """
     from psycopg2 import pool as pg_pool
+    import time
     pool = _get_pool()
     max_retries = 3
     for attempt in range(max_retries):
@@ -378,13 +379,13 @@ def get_db_connection():
             conn._pool = pool
             return conn
 
-        except pg_pool.PoolError:
-            # Pool exhausted — create a direct (non-pooled) connection as fallback
-            print("[Database Pool] Pool exhausted — using direct connection fallback")
-            raw = _make_conn()
-            conn = _PGConn(raw)
-            conn._pool = None   # no pool → close() will truly close it
-            return conn
+        except pg_pool.PoolError as e:
+            # Pool exhausted — sleep and retry
+            if attempt < max_retries - 1:
+                time.sleep(0.5)
+                continue
+            else:
+                raise psycopg2.OperationalError("Database connection pool exhausted: " + str(e))
 
         except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
             if raw:
