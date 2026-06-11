@@ -1,10 +1,27 @@
-# VITS ERP Portal — Developer & Interview Instructions
+# 🎓 VITS ERP — Complete Project & Backend Guide (For First-Year Students)
 
-This document provides a comprehensive overview of the VITS ERP web portal, explaining the architecture, core features, code file structure, utilized technologies, and specific Streamlit APIs used. It also includes interview preparation questions.
+> Written specifically for YOU — a first-year student who built this project and needs to explain it confidently in an interview.
 
 ---
 
-## 1. Streamlit Architecture & Technology Stack
+## 📦 1. What Is "Backend" and "Frontend"?
+
+Imagine the app is a restaurant:
+* **Frontend** = the menu, tables, waiter (what the user sees — Streamlit UI)
+* **Backend** = the kitchen, storage, chef logic (where data is stored and processed)
+* **Database** = the fridge/pantry (where all raw data lives)
+
+Your project has **3 backend layers**:
+
+```
+Browser (User)
+     ↓
+Streamlit UI  (streamlit_app.py)   ← Frontend
+     ↓
+Python Logic  (database.py)        ← Backend / Business Logic
+     ↓
+SQLite / PostgreSQL Database       ← Data Storage
+```
 
 ### Is Streamlit 100% Python?
 **Yes, it is 100% Python.** 
@@ -12,67 +29,365 @@ This document provides a comprehensive overview of the VITS ERP web portal, expl
 * Under the hood, Streamlit translates your Python code into a modern React-based web interface in the user's browser.
 * In this specific codebase, we have also injected custom inline **HTML/CSS** inside `st.markdown()` calls to give the app a premium, custom glassmorphism design (with custom cards, colors, and gradients) that goes beyond Streamlit's default basic look.
 
-### Specific Libraries Used (Dependencies)
-These are imported at the top of our Python files to provide specialized functions:
-* **`streamlit`**: Used to build the web interface, text inputs, selectors, columns, and navigation.
-* **`plotly.express` & `plotly.graph_objects`**: Used to draw the premium **interactive progression charts**, Heatmaps, and Section Health graphs.
-* **`pandas`**: Used to organize queried SQL rows into tabular structures (DataFrames) for feeding into graphs and tables.
-* **`sqlite3`**: Connects the Python code to the local `vits_erp.db` database.
-* **`reportlab.platypus`**: Renders the PDF documents dynamically (using Flowables, SimpleDocTemplate, and Paragraphs).
-* **`requests` & `bs4` (BeautifulSoup)**: Used to make HTTP requests to the college portal and parse the HTML response during background scraping.
-* **`datetime`**: Handles calendar dates for schedule lookups and DOB setups.
+---
+
+## 🗃️ 2. What is SQL?
+
+**SQL = Structured Query Language**
+
+It's the language you use to talk to a database. Think of it like this:
+
+| English | SQL |
+|---|---|
+| "Give me all students" | `SELECT * FROM students` |
+| "Give me only ECE students" | `SELECT * FROM students WHERE branch='ECE'` |
+| "Add a new student" | `INSERT INTO students (roll_no, name) VALUES ('25891A04C9', 'Manideep')` |
+| "Update Manideep's phone" | `UPDATE students SET phone='9999' WHERE roll_no='25891A04C9'` |
+| "Delete a student" | `DELETE FROM students WHERE roll_no='25891A04C9'` |
+
+These 4 operations are called **CRUD**:
+* **C**reate → `INSERT`
+* **R**ead → `SELECT`
+* **U**pdate → `UPDATE`
+* **D**elete → `DELETE`
 
 ---
 
-## 2. Core Features of the VITS ERP Application
+## 🏗️ 3. How Your Database Is Structured (Tables)
 
-### 🔐 Authentication & Session Management
-* **Dual Portals**: Separate login portals for **Students** and **Admins**.
-* **DOB Password Security**: Students log in using their roll number and Date of Birth (DOB) as their password.
-* **Password Setup**: A dedicated onboarding page prompts new students to register their DOB on their first login.
+Your database (`vits_erp.db`) has **8 tables**. Think of each table like a spreadsheet tab:
 
-### 🎓 Student Dashboard
-* **Main Dashboard (Home)**:
-  * **Branding Header**: Sticky, mobile-responsive branding header showing VITS logo, name, and student details.
-  * **KPI Grid**: Glassmorphic cards displaying Overall Attendance, CGPA/SGPA, Credits Earned, and Backlogs count.
-  * **Circular Progress Meter**: Visual rings displaying attendance and GPA progress side-by-side.
-  * **Timetable Widget**: Displays the current day's class schedule automatically.
-* **Attendance Tab**:
-  * **Subject-wise health bars**: Visually represents attendance percentage for each subject.
-  * **Skip Predictor Slider**: An interactive slider allowing students to simulate missing a specific number of days and see their projected attendance (displays Safe, Condonation, or Debarred status).
-* **Academic Results (Marks) Tab**:
-  * **Semester Toggle**: Syncs between Sem 1 and Sem 2 using session state selectboxes (both in the sidebar and directly next to the results header).
-  * **Marks Progression Chart**: Interactive line graph tracking grades across Mid 1, Mid 2, and Final Examinations.
-  * **Detailed Marks Tables**: Sectioned lists of scores for Mid 1, Mid 2, Lab Internals, and Final Exam grades.
-* **SGPA Calculator Tab**:
-  * Interactive sliders allowing students to simulate potential grades for each subject and calculate their projected SGPA/CGPA in real-time.
-* **Analytics Tab**:
-  * Charts showing attendance trends over time (Heatmaps and Line charts).
-* **Timetable Tab**:
-  * Full section weekly schedule view.
-* **PDF Report Downloader**:
-  * Generates a beautifully formatted PDF report containing the student's complete profile, attendance, and marks.
+### 1. `students` table
+Stores one row per student.
 
-### ⚙️ Admin Console
-* **Portal Analytics**: Statistics on active logins, page views, and downloaded reports.
-* **Student Directory**: Allows admins to search, view, edit student details, and reset student passwords/DOBs.
-* **Bulk Data Scraping**: Scraper tool to pull attendance/results directly from the main college server.
-* **Section Health**: Interactive comparison charts analyzing average attendance across all branches and sections.
-* **Direct SQL Console**: Allows admins to execute raw SQL queries to manage database tables directly.
+| roll_no | name | dob | section | branch | semester |
+|---|---|---|---|---|---|
+| 25891A04C9 | Manideep Velchuri | 2007-05-12 | ECE_B | ECE | 2 |
+| 25891A0465 | Harshit Ram | PENDING | ECE_B | ECE | 2 |
+
+```sql
+-- How this was created in database.py:
+CREATE TABLE IF NOT EXISTS students (
+    roll_no      TEXT PRIMARY KEY,   -- unique ID, like Aadhar number
+    name         TEXT,
+    dob          TEXT DEFAULT 'PENDING',
+    section      TEXT,
+    branch       TEXT,
+    semester     INTEGER DEFAULT 2
+);
+```
+
+### 2. `attendance` table
+One row per student per subject per semester.
+
+| roll_no | subject | semester | hours_attended | hours_conducted |
+|---|---|---|---|---|
+| 25891A04C9 | DS | Sem 2 | 28 | 30 |
+| 25891A04C9 | PYTHON | Sem 2 | 25 | 30 |
+
+```sql
+CREATE TABLE IF NOT EXISTS attendance (
+    roll_no         TEXT,
+    subject         TEXT,
+    semester        TEXT,
+    hours_attended  INTEGER DEFAULT 0,
+    hours_conducted INTEGER DEFAULT 0,
+    UNIQUE(roll_no, subject, semester),        -- can't have duplicate rows
+    FOREIGN KEY(roll_no) REFERENCES students(roll_no)
+);
+```
+
+### 3. `marks` table
+One row per student, per subject, per exam type.
+
+| roll_no | subject | semester | exam_type | score | grade_point |
+|---|---|---|---|---|---|
+| 25891A04C9 | DS | Sem 1 | Sem 1 Final Examinations | 78.0 | 8.0 |
+| 25891A04C9 | DS | Sem 1 | Mid 1 | 22.0 | - |
+
+```sql
+CREATE TABLE IF NOT EXISTS marks (
+    roll_no     TEXT,
+    subject     TEXT,
+    semester    TEXT,
+    exam_type   TEXT,
+    score       REAL,
+    grade_point REAL,
+    UNIQUE(roll_no, subject, semester, exam_type),
+    FOREIGN KEY(roll_no) REFERENCES students(roll_no)
+);
+```
+
+### 4. `sgpa_records` table
+One row per student per semester storing their SGPA.
+
+| roll_no | semester | sgpa | failed |
+|---|---|---|---|
+| 25891A04C9 | Sem 1 | 9.14 | 0 |
+
+```sql
+CREATE TABLE IF NOT EXISTS sgpa_records (
+    roll_no   TEXT,
+    semester  TEXT,
+    sgpa      REAL,
+    failed    INTEGER DEFAULT 0,
+    PRIMARY KEY(roll_no, semester),
+    FOREIGN KEY(roll_no) REFERENCES students(roll_no)
+);
+```
+
+### 5. `timetable` table — periods and subjects per section per day
+### 6. `config` table — admin settings (active semester, start date)
+### 7. `scrape_log` table — logs of when attendance was scraped
+### 8. `attendance_history` table — daily snapshots of attendance %
 
 ---
 
-## 3. Key Code Files & Their Roles
+## 🔑 4. Key SQL Concepts Used In Your Project
 
-* **`streamlit_app.py`**: The **heart of the application**. It contains the entire UI routing, pages layout (Home, Results, Attendance, Admin console, etc.), styling customization (custom CSS classes), and interactivity logic.
-* **`database.py` / `database_pg.py`**: Handles **all database operations**. It sets up SQL tables, manages connections (SQLite/PostgreSQL), and performs helper operations like `compute_cgpa()` and `gp_to_grade()`.
-* **`pdf_generator.py`**: A helper code script that uses a library to draw tables, logos, and student details onto a **custom PDF layout** for downloads.
-* **`harvester.py`**: The **data crawler (scraper)**. It connects directly to the college's parent ERP portal, automates credentials logging, parses the HTML, and saves timetable/marks/attendance data into our database.
-* **`telegram_bot.py`**: Extends the app's functionality to Telegram, allowing students to check their marks and attendance by sending commands (like `/attendance` or `/marks`) to a Telegram bot.
+### PRIMARY KEY
+A unique identifier for each row — like your roll number.
+```sql
+roll_no TEXT PRIMARY KEY   -- No two students can have the same roll_no
+```
+
+### FOREIGN KEY
+Links one table to another — like a reference.
+```sql
+FOREIGN KEY(roll_no) REFERENCES students(roll_no)
+-- This means: the roll_no in attendance MUST exist in the students table
+-- You can't add attendance for a student who doesn't exist
+```
+
+### UNIQUE Constraint
+Prevents duplicate data.
+```sql
+UNIQUE(roll_no, subject, semester)
+-- A student can only have ONE attendance record per subject per semester
+```
+
+### INDEX
+Makes searching faster — like the index at the back of a textbook.
+```sql
+CREATE INDEX IF NOT EXISTS idx_marks_roll ON marks(roll_no);
+-- Now searching marks by roll_no is 10x faster
+-- Without index: database checks every row (slow)
+-- With index: database jumps directly to matching rows (fast)
+```
+
+### INSERT OR REPLACE
+If a record exists → update it. If not → create it.
+```sql
+INSERT OR REPLACE INTO attendance (roll_no, subject, semester, hours_attended, hours_conducted)
+VALUES ('25891A04C9', 'DS', 'Sem 2', 28, 30)
+-- Used in seeding from CSV files
+```
 
 ---
 
-## 4. Specific Streamlit API Components Used
+## ⚙️ 5. How `database.py` Works (Step by Step)
+
+### Step 1: Connect to Database
+```python
+def get_db_connection():
+    conn = sqlite3.connect('vits_erp.db', timeout=30)
+    conn.row_factory = sqlite3.Row   # lets you access rows like a dict: row['name']
+    conn.execute('PRAGMA journal_mode=WAL')  # Write-Ahead Logging for better concurrent access
+    return _SQLiteConn(conn)         # wrapped with caching layer
+```
+> Think of this like "opening a phone call" to the database. You open it, do your work, then close it.
+
+### Step 2: Query Caching (Your custom optimization!)
+* database.py has a `_QUERY_CACHE` dictionary.
+* When you run `SELECT`, the result is saved for 300 seconds (5 min).
+* If the same query runs again, it returns from cache — NO database hit.
+* When you `INSERT`/`UPDATE`/`DELETE`, the cache is cleared automatically.
+> **Interview Tip**: "I implemented an in-memory query cache that reduces database load by storing SELECT results for 5 minutes and invalidating them on any write operation."
+
+### Step 3: The SGPA Calculation Logic
+```python
+def compute_sgpa(marks_rows):
+    total_credits = 0
+    weighted_gp = 0
+    for row in marks_rows:
+        subject = row['subject']
+        credits = SUBJECT_CREDITS.get(subject, 3.0)  # e.g. DS = 3 credits
+        grade_point = row['grade_point'] or 0.0       # e.g. 8.0 for 'A'
+        weighted_gp += grade_point * credits           # 8.0 × 3 = 24
+        total_credits += credits                       # total credits = 3
+    return weighted_gp / total_credits                 # SGPA = 24/3 = 8.0
+```
+**Formula**: `SGPA = Σ(Grade Point × Credits) / Σ(Credits)`
+
+### Step 4: CGPA Calculation
+```python
+def compute_cgpa(roll_no, conn):
+    sync_sgpa_records(roll_no, conn)   # first update SGPA if marks changed
+    rows = conn.execute(
+        'SELECT sgpa FROM sgpa_records WHERE roll_no=? AND sgpa>0 AND failed=0',
+        (roll_no,)
+    ).fetchall()
+    return sum(r['sgpa'] for r in rows) / len(rows)  # average of all SGPAs
+```
+> **CGPA = Average of all semester SGPAs** (only passing semesters count)
+
+### Step 5: CSV Import Flow
+```
+Admin uploads CSV file
+        ↓
+parse_sem1_results_csv() or parse_and_load_csv_results()
+        ↓
+For each row in CSV:
+    - Extract roll_no, name, marks, grade_points
+    - INSERT OR REPLACE into students table
+    - INSERT OR REPLACE into marks table
+    - Calculate SGPA and INSERT into sgpa_records table
+        ↓
+conn.commit()  ← Save everything permanently
+```
+
+---
+
+## 🌐 6. SQLite vs PostgreSQL — The Key Difference
+
+This is a very common interview question!
+
+| Feature | SQLite (your local DB) | PostgreSQL (Render/Cloud DB) |
+|---|---|---|
+| Where it lives | A single `.db` FILE on your computer | A separate SERVER on the internet |
+| How many users | Best for 1 user at a time | Handles thousands of users at once |
+| Setup | Zero setup, just import sqlite3 | Needs server, username, password, port |
+| Speed for big data | Slower | Much faster |
+| Used for | Local development, small apps | Production web apps |
+| Cost | Free (just a file) | Free tier on Render/Supabase |
+| Connection string | `sqlite3.connect('vits_erp.db')` | `psycopg2.connect("postgresql://user:pass@host/db")` |
+
+### How Your Project Uses BOTH:
+```
+Local development  → SQLite (vits_erp.db file)
+Deployed on Render → PostgreSQL (database_pg.py connects via DATABASE_URL)
+```
+Your `database_pg.py` file has the PostgreSQL version of all the same functions, but uses the `psycopg2` library instead of `sqlite3`.
+
+---
+
+## 🔌 7. How a Database Connection Works (Explained Simply)
+
+```
+Your Python code                   Database
+─────────────                      ────────
+conn = get_db_connection()  →      "Hello, I want to connect"
+                                   "OK, connection open. Session ID: 5"
+                            ←
+conn.execute("SELECT...")   →      "Give me student data"
+                                   "Here are 500 rows"
+                            ←
+conn.execute("INSERT...")   →      "Add this new student"
+                                   "Done. 1 row inserted."
+                            ←
+conn.commit()               →      "Save everything permanently"
+                                   "Saved to disk."
+                            ←
+conn.close()                →      "I'm done, close the connection"
+                                   "Goodbye. Session closed."
+                            ←
+```
+> **Important**: Always call `conn.close()` after you're done. Unclosed connections waste server memory. Your code does this correctly.
+
+---
+
+## 🔒 8. How Authentication Works In Your Project
+
+There is NO dedicated `users` or `passwords` table. Instead:
+* **Password = Date of Birth (DOB)**
+* Stored in `students.dob` column.
+* Default value is `"PENDING"` (before the student sets their own DOB).
+
+```python
+# Login flow in streamlit_app.py:
+student = conn.execute(
+    'SELECT * FROM students WHERE roll_no=?', (roll_no,)
+).fetchone()
+
+if student and student['dob'] == entered_password:
+    st.session_state['logged_in'] = True
+    st.session_state['user_id'] = roll_no
+```
+
+**Session State** = Streamlit's way of remembering who is logged in across page reruns. Like cookies in a browser.
+
+---
+
+## 🕷️ 9. The Web Scraper (harvester.py)
+
+Your project can auto-fetch attendance from the VITS student portal:
+```
+harvester.py uses Selenium (browser automation)
+        ↓
+Opens VITS portal in headless Chrome (invisible browser)
+        ↓
+Logs in with section credentials
+        ↓
+Scrapes attendance table row by row
+        ↓
+Calls database.py functions to INSERT/UPDATE attendance records
+        ↓
+Logs the scrape in scrape_log table
+```
+
+---
+
+## 🤖 10. The Telegram Bot (telegram_bot.py)
+
+Uses the **Telegram Bot API**:
+```
+Student sends message to @vits_student_query_bot
+        ↓
+Telegram sends it to your Python bot via HTTP
+        ↓
+Bot parses the message (e.g., "attendance")
+        ↓
+Bot queries the SAME vits_erp.db database
+        ↓
+Bot sends formatted reply back to student on Telegram
+```
+
+---
+
+## 📊 11. The Full Data Flow When a Student Logs In
+
+```
+1. Student enters roll_no + DOB on login page
+2. streamlit_app.py queries: SELECT * FROM students WHERE roll_no=?
+3. DOB matches → session_state['logged_in'] = True
+4. student_dashboard() loads:
+   a. Queries: SELECT * FROM students WHERE roll_no=?       (profile)
+   b. Queries: SELECT sgpa FROM sgpa_records WHERE roll_no=? (CGPA)
+   c. Queries: SELECT ... FROM attendance WHERE roll_no=?   (attendance %)
+   d. Queries: SELECT ... FROM marks WHERE roll_no=?        (exam scores)
+5. All data rendered via Streamlit widgets (charts, tables, metrics)
+6. conn.close()  ← connection returned to pool
+```
+
+---
+
+## 🗂️ 12. File Structure Summary
+
+| File | What It Does |
+|---|---|
+| `streamlit_app.py` | Full frontend + page routing + UI (2988 lines) |
+| `database.py` | SQLite connection, all DB functions, CSV import, SGPA logic |
+| `database_pg.py` | Same as database.py but for PostgreSQL (production) |
+| `harvester.py` | Web scraper — fetches live attendance from portal |
+| `telegram_bot.py` | Telegram bot that answers student queries |
+| `pdf_generator.py` | Generates PDF report cards for students |
+| `vits_erp.db` | The actual SQLite database file (58 MB of real data!) |
+| `render.yaml` | Tells Render.com how to deploy the Telegram bot |
+| `requirements.txt` | List of Python packages needed to run the project |
+
+---
+
+## 🔌 13. Specific Streamlit API Components Used
 
 ### Layout & Structure
 * **`st.columns([ratio1, ratio2, ...])`**: Splits the page layout into side-by-side columns (e.g., placing the semester selector next to the Results title, or splitting the Home page into 3 columns for the circular progress meter, subject health, and daily schedule).
@@ -104,11 +419,15 @@ These are imported at the top of our Python files to provide specialized functio
 
 ---
 
-## 5. Comprehensive Interview Preparation Q&As
+## 💬 14. Comprehensive Interview Preparation Q&As
 
 ### Category A: Project Architecture & System Design
 
-#### Q1: Can you explain the end-to-end architecture of this portal?
+#### Q1: "What database did you use, and why?"
+* **Your Answer**: 
+  > *"I used **SQLite** for local development because it requires zero server setup — it's just a file. For production deployment on Render, I migrated to **PostgreSQL** which handles concurrent users better. Both use the same SQL syntax so the migration was straightforward."*
+
+#### Q2: Can you explain the end-to-end architecture of this portal?
 * **Your Answer**: 
   > *"The system uses a 4-tier architecture: 
   > 1. **Data Source**: The official college ERP portal (external).
@@ -116,37 +435,54 @@ These are imported at the top of our Python files to provide specialized functio
   > 3. **Database (`vits_erp.db`)**: A local SQLite relational database storing tables for students, attendance, marks, timetables, and SGPA.
   > 4. **User Interfaces**: A **Streamlit web portal** (`streamlit_app.py`) for student/admin visual access and a **Telegram Bot** (`telegram_bot.py`) for quick mobile lookups."*
 
-#### Q2: Why did you choose SQLite, and how would you scale it for production?
+#### Q3: Difference between SQL and NoSQL databases?
 * **Your Answer**:
-  > *"SQLite was chosen because it is serverless, lightweight, has zero configuration, and stores data in a single local file, which is perfect for development and prototyping. To scale this for a real production environment with thousands of concurrent students, I would transition to a database server like **PostgreSQL** or **MySQL**. This would support concurrent write operations, connection pooling, and better security configurations."*
+  > *"SQL databases (like SQLite, PostgreSQL) store data in structured tables with fixed schemas and are great when relationships between data matter. NoSQL databases (like MongoDB) store data as flexible documents or key-value pairs and are better for unstructured data. We chose SQL because our data has clear relationships — students have attendance records, marks, SGPA etc."*
+
+#### Q4: What is normalization?
+* **Your Answer**:
+  > *"Normalization is organizing a database to avoid repeating data. In our project, instead of storing the student's name in every attendance row, we store it once in the students table and reference it via roll_no. This saves space and keeps data consistent."*
+
+#### Q5: What is an ORM?
+* **Your Answer**:
+  > *"ORM stands for Object-Relational Mapping — it lets you write Python code instead of SQL. Libraries like SQLAlchemy are ORMs. In our project we chose to write raw SQL queries directly for better control and performance. For example: `conn.execute('SELECT * FROM students WHERE roll_no=?', (roll_no,))`."*
 
 ---
 
-### Category B: Web Scraping & Data Fetching (`harvester.py`)
+### Category B: SQL Concepts
 
-#### Q3: How does your web scraper log into the college portal and extract data?
-* **Your Answer**:
-  > *"The scraper uses Python’s **`requests.Session()`** to maintain session cookies across requests. It sends a POST request with the student's credentials to the college login endpoint. Once authenticated, it accesses the attendance and marks pages, reads the HTML content, and uses **`BeautifulSoup`** to locate and extract data from table elements via CSS classes and HTML tags."*
+#### Q6: "What is a PRIMARY KEY?"
+* **Your Answer**: 
+  > *"A PRIMARY KEY is a column (or set of columns) that uniquely identifies each row in a table. In our students table, `roll_no` is the primary key — no two students can have the same roll number, just like an Aadhar number."*
 
-#### Q4: What happens if the college ERP portal changes its user interface or HTML structure?
-* **Your Answer**:
-  > *"Since web scrapers rely on the HTML structure (tags and classes) of the target site, any structural change on the college ERP will cause the scraper to fail. To handle this:
-  > 1. I wrapped scraping calls in `try-except` blocks with error logging.
-  > 2. The database acts as a cache—if the scraper fails, students can still access their cached data.
-  > 3. In production, I would configure alerts to notify developers immediately of scraper failures so CSS selectors can be updated."*
+#### Q7: "What is a FOREIGN KEY?"
+* **Your Answer**: 
+  > *"A FOREIGN KEY creates a link between two tables. In our project, the `attendance` table has a foreign key `roll_no` that references `students(roll_no)`. This means you can't insert attendance data for a student who doesn't exist in the students table. It enforces data consistency."*
+
+#### Q8: "What is an INDEX and why do you use it?"
+* **Your Answer**: 
+  > *"An index is a data structure that makes database searches faster. Without an index, the database has to scan every row. We added indexes on commonly queried columns like `roll_no` in the marks table: `CREATE INDEX IF NOT EXISTS idx_marks_roll ON marks(roll_no);` which makes searching marks by roll_no 10x faster."*
+
+#### Q9: "What is CRUD?"
+* **Your Answer**: 
+  > *"CRUD stands for Create, Read, Update, Delete — the four basic database operations. In SQL these are INSERT, SELECT, UPDATE, and DELETE. For example, when a student registers it's INSERT, viewing marks is SELECT, admin updating a score is UPDATE."*
+
+#### Q10: "What is a database transaction?"
+* **Your Answer**: 
+  > *"A transaction is a group of SQL operations that either ALL succeed or ALL fail together. In our CSV import, we insert hundreds of student records and marks. We call `conn.commit()` only after all inserts succeed. If something fails midway, the database rolls back to the previous state."*
 
 ---
 
-### Category C: Database & Calculations
+### Category C: Business Logic & Calculations
 
-#### Q5: How did you implement the CGPA and SGPA calculation logic?
+#### Q11: How did you implement the CGPA and SGPA calculation logic?
 * **Your Answer**:
   > *"I implemented a credit-weighted grading system based on JNTUH regulations. In `database.py`:
   > 1. I converted marks to letter grades and grade points (e.g., Score $\ge 90$ is 'O', worth 10 points; $\ge 40$ is 'C', worth 5 points; $< 40$ is 'F', worth 0 points).
   > 2. **SGPA** is calculated as: $\frac{\sum (\text{Grade Points} \times \text{Subject Credits})}{\sum \text{Subject Credits}}$ for the current semester.
   > 3. **CGPA** is calculated by aggregating the credit-weighted grade points across all completed semesters."*
 
-#### Q6: How does the system handle student backlogs (fails) in calculations?
+#### Q12: How does the system handle student backlogs (fails) in calculations?
 * **Your Answer**:
   > *"If a student scores below 40% in a final exam, they receive an **'F' grade (0 grade points)**. The database logs this failed status. On the home page:
   > 1. The backlog is counted, and the student's status is set to 'Pending' (or backlogs are listed).
@@ -155,54 +491,46 @@ These are imported at the top of our Python files to provide specialized functio
 
 ---
 
-### Category D: PDF Generation (`pdf_generator.py`)
+### Category D: Web Scraping & Integrations
 
-#### Q7: How did you generate and serve the PDF reports?
+#### Q13: How does your web scraper log into the college portal and extract data?
 * **Your Answer**:
-  > *"I used the **`reportlab`** library, which allows programmatic drawing of PDFs. I defined a layout template showing the college header, student details table, attendance summary table, and marks table. The PDF is compiled in memory as a binary stream and served to the user using Streamlit's native downloader trigger, meaning no temporary files clutter the server's hard drive."*
+  > *"The scraper uses Python’s **`requests.Session()`** or Selenium to maintain session cookies across requests. It sends credentials to the college login endpoint. Once authenticated, it accesses the attendance pages, reads the HTML content, and uses **`BeautifulSoup`** to locate and extract data from table elements via CSS classes and HTML tags."*
 
----
+#### Q14: What happens if the college ERP portal changes its user interface or HTML structure?
+* **Your Answer**:
+  > *"Since web scrapers rely on the HTML structure of the target site, any structural change on the college ERP will cause the scraper to fail. To handle this, I wrapped scraping calls in `try-except` blocks with error logging. The database acts as a cache—if the scraper fails, students can still access their cached data. In production, I would configure alerts so CSS selectors can be updated."*
 
-### Category E: Telegram Bot Integration (`telegram_bot.py`)
-
-#### Q8: How does the Telegram Bot interact with the database?
+#### Q15: How does the Telegram Bot interact with the database?
 * **Your Answer**:
   > *"The bot uses the **`pyTelegramBotAPI`** library running in a polling loop. When a student sends a message containing their roll number, the bot queries the SQLite database, formats their attendance and marks into clean, readable text messages, and replies back immediately. It provides a lightweight, data-friendly alternative to loading the web page."*
 
 ---
 
-### Category F: Performance & Security
+### Category E: Streamlit Portal Interactivity (The Recent Code Fixes)
 
-#### Q9: How did you optimize query speeds in the SQLite database?
-* **Your Answer**:
-  > *"I added **database indexes** on columns that are frequently used in `WHERE` clauses (such as `roll_no` in the `marks`, `attendance`, and `sgpa_records` tables). This reduces lookup times from $O(N)$ (scanning the whole table) to $O(\log N)$ (binary search index lookups), keeping the dashboard load times under 100 milliseconds."*
-
-#### Q10: How do you handle student privacy and data security?
-* **Your Answer**:
-  > *"1. **Authentication**: Students must authenticate using their roll number and a password (DOB).
-  > 2. **Session Guarding**: On every page load, the script checks if `st.session_state.user_id` exists. If not, it halts execution and renders the login screen, preventing unauthorized URL access.
-  > 3. **SQL Injection Prevention**: All SQL queries use parameterized placeholders (`?`) instead of string interpolation (e.g., `execute('... WHERE roll_no = ?', (roll,))`), neutralizing SQL injection attacks."*
-
----
-
-### Category G: Streamlit Portal Interactivity (The Recent Code Fixes)
-
-#### Q11: How does Streamlit handle state, and how did you implement login sessions?
+#### Q16: How does Streamlit handle state, and how did you implement login sessions?
 * **Your Answer**: 
   > *"By default, Streamlit is stateless and reruns the entire Python script from line 1 to the end whenever a user clicks a button or changes an input. Any local variables are lost. To maintain user login state and track who is logged in, I used **`st.session_state`** (e.g., storing `st.session_state.user_id` and `st.session_state.role`)."*
 
-#### Q12: How did you synchronize the two semester dropdowns (sidebar and result page) dynamically?
+#### Q17: How did you synchronize the two semester dropdowns (sidebar and result page) dynamically?
 * **Your Answer**:
   > *"Having two selectboxes modify the same state can cause a conflict because of execution order. I stored the master semester choice in `st.session_state['selected_sem']`. At the very top of the script (before any UI is rendered), I check if either widget key (`sidebar_sem_select` or `result_sem_select`) was changed by the user, update the master key, and set both widgets' default index to match. This ensures both dropdowns stay completely in sync in a single execution pass."*
 
-#### Q13: How did you design a premium UI if Streamlit only supports generic layouts?
+#### Q18: How did you design a premium UI if Streamlit only supports generic layouts?
 * **Your Answer**:
   > *"Streamlit's default UI is simple, so I customized it by injecting custom HTML templates and CSS code using **`st.markdown(html, unsafe_allow_html=True)`**. I built glassmorphic layout grids, styling tokens, custom dashboard cards, progress legends, and college headers entirely in CSS, keeping the backend logic in Python."*
 
-#### Q14: Why do you need `st.rerun()`, and when did you use it?
+#### Q19: Why do you need `st.rerun()`, and when did you use it?
 * **Your Answer**:
   > *"Since Streamlit runs top-to-bottom, if a user clicks **'Logout'**, I delete the keys in `st.session_state` and call **`st.rerun()`** to force the script to restart immediately from line 1. This prevents the dashboard from throwing errors due to missing session variables and redirects the user to the login page instantly."*
 
-#### Q15: How did you handle charts and prevent them from crashing when a semester has no data?
+#### Q20: How did you handle charts and prevent them from crashing when a semester has no data?
 * **Your Answer**:
   > *"I integrated **Plotly Express** (`px.bar` and `px.line`) with Streamlit via **`st.plotly_chart`**. If a student switches to a semester with no data (like Sem 1), Plotly will throw an error because the DataFrame is empty. I added guard checks (`if subj_data:`) to bypass the chart drawing and display a clean message instead."*
+
+---
+
+## ✅ 15. Quick Summary For Interview
+
+> "I built a full-stack Student ERP for VITS college using **Python + Streamlit** for the frontend, **SQLite** for local development and **PostgreSQL** for production. The backend handles authentication via DOB matching, stores attendance and marks data in a relational database with 8 tables, computes SGPA/CGPA using the JNTUH grading formula, and includes a web scraper for live portal data and a Telegram bot for student queries. The data was seeded from real CSV files exported from the college system."
