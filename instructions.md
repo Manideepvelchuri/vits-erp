@@ -322,13 +322,13 @@ if student and student['dob'] == entered_password:
 
 Your project can auto-fetch attendance from the VITS student portal:
 ```
-harvester.py uses Selenium (browser automation)
+harvester.py uses the Python requests library (no browser automation/Selenium)
         ↓
-Opens VITS portal in headless Chrome (invisible browser)
+Performs HTTP POST to log in and maintain session cookies using requests.Session()
         ↓
-Logs in with section credentials
+Fetches HTML pages of attendance and marks directly via HTTP GET
         ↓
-Scrapes attendance table row by row
+Parses HTML tables using BeautifulSoup (bs4)
         ↓
 Calls database.py functions to INSERT/UPDATE attendance records
         ↓
@@ -495,7 +495,7 @@ Bot sends formatted reply back to student on Telegram
 
 #### Q13: How does your web scraper log into the college portal and extract data?
 * **Your Answer**:
-  > *"The scraper uses Python’s **`requests.Session()`** or Selenium to maintain session cookies across requests. It sends credentials to the college login endpoint. Once authenticated, it accesses the attendance pages, reads the HTML content, and uses **`BeautifulSoup`** to locate and extract data from table elements via CSS classes and HTML tags."*
+  > *"The scraper is a lightweight **requests-based scraper** (no Selenium or browser automation). It uses Python’s **`requests.Session()`** to maintain session cookies across HTTP requests. It sends credentials in a POST request to the college login endpoint. Once authenticated, it fetches the attendance and marks HTML pages directly via GET requests, and uses **`BeautifulSoup`** to parse the HTML and extract data from table cells using tags and classes."*
 
 #### Q14: What happens if the college ERP portal changes its user interface or HTML structure?
 * **Your Answer**:
