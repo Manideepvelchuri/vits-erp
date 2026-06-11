@@ -348,7 +348,72 @@ def _get_pool():
 _CONN_LAST_USED = {}
 
 
+class _LazyPGConn:
+    """
+    Lazy connection wrapper that does not borrow a connection from the pool
+    until a query is executed that results in a cache miss or is a write operation.
+    This saves database connections for cached queries.
+    """
+    def __init__(self):
+        self._real_conn = None
+
+    def _get_real_conn(self):
+        if self._real_conn is None:
+            self._real_conn = _get_real_db_connection()
+        return self._real_conn
+
+    def execute(self, sql, params=()):
+        sql_upper = sql.strip().upper()
+        is_read = sql_upper.startswith('SELECT') or sql_upper.startswith('WITH')
+        
+        if not is_read:
+            _clear_cache()
+            
+        if is_read:
+            cache_key = (sql, tuple(params) if params else ())
+            now = time.time()
+            if cache_key in _QUERY_CACHE:
+                expiry, cached_rows = _QUERY_CACHE[cache_key]
+                if now < expiry:
+                    return _CachedCursor(cached_rows)
+                    
+        real = self._get_real_conn()
+        return real.execute(sql, params)
+
+    def executemany(self, sql, seq):
+        _clear_cache()
+        real = self._get_real_conn()
+        real.executemany(sql, seq)
+
+    def cursor(self):
+        real = self._get_real_conn()
+        return real.cursor()
+
+    def commit(self):
+        if self._real_conn is not None:
+            self._real_conn.commit()
+
+    def close(self):
+        if self._real_conn is not None:
+            self._real_conn.close()
+            self._real_conn = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
 def get_db_connection():
+    """
+    Get a lazy connection wrapper that only borrows a connection from the pool
+    if a database query is executed and cannot be served from the cache.
+    """
+    return _LazyPGConn()
+
+
+def _get_real_db_connection():
     """
     Get a connection from the pool. Always call conn.close() when done —
     this returns the connection to the pool rather than closing it.

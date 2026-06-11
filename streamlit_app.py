@@ -11,12 +11,10 @@ import datetime
 from datetime import datetime as dt
 
 # Auto-detect: use PostgreSQL (Supabase) if DATABASE_URL or st.secrets is set, else SQLite
-_DB_FALLBACK = False
-
-def _load_db_module():
-    global _DB_FALLBACK
+@st.cache_resource(ttl=300)
+def _check_db_backend_cached():
     if os.environ.get("USE_SQLITE", "").lower() == "true":
-        return "sqlite"
+        return "sqlite", False
         
     pg_url = ""
     try:
@@ -33,15 +31,15 @@ def _load_db_module():
             # Connect with a short timeout to see if PG is available and has connection slots
             conn = psycopg2.connect(pg_url, connect_timeout=3)
             conn.close()
-            return "pg"
+            return "pg", False
         except Exception:
             # Fall back to SQLite if PostgreSQL fails (e.g. max connections reached)
-            _DB_FALLBACK = True
-            return "sqlite"
+            return "sqlite", True
             
-    return "sqlite"
+    return "sqlite", False
 
-_DB_BACKEND = _load_db_module()
+_DB_BACKEND, _DB_FALLBACK = _check_db_backend_cached()
+
 if _DB_BACKEND == "pg":
     from database_pg import (
         init_db, get_db_connection, get_config_map,
