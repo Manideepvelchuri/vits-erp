@@ -82,14 +82,19 @@ BRANCH_CODE_MAP = {
 def _get_pg_url():
     """Get database URL from Streamlit secrets or environment variable."""
     try:
-        return st.secrets["database"]["url"]
+        url = st.secrets["database"]["url"]
     except Exception:
         url = os.environ.get("DATABASE_URL", "")
         if not url:
             raise RuntimeError(
                 "No DATABASE_URL found. Add it to .streamlit/secrets.toml or set as environment variable."
             )
-        return url
+    
+    # Automatically rewrite Supabase pooler port 5432 to 6543 for pooled connections
+    if "pooler.supabase.com:5432" in url:
+        url = url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543")
+        
+    return url
 
 
 class _RowWrapper:

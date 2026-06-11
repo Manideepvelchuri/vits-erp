@@ -26,6 +26,10 @@ def _check_db_backend_cached():
         pg_url = os.environ.get("DATABASE_URL", "")
 
     if pg_url:
+        # Automatically rewrite Supabase pooler port 5432 to 6543 for pooled connections
+        if "pooler.supabase.com:5432" in pg_url:
+            pg_url = pg_url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543")
+            
         try:
             import psycopg2
             # Connect with a short timeout to see if PG is available and has connection slots
