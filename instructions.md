@@ -566,3 +566,29 @@ Bot sends formatted reply back to student on Telegram
 If the interviewer asks: *"Tell me about a challenging bug you fixed in this project."* You have two amazing answers:
 1. **Markdown Parsing Bug**: *“Streamlit's markdown renderer got confused by raw HTML tags containing vertical newlines and spaces, rendering them as plain code text. I resolved this by formatting the HTML dynamically as a single-line string with `.replace('\n', ' ')`, which forced Streamlit to compile it correctly as visual components.”*
 2. **Mobile Viewport Overlap**: *“On mobile screens, Streamlit's native top header was overlapping our custom college header. I resolved this by injecting custom CSS overrides that target the `.block-container` styling, adding top padding of `3.5rem !important` on smaller screens to ensure both headers sit neatly without covering each other.”*
+
+---
+
+## ⚖️ 17. Legal, Ethical & Security Best Practices (Interview Answers)
+
+### A. Is it illegal to scrape or fetch data from the college portal?
+* **Direct Answer**: 
+  > *"No, it is not illegal. Since the application requires the student to log in using their own credentials and only retrieves their personal records, the script acts as an authorized user-agent. It does not bypass security measures, which means it does not violate computer security laws like the Computer Fraud and Abuse Act (CFAA)."*
+
+### B. What about the college website's Terms of Service (ToS)?
+* **Direct Answer**:
+  > *"While many websites have clauses in their Terms of Service that discourage automated scraping, violating ToS is a policy breach rather than a criminal offense. The main risk is that the server might block the scraper's IP address if it detects automated activity, which is why we built query caching and keep the scraper optional."*
+
+### C. How do you protect the college server from overloading?
+* **Direct Answer**:
+  > *"To ensure we respect the college server, we implemented strict **rate-limiting (throttling)**. The scraper pauses between page requests to mimic human reading speeds. This prevents the server from experiencing any performance lag or Denial of Service (DoS) issues."*
+
+### D. How to frame this professionally in an interview:
+If asked: *"How do you handle the ethics of harvesting data from the college system?"*
+* **Response**:
+  > *"The automated integration in this project is designed to be **ethical, secure, and respectful of the host server**:
+  > 
+  > 1. **Authorized Access Only**: The script only fetches personal dashboard data after a student explicitly logs in with their credentials. It does not bypass any firewall or access other students' private data.
+  > 2. **Server Respect (Rate Limiting)**: To prevent putting any load on the college servers, we implemented rate limiting. The script makes spaced-out requests, behaving exactly like a normal human browser.
+  > 3. **Read-Only Data Integration**: The scraper is strictly read-only. It gathers attendance and marks to help students visualize their progress, and never modifies any data on the college ERP portal."*
+
