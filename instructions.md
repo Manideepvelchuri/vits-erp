@@ -104,28 +104,105 @@ These are imported at the top of our Python files to provide specialized functio
 
 ---
 
-## 5. Typical Interview Q&As About this Project
+## 5. Comprehensive Interview Preparation Q&As
 
-### Q1: How does Streamlit handle state, and how did you implement login sessions?
+### Category A: Project Architecture & System Design
+
+#### Q1: Can you explain the end-to-end architecture of this portal?
+* **Your Answer**: 
+  > *"The system uses a 4-tier architecture: 
+  > 1. **Data Source**: The official college ERP portal (external).
+  > 2. **Data Harvester/Scraper (`harvester.py`)**: Connects to the ERP, scrapes attendance, marks, and timetables using BeautifulSoup, and formats it.
+  > 3. **Database (`vits_erp.db`)**: A local SQLite relational database storing tables for students, attendance, marks, timetables, and SGPA.
+  > 4. **User Interfaces**: A **Streamlit web portal** (`streamlit_app.py`) for student/admin visual access and a **Telegram Bot** (`telegram_bot.py`) for quick mobile lookups."*
+
+#### Q2: Why did you choose SQLite, and how would you scale it for production?
+* **Your Answer**:
+  > *"SQLite was chosen because it is serverless, lightweight, has zero configuration, and stores data in a single local file, which is perfect for development and prototyping. To scale this for a real production environment with thousands of concurrent students, I would transition to a database server like **PostgreSQL** or **MySQL**. This would support concurrent write operations, connection pooling, and better security configurations."*
+
+---
+
+### Category B: Web Scraping & Data Fetching (`harvester.py`)
+
+#### Q3: How does your web scraper log into the college portal and extract data?
+* **Your Answer**:
+  > *"The scraper uses Python’s **`requests.Session()`** to maintain session cookies across requests. It sends a POST request with the student's credentials to the college login endpoint. Once authenticated, it accesses the attendance and marks pages, reads the HTML content, and uses **`BeautifulSoup`** to locate and extract data from table elements via CSS classes and HTML tags."*
+
+#### Q4: What happens if the college ERP portal changes its user interface or HTML structure?
+* **Your Answer**:
+  > *"Since web scrapers rely on the HTML structure (tags and classes) of the target site, any structural change on the college ERP will cause the scraper to fail. To handle this:
+  > 1. I wrapped scraping calls in `try-except` blocks with error logging.
+  > 2. The database acts as a cache—if the scraper fails, students can still access their cached data.
+  > 3. In production, I would configure alerts to notify developers immediately of scraper failures so CSS selectors can be updated."*
+
+---
+
+### Category C: Database & Calculations
+
+#### Q5: How did you implement the CGPA and SGPA calculation logic?
+* **Your Answer**:
+  > *"I implemented a credit-weighted grading system based on JNTUH regulations. In `database.py`:
+  > 1. I converted marks to letter grades and grade points (e.g., Score $\ge 90$ is 'O', worth 10 points; $\ge 40$ is 'C', worth 5 points; $< 40$ is 'F', worth 0 points).
+  > 2. **SGPA** is calculated as: $\frac{\sum (\text{Grade Points} \times \text{Subject Credits})}{\sum \text{Subject Credits}}$ for the current semester.
+  > 3. **CGPA** is calculated by aggregating the credit-weighted grade points across all completed semesters."*
+
+#### Q6: How does the system handle student backlogs (fails) in calculations?
+* **Your Answer**:
+  > *"If a student scores below 40% in a final exam, they receive an **'F' grade (0 grade points)**. The database logs this failed status. On the home page:
+  > 1. The backlog is counted, and the student's status is set to 'Pending' (or backlogs are listed).
+  > 2. The subject is flagged in red in the grades table.
+  > 3. The SGPA calculation includes the 0 grade points in the numerator but includes the subject credits in the denominator, dragging down the overall average as per university rules."*
+
+---
+
+### Category D: PDF Generation (`pdf_generator.py`)
+
+#### Q7: How did you generate and serve the PDF reports?
+* **Your Answer**:
+  > *"I used the **`reportlab`** library, which allows programmatic drawing of PDFs. I defined a layout template showing the college header, student details table, attendance summary table, and marks table. The PDF is compiled in memory as a binary stream and served to the user using Streamlit's native downloader trigger, meaning no temporary files clutter the server's hard drive."*
+
+---
+
+### Category E: Telegram Bot Integration (`telegram_bot.py`)
+
+#### Q8: How does the Telegram Bot interact with the database?
+* **Your Answer**:
+  > *"The bot uses the **`pyTelegramBotAPI`** library running in a polling loop. When a student sends a message containing their roll number, the bot queries the SQLite database, formats their attendance and marks into clean, readable text messages, and replies back immediately. It provides a lightweight, data-friendly alternative to loading the web page."*
+
+---
+
+### Category F: Performance & Security
+
+#### Q9: How did you optimize query speeds in the SQLite database?
+* **Your Answer**:
+  > *"I added **database indexes** on columns that are frequently used in `WHERE` clauses (such as `roll_no` in the `marks`, `attendance`, and `sgpa_records` tables). This reduces lookup times from $O(N)$ (scanning the whole table) to $O(\log N)$ (binary search index lookups), keeping the dashboard load times under 100 milliseconds."*
+
+#### Q10: How do you handle student privacy and data security?
+* **Your Answer**:
+  > *"1. **Authentication**: Students must authenticate using their roll number and a password (DOB).
+  > 2. **Session Guarding**: On every page load, the script checks if `st.session_state.user_id` exists. If not, it halts execution and renders the login screen, preventing unauthorized URL access.
+  > 3. **SQL Injection Prevention**: All SQL queries use parameterized placeholders (`?`) instead of string interpolation (e.g., `execute('... WHERE roll_no = ?', (roll,))`), neutralizing SQL injection attacks."*
+
+---
+
+### Category G: Streamlit Portal Interactivity (The Recent Code Fixes)
+
+#### Q11: How does Streamlit handle state, and how did you implement login sessions?
 * **Your Answer**: 
   > *"By default, Streamlit is stateless and reruns the entire Python script from line 1 to the end whenever a user clicks a button or changes an input. Any local variables are lost. To maintain user login state and track who is logged in, I used **`st.session_state`** (e.g., storing `st.session_state.user_id` and `st.session_state.role`)."*
 
-### Q2: How did you synchronize the two semester dropdowns (sidebar and page inner tab) without crashing?
+#### Q12: How did you synchronize the two semester dropdowns (sidebar and result page) dynamically?
 * **Your Answer**:
-  > *"Having two selectboxes modify the same state can cause a conflict because of execution order. I solved this by checking and syncing them at the **very beginning of the script execution** (before any widget is rendered) in `st.session_state`, and using distinct keys for the widgets (`sidebar_sem_select` and `result_sem_select`). This keeps them in sync in a single execution pass without double reruns."*
+  > *"Having two selectboxes modify the same state can cause a conflict because of execution order. I stored the master semester choice in `st.session_state['selected_sem']`. At the very top of the script (before any UI is rendered), I check if either widget key (`sidebar_sem_select` or `result_sem_select`) was changed by the user, update the master key, and set both widgets' default index to match. This ensures both dropdowns stay completely in sync in a single execution pass."*
 
-### Q3: How did you design a premium UI if Streamlit only supports generic layouts?
+#### Q13: How did you design a premium UI if Streamlit only supports generic layouts?
 * **Your Answer**:
   > *"Streamlit's default UI is simple, so I customized it by injecting custom HTML templates and CSS code using **`st.markdown(html, unsafe_allow_html=True)`**. I built glassmorphic layout grids, styling tokens, custom dashboard cards, progress legends, and college headers entirely in CSS, keeping the backend logic in Python."*
 
-### Q4: Why do you need `st.rerun()`, and when did you use it?
+#### Q14: Why do you need `st.rerun()`, and when did you use it?
 * **Your Answer**:
   > *"Since Streamlit runs top-to-bottom, if a user clicks **'Logout'**, I delete the keys in `st.session_state` and call **`st.rerun()`** to force the script to restart immediately from line 1. This prevents the dashboard from throwing errors due to missing session variables and redirects the user to the login page instantly."*
 
-### Q5: How did you handle charts and prevent them from crashing when a semester has no data?
+#### Q15: How did you handle charts and prevent them from crashing when a semester has no data?
 * **Your Answer**:
   > *"I integrated **Plotly Express** (`px.bar` and `px.line`) with Streamlit via **`st.plotly_chart`**. If a student switches to a semester with no data (like Sem 1), Plotly will throw an error because the DataFrame is empty. I added guard checks (`if subj_data:`) to bypass the chart drawing and display a clean message instead."*
-
-### Q6: How did you generate reports in the app?
-* **Your Answer**:
-  > *"I used the **`reportlab`** library to compile a PDF document containing the student's metrics. I triggered this generation using an `st.button()` click, allowing the student to save a hardcopy report of their grades."*
