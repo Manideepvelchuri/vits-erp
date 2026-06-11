@@ -614,6 +614,18 @@ Even though the functions look identical to the frontend, under the hood, the SQ
 | **Python Library** | Uses built-in `sqlite3` driver. | Uses `psycopg2` (PostgreSQL adapter for Python). |
 | **SQL Placeholders** | Uses `?` for parameter binding.<br>*(e.g., `WHERE roll_no = ?`)* | Uses `%s` for parameter binding.<br>*(e.g., `WHERE roll_no = %s`)* |
 | **Upsert Command** | Uses direct `INSERT OR REPLACE INTO`. | Uses standard SQL conflict syntax:<br>`ON CONFLICT (constraint) DO UPDATE SET ...` |
-| **Connection Strategy** | Opens the local database file directly. | Uses a **Connection Pool** (`SimpleConnectionPool`) to reuse open sockets and manage database limits efficiently. |
+| **Connection Strategy** | Opens the local database file directly. | Uses a **Threaded Connection Pool** (`ThreadedConnectionPool`) to reuse open sockets and manage database limits efficiently. |
+
+### C. Advanced Scaling Optimizations (Connection Lifesavers)
+
+To prevent the web app from crashing on Supabase's free-tier limits (max 15 connections), we implemented two advanced connection-saving strategies:
+
+1. **Cached Connection Auto-Detection (`@st.cache_resource(ttl=300)`)**:
+   * *The Problem*: Streamlit executes the entire script from line 1 to the end on every single user click. Originally, the script ran a direct `psycopg2.connect()` check on every single rerun to see if PostgreSQL was online, causing the connection limit to be reached immediately.
+   * *The Fix*: We wrapped the startup check in a cached function with a 5-minute TTL. Now, the connection test runs at most once every 5 minutes across all concurrent users, completely removing the startup check bottleneck.
+   
+2. **Lazy Connection Wrapper (`_LazyPGConn`)**:
+   * *The Problem*: Streamlit pages request a connection (`conn = get_db_connection()`) at the very top of each page render. Even if a query is a cache hit and is served from memory (`_QUERY_CACHE`), a connection was still being borrowed from the pool, locking a connection slot.
+   * *The Fix*: We built a lazy wrapper class. When the code calls `get_db_connection()`, it returns a lazy connection wrapper that does not borrow a connection from the pool. If a query is run and it hits the cache, it is served immediately using **zero database connections**. Only when there is a cache miss or a write operation does the wrapper borrow a real connection from the pool. This allows the app to support hundreds of concurrent clicks with almost zero database overhead!
 
 
