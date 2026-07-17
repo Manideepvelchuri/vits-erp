@@ -3106,7 +3106,7 @@ def admin_bunk_analysis():
                 {kpi("Total Students",    f"{total_students:,}")}
                 {kpi("Avg Attendance",    f"{avg_attendance}%",   "#00D8C6")}
                 {kpi("Classes Missed",    f"{total_missed:,}",    "#ef4444")}
-                {kpi("Overall Bunk Rate", f"{bunk_rate}%",        "#f59e0b")}
+                {kpi("Overall Absence Rate", f"{bunk_rate}%",        "#f59e0b")}
                 {kpi("Perfect Attendance",f"{zero_bunk_count}",   "#10b981")}
                 {kpi("Debarment Risk",    f"{chronic_count}",     "#f43f5e")}
             </div>""", unsafe_allow_html=True)
@@ -3118,7 +3118,7 @@ def admin_bunk_analysis():
 
             with c1:
                 if sec_filter == "All Sections":
-                    st.markdown("### 📊 Class Bunk Leaderboard")
+                    st.markdown("### 📊 Class Absence Leaderboard")
                     cls_sql = """
                         SELECT s.section,
                                ROUND(AVG(stu.pct), 1)             AS avg_att,
@@ -3157,7 +3157,7 @@ def admin_bunk_analysis():
                     else:
                         st.info("No section data found.")
                 else:
-                    st.markdown(f"### 📊 Top Bunkers — {sec_filter}")
+                    st.markdown(f"### 📊 Lowest Attendance Students — {sec_filter}")
                     top_sql = """
                         SELECT s.name, s.roll_no,
                                SUM(a.hours_conducted - a.hours_attended) AS missed,
@@ -3188,7 +3188,7 @@ def admin_bunk_analysis():
                         st.info("No data.")
 
             with c2:
-                st.markdown("### 📚 Subject Bunk Analysis")
+                st.markdown("### 📚 Subject Absence Analysis")
                 subj_sql = f"""
                     SELECT a.subject,
                            COUNT(DISTINCT a.roll_no)                                                AS students,
@@ -3214,7 +3214,7 @@ def admin_bunk_analysis():
                         color='bunk_rate',
                         color_continuous_scale=[[0,'#4ade80'],[0.5,'#f59e0b'],[1,'#ef4444']],
                         custom_data=['students','total_missed','total_cond'],
-                        labels={'bunk_rate':'Bunk Rate (%)','subject':'Subject'}
+                        labels={'bunk_rate':'Absence Rate (%)','subject':'Subject'}
                     )
                     fig_sub.update_traces(
                         hovertemplate="<b>%{y}</b><br>Bunk Rate: %{x}%<br>Missed: %{customdata[1]} / %{customdata[2]}<br>Students: %{customdata[0]}<extra></extra>"
@@ -3317,7 +3317,7 @@ def admin_bunk_analysis():
 
                 with cb:
                     # Top worst bunkers from <65% pool
-                    st.markdown("#### 🏆 Worst Bunkers (< 65% only)")
+                    st.markdown("#### 🏆 Chronic Absentees (< 65% only)")
                     worst_sql2 = f"""
                         SELECT s.name, s.roll_no, s.section,
                                ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),1) AS pct,
