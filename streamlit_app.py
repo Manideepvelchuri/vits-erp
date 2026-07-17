@@ -3436,7 +3436,6 @@ def admin_bunk_analysis():
                            ) AS INTEGER)                                                                AS classes_needed
                     FROM students s
                     JOIN attendance a ON s.roll_no = a.roll_no
-                    {sec_join}
                     WHERE a.semester = ? {sec_where}
                     GROUP BY s.roll_no, s.name, s.section
                     HAVING SUM(a.hours_conducted) > 0
