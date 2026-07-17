@@ -3434,8 +3434,10 @@ def admin_bunk_analysis():
             """
             cond_params = (sec_filter,)
 
-        df_abs = pd.read_sql_query(abs_sql, conn, params=abs_params)
-        df_cond = pd.read_sql_query(cond_sql, conn, params=cond_params)
+        abs_rows = conn.execute(abs_sql, abs_params).fetchall()
+        cond_rows = conn.execute(cond_sql, cond_params).fetchall()
+        df_abs = pd.DataFrame([dict(r) for r in abs_rows]) if abs_rows else pd.DataFrame(columns=['date', 'roll_no', 'hour', 'subject', 'name', 'section'])
+        df_cond = pd.DataFrame([dict(r) for r in cond_rows]) if cond_rows else pd.DataFrame(columns=['date', 'section', 'hour'])
 
         if df_abs.empty or df_cond.empty:
             st.info("ℹ️ No hour-wise period attendance records found for this selection to perform pattern analysis.")
