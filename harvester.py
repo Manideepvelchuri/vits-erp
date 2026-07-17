@@ -103,6 +103,67 @@ def _fetch_df(session, sc, semester, fdt, tdt, max_retries=3):
                 raise
 
 
+
+def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
+    yr, br = get_portal_yr_br(sc, semester)
+    cursor = conn.cursor()
+    
+    # Scrape hours 1 to 7
+    for hr in range(1, 8):
+        try:
+            payload = {'br': br, 'dt': target_date, 'hr': str(hr), 'Submit': 'Submit'}
+            resp = session.post('http://103.52.36.11/Attendance/Hrprint.php', data=payload, timeout=10)
+            if resp.status_code != 200 or 'uname' in resp.text:
+                continue
+                
+            tables = pd.read_html(io.StringIO(resp.text))
+            if not tables or tables[0].empty:
+                continue
+                
+            df = tables[0]
+            required_cols = {'Section', 'Hour', 'Subject', 'Total Present', 'Total Absent', 'Absentees List'}
+            if not required_cols.issubset(df.columns):
+                continue
+                
+            for _, row in df.iterrows():
+                row_year = str(row.get('Year', '')).strip()
+                if row_year != str(yr):
+                    continue
+                    
+                section = str(row.get('Section')).strip()
+                subject = str(row.get('Subject')).strip()
+                hour_val = int(row.get('Hour', hr))
+                tot_pres = row.get('Total Present')
+                tot_abs = row.get('Total Absent')
+                
+                try:
+                    tot_pres = int(tot_pres) if str(tot_pres).isdigit() else 0
+                    tot_abs = int(tot_abs) if str(tot_abs).isdigit() else 0
+                except Exception:
+                    tot_pres, tot_abs = 0, 0
+                    
+                absentees_val = str(row.get('Absentees List', '--')).strip()
+                
+                if not absentees_val or absentees_val in ('--', 'nan', 'None', ''):
+                    cursor.execute('''
+                        INSERT INTO hour_wise_attendance 
+                        (date, branch, section, hour, subject, total_present, total_absent, roll_no)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT (date, section, hour, subject, roll_no) DO NOTHING
+                    ''', (target_date, br, section, hour_val, subject, tot_pres, tot_abs, ''))
+                else:
+                    roll_nos = [r.strip().upper() for r in absentees_val.split(',') if r.strip()]
+                    for r_no in roll_nos:
+                        cursor.execute('''
+                            INSERT INTO hour_wise_attendance 
+                            (date, branch, section, hour, subject, total_present, total_absent, roll_no)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT (date, section, hour, subject, roll_no) DO NOTHING
+                        ''', (target_date, br, section, hour_val, subject, tot_pres, tot_abs, r_no))
+        except Exception as e:
+            logger.warning(f'Failed to sync hour-wise for {sc} hour {hr} on {target_date}: {e}')
+
+
 def scrape_portal(start_date=None, end_date=None, section=None,
                   semester=None, dynamic_conn=None, max_retries=3):
     """Main scrape function. Returns (success, message)."""
@@ -243,6 +304,14 @@ def scrape_portal(start_date=None, end_date=None, section=None,
         fill_attendance_history_gaps(conn, sc, fdt, tdt)
     except Exception as fill_e:
         logger.warning(f'Failed to interpolate attendance history: {fill_e}')
+    # Sync hour-wise attendance details for the successfully scraped dates
+    for s_date in success_dates:
+        try:
+            _sync_hour_wise_for_date(session, conn, sc, semester, s_date)
+        except Exception as hw_e:
+            logger.warning(f'[{sc}] Failed to sync hour-wise attendance for {s_date}: {hw_e}')
+
+
 
     duration = round(time.time() - t_start, 2)
     status   = 'success' if success_dates else 'failed'
