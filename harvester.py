@@ -95,13 +95,22 @@ def _fetch_df(session, sc, semester, fdt, tdt, max_retries=3):
 
 
 def scrape_portal(start_date=None, end_date=None, section=None,
-                  semester='Sem 2', dynamic_conn=None, max_retries=3):
+                  semester=None, dynamic_conn=None, max_retries=3):
     """Main scrape function. Returns (success, message)."""
     from database import get_config_map
     conn_cfg = dynamic_conn if dynamic_conn is not None else get_db_connection()
     cfg      = get_config_map(conn_cfg)
     if dynamic_conn is None:
         conn_cfg.close()
+
+    # Resolve active semester from config if not specified
+    if semester is None:
+        semester = cfg.get('active_semester', 'Sem 3')
+
+    try:
+        sem_num = int(str(semester).replace('Sem', '').strip())
+    except Exception:
+        sem_num = 2
 
     fdt = start_date or cfg.get('start_date', '2026-01-27')
     tdt = end_date   or datetime.now().strftime('%Y-%m-%d')
@@ -174,8 +183,8 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                     cursor.execute('''
                         INSERT INTO students(roll_no,name,dob,email,semester,department,section,branch)
                         VALUES(?,?,?,?,?,?,?,?)
-                    ''', (roll_no, name, '2007-01-01',
-                          f'{roll_no.lower()}@vits.edu', 2, branch, sc, branch))
+                    ''', (roll_no, name, 'PENDING',
+                          f'{roll_no.lower()}@vits.edu', sem_num, branch, sc, branch))
                     student_count += 1
                 elif target_date == tdt:
                     cursor.execute('''
@@ -259,7 +268,7 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     return True, f'[{sc}] Synced {student_count} students | {len(success_dates)} snapshots | {duration}s'
 
 
-def bulk_scrape_all(semester='Sem 2', start_date=None, end_date=None):
+def bulk_scrape_all(semester=None, start_date=None, end_date=None):
     """Scrape all sections independently."""
     results = []
     for sec in CLASSES:
