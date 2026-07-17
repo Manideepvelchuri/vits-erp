@@ -58,15 +58,111 @@ SECTION_SUBJECTS = {
 }
 
 SUBJECT_CREDITS = {
+    # ── Sem 1 (Common) ──────────────────────────────────────
     'IEE': 4.0, 'ED': 4.0, 'PPS': 4.0, 'ENG': 3.0, 'M&C': 4.0, 'AEP': 3.0,
+
+    # ── Sem 2 Theory ────────────────────────────────────────
     'BEE': 3.0, 'EWS': 3.0, 'NAS': 3.0, 'DS': 3.0, 'EDC': 3.0,
     'EC': 3.0, 'EC_II': 3.0, 'ODEVC': 3.0, 'BPC': 3.0, 'EM': 3.0,
     'EEEE': 3.0, 'ESE': 3.0, 'ITW': 3.0, 'TD': 3.0,
     'PYTHON': 3.0, 'ED&CAD': 3.0, 'ED& CAD': 3.0,
+    # ── Sem 2 Labs ──────────────────────────────────────────
     'BEE LAB': 1.5, 'DS LAB': 1.5, 'PYTHON LAB': 1.5, 'PHYTHON LAB': 1.5,
     'APP PHTH LAB': 1.5, 'EC LAB': 1.5, 'EEEE LAB': 1.5, 'AEP LAB': 1.5,
     'ELCS LAB': 1.5, 'EE LAB': 1.5,
-    'CRT': 0.0,
+
+    # ════════════════════════════════════════════════════════
+    # SEM 3 — JNTUH R25  (II Year I Sem, 2025-26 batch)
+    # ════════════════════════════════════════════════════════
+
+    # ── ECE ─────────────────────────────────────────────────
+    'PTSP': 3.0,          # Probability Theory & Stochastic Processes
+    'S&S': 3.0,           # Signals & Systems
+    'SS':  3.0,           # Signals & Systems (alt code)
+    'EDC': 3.0,           # Electronic Devices & Circuits
+    'DLD': 3.0,           # Digital Logic Design
+    'CS':  2.0,           # Control Systems
+    'MS LAB': 1.0,        # Modelling & Simulation Lab
+    'Linux&SS LAB': 1.0,  # Linux & SS Lab
+    'DLD LAB': 1.0,       # DLD Lab
+    'EDC LAB': 1.0,       # EDC Lab
+    'BS LAB': 1.0,        # Basic Simulation Lab
+
+    # ── CSE / AIML / DS ─────────────────────────────────────
+    'DM':   3.0,          # Discrete Mathematics
+    'COA':  3.0,          # Computer Organization & Architecture
+    'JAVA': 3.0,          # OOP through Java
+    'Java': 3.0,
+    'OOPSJ': 3.0,
+    'OOPJ':  3.0,
+    'OOPS JAVA': 3.0,
+    'SE':   3.0,          # Software Engineering
+    'DBMS': 3.0,          # Database Management Systems
+    'OS':   3.0,          # Operating Systems
+    'MSF':  3.0,          # Mathematical & Statistical Foundations / COSM
+    'COM':  3.0,          # Computer Oriented Methods
+    'CSE':  3.0,          # generic CSE theory
+    'DTI':  3.0,          # Data Types & Information / related theory
+    'MSM':  3.0,          # Mathematical & Statistical Methods
+    # Labs
+    'JAVA LAB':     1.0,  # Java Lab
+    'Java Lab':     1.0,
+    'OOPSJ LAB':    1.0,
+    'OOPJ LAB':     1.0,
+    'OOPS JAVA LAB':1.0,
+    'SE LAB':       1.0,  # Software Engineering Lab
+    'SE Lab':       1.0,
+    'DBMS LAB':     1.0,  # DBMS Lab
+    'DBMS Lab':     1.0,
+    'OS LAB':       1.0,  # OS Lab
+    'CM LAB':       1.0,  # Communication / Computer Methods Lab
+    'CM Lab':       1.0,
+    'NODE JS':      1.0,  # Node.js (Skill Development)
+    'Node JS Lab':  1.0,
+    'CAD LAB':      1.0,  # CAD Lab
+    'DT&T LAB':     1.0,  # Design Thinking & Tech Lab
+    'DVRP LAB':     1.0,  # Data Viz / related lab
+    'IEP':          1.0,  # Innovation & Entrepreneurship Practical
+
+    # ── IT ───────────────────────────────────────────────────
+    'IOT':     2.0,       # Introduction to IoT
+    'IOT LAB': 1.0,       # IoT Lab
+
+    # ── EEE ──────────────────────────────────────────────────
+    'EMF':     3.0,       # Electromagnetic Fields
+    'EMS':     3.0,       # Electrical Machines-I  (alt: EM_I)
+    'EM_I':    3.0,
+    'PS_I':    3.0,       # Power Systems-I
+    'EMS LAB': 1.0,       # Electrical Machines Lab
+    'EM-I LAB':1.0,
+
+    # ── Mech ─────────────────────────────────────────────────
+    'PSCV':    3.0,       # Probability, Statistics & Complex Variables
+    'MOS':     3.0,       # Mechanics of Solids
+    'PT':      3.0,       # Production Technology
+    'FMHM':    3.0,       # Fluid Mechanics & Hydraulic Machines
+    'FM':      3.0,       # Fluid Mechanics
+    'MOS LAB': 1.0,       # Mechanics of Solids Lab
+    'PT LAB':  1.0,       # Production Technology Lab
+    'MT LAB':  1.0,       # Materials / Metallurgy Lab
+    'FMHM LAB':1.0,       # FMHM Lab
+
+    # ── Civil ─────────────────────────────────────────────────
+    'P&S':     3.0,       # Probability & Statistics
+    'BM&CT':   3.0,       # Building Materials & Concrete Technology
+    'SM':      3.0,       # Strength of Materials
+    'SM LAB':  1.0,       # SM Lab
+    'S&G LAB': 1.0,       # Surveying & Geomatics Lab
+
+    # ── Innovation & Entrepreneurship (all branches, R25) ───
+    'I&E':     2.0,       # Innovation & Entrepreneurship
+    'IE':      2.0,
+
+    # ── Zero / Non-credit courses ────────────────────────────
+    'CRT': 0.0, 'TA': 0.0, 'IP': 0.0, 'IP PROJECT': 0.0,
+    'SSC': 0.0, 'ES': 0.0, 'NPTEL': 0.0,
+    'Competitive_Coding': 0.0, 'RTP_FBP': 0.0,
+    'Speak_Easy_Club': 0.0,
 }
 
 BRANCH_CODE_MAP = {
