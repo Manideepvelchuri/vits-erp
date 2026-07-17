@@ -1226,12 +1226,15 @@ def on_nav_change():
 # ══════════════════════════════════════════════════════════════
 def student_dashboard():
     # ── Initialise state ──────────────────────────────────────
-    if 'selected_sem' not in st.session_state:
-        st.session_state['selected_sem'] = 'Sem 2'
-    if '_current_page' not in st.session_state:
-        st.session_state['_current_page'] = '🏠 Home'
     roll = st.session_state.user_id
     conn = get_db_connection()
+    cfg = get_config_map(conn)
+    active_sem = cfg.get('active_semester', 'Sem 2')
+    
+    if 'selected_sem' not in st.session_state:
+        st.session_state['selected_sem'] = active_sem
+    if '_current_page' not in st.session_state:
+        st.session_state['_current_page'] = '🏠 Home'
     student = conn.execute('SELECT * FROM students WHERE roll_no=?', (roll,)).fetchone()
     cgpa = compute_cgpa(roll, conn)
     has_failed_sem = conn.execute(
@@ -1281,12 +1284,16 @@ def student_dashboard():
                 </div>""", unsafe_allow_html=True)
 
         st.markdown("---")
-        _sem_options = ["Sem 1", "Sem 2"]
-        _cur_sem = st.session_state.get('selected_sem', 'Sem 2')
+        try:
+            active_num = int(active_sem.replace("Sem ", "").strip())
+        except Exception:
+            active_num = 2
+        _sem_options = [f"Sem {i}" for i in range(1, active_num + 1)]
+        _cur_sem = st.session_state.get('selected_sem', active_sem)
         st.selectbox(
             "Viewing Semester",
             _sem_options,
-            index=_sem_options.index(_cur_sem) if _cur_sem in _sem_options else 1,
+            index=_sem_options.index(_cur_sem) if _cur_sem in _sem_options else len(_sem_options) - 1,
             key="sidebar_sem_select",
             on_change=on_sidebar_sem_change
         )
@@ -1926,8 +1933,16 @@ def show_attendance_page(roll, sem, att_rows):
 
 
 def show_marks_page(sem, marks_rows):
-    _sem_options = ["Sem 1", "Sem 2"]
-    _cur_sem = st.session_state.get('selected_sem', 'Sem 2')
+    conn = get_db_connection()
+    cfg = get_config_map(conn)
+    conn.close()
+    active_sem = cfg.get('active_semester', 'Sem 2')
+    try:
+        active_num = int(active_sem.replace("Sem ", "").strip())
+    except Exception:
+        active_num = 2
+    _sem_options = [f"Sem {i}" for i in range(1, active_num + 1)]
+    _cur_sem = st.session_state.get('selected_sem', active_sem)
     col_title, col_sem = st.columns([3.5, 1.5])
     with col_title:
         st.markdown("## 📊 Academic Results")
@@ -1935,7 +1950,7 @@ def show_marks_page(sem, marks_rows):
         st.selectbox(
             "Semester",
             _sem_options,
-            index=_sem_options.index(_cur_sem) if _cur_sem in _sem_options else 1,
+            index=_sem_options.index(_cur_sem) if _cur_sem in _sem_options else len(_sem_options) - 1,
             key="result_sem_select",
             label_visibility="collapsed",
             on_change=on_result_sem_change
