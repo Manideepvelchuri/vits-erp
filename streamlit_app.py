@@ -3614,12 +3614,12 @@ def admin_bunk_analysis():
             abs_params = (sem_num, start_dt, end_dt)
 
             cond_sql = """
-                SELECT DISTINCT date, section, hour
-                FROM hour_wise_attendance
-                WHERE section IS NOT NULL AND section != ''
-                  AND date >= ? AND date <= ?
+                SELECT DISTINCT h.date, s.section, h.hour
+                FROM hour_wise_attendance h
+                JOIN students s ON h.roll_no = s.roll_no
+                WHERE s.semester = ? AND h.date >= ? AND h.date <= ?
             """
-            cond_params = (start_dt, end_dt)
+            cond_params = (sem_num, start_dt, end_dt)
         else:
             abs_sql = """
                 SELECT h.date, h.roll_no, h.hour, h.subject, s.name, s.section
@@ -3631,12 +3631,12 @@ def admin_bunk_analysis():
             abs_params = (sem_num, sec_filter, start_dt, end_dt)
 
             cond_sql = """
-                SELECT DISTINCT date, section, hour
-                FROM hour_wise_attendance
-                WHERE section = ?
-                  AND date >= ? AND date <= ?
+                SELECT DISTINCT h.date, s.section, h.hour
+                FROM hour_wise_attendance h
+                JOIN students s ON h.roll_no = s.roll_no
+                WHERE s.semester = ? AND s.section = ? AND h.date >= ? AND h.date <= ?
             """
-            cond_params = (sec_filter, start_dt, end_dt)
+            cond_params = (sem_num, sec_filter, start_dt, end_dt)
 
         abs_rows = conn.execute(abs_sql, abs_params).fetchall()
         cond_rows = conn.execute(cond_sql, cond_params).fetchall()
