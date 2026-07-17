@@ -3040,264 +3040,304 @@ def admin_settings():
 
 def admin_bunk_analysis():
     st.markdown("# 🚨 Bunk Intelligence Dashboard")
-    st.markdown("<p style='color: #94a3b8; font-size: 1.1rem; margin-bottom: 25px;'>College-wide bunk intelligence dashboard with warning threshold and class filter capabilities.</p>", unsafe_allow_html=True)
-    
+    st.markdown("<p style='color:#94a3b8;font-size:1.05rem;margin-bottom:20px;'>College-wide bunk intelligence — accurate per-student normalised metrics, subject drill-down & debarment recovery tracker.</p>", unsafe_allow_html=True)
+
     conn = get_db_connection()
-    cfg = get_config_map(conn)
-    sem = cfg.get('active_semester', 'Sem 2')
-    
-    # Sidebar Filters inside the page
+    cfg  = get_config_map(conn)
+    sem  = cfg.get('active_semester', 'Sem 3')
+
+    # ── Filters ────────────────────────────────────────────────
     col_f1, col_f2 = st.columns(2)
     with col_f1:
         sec_filter = st.selectbox("Drilldown Section", ["All Sections"] + CLASSES)
     with col_f2:
-        threshold = st.slider("Debarment Alert Threshold (%)", min_value=30, max_value=90, value=65, step=5,
-                              help="Identifies students whose attendance drops below this warning percentage.")
-    
-    # 1. Fetch Overall Metrics
-    if sec_filter == "All Sections":
-        stats = conn.execute("""
-            SELECT 
-                COUNT(DISTINCT roll_no) as total_students,
-                SUM(hours_conducted) as total_cond,
-                SUM(hours_attended) as total_att
-            FROM attendance
-            WHERE semester = ?
-        """, (sem,)).fetchone()
-    else:
-        stats = conn.execute("""
-            SELECT 
-                COUNT(DISTINCT a.roll_no) as total_students,
-                SUM(a.hours_conducted) as total_cond,
-                SUM(a.hours_attended) as total_att
-            FROM attendance a
-            JOIN students s ON a.roll_no = s.roll_no
-            WHERE a.semester = ? AND s.section = ?
-        """, (sem, sec_filter)).fetchone()
-    
-    if not stats or not stats['total_cond'] or stats['total_cond'] == 0:
-        st.warning(f"⚠️ No attendance data found for {sem} ({sec_filter}). Run the scraper or import CSVs first!")
+        threshold = st.slider("Debarment Alert Threshold (%)", 30, 90, 75, 5,
+                              help="Flag students whose overall attendance is below this %.")
+
+    # ── WHERE helpers ───────────────────────────────────────────
+    sec_join  = "JOIN students s ON a.roll_no = s.roll_no" if sec_filter != "All Sections" else ""
+    sec_where = "AND s.section = ?" if sec_filter != "All Sections" else ""
+    params_s  = (sem, sec_filter) if sec_filter != "All Sections" else (sem,)
+
+    # ═══════════════════════════════════════════════════════════
+    # CORE METRIC: per-student attendance % → then aggregate
+    # This avoids inflating totals when subjects have different
+    # class counts across sections.
+    # ═══════════════════════════════════════════════════════════
+    student_sql = f"""
+        SELECT
+            a.roll_no,
+            SUM(a.hours_conducted)                                          AS cond,
+            SUM(a.hours_attended)                                           AS att,
+            SUM(a.hours_conducted) - SUM(a.hours_attended)                  AS missed,
+            ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),2) AS pct
+        FROM attendance a
+        {sec_join}
+        WHERE a.semester = ? {sec_where}
+          AND a.hours_conducted > 0
+        GROUP BY a.roll_no
+    """
+    student_rows = conn.execute(student_sql, params_s).fetchall()
+
+    if not student_rows:
+        st.warning(f"No attendance data found for {sem}. Run the scraper or import CSVs first!")
         conn.close()
         return
-        
-    total_students = stats['total_students']
-    total_cond_hours = stats['total_cond']
-    total_att_hours = stats['total_att']
-    total_bunks = total_cond_hours - total_att_hours
-    bunk_rate = (total_bunks / total_cond_hours * 100) if total_cond_hours > 0 else 0.0
-    
-    # Students with Zero Bunks
-    if sec_filter == "All Sections":
-        zero_bunk_count = conn.execute("""
-            SELECT COUNT(*) FROM (
-                SELECT roll_no, SUM(hours_conducted - hours_attended) as tb
-                FROM attendance
-                WHERE semester = ?
-                GROUP BY roll_no HAVING SUM(hours_conducted - hours_attended) = 0
-            ) AS sub
-        """, (sem,)).fetchone()[0]
-    else:
-        zero_bunk_count = conn.execute("""
-            SELECT COUNT(*) FROM (
-                SELECT a.roll_no, SUM(a.hours_conducted - a.hours_attended) as tb
-                FROM attendance a
-                JOIN students s ON a.roll_no = s.roll_no
-                WHERE a.semester = ? AND s.section = ?
-                GROUP BY a.roll_no HAVING SUM(a.hours_conducted - a.hours_attended) = 0
-            ) AS sub
-        """, (sem, sec_filter)).fetchone()[0]
-    
-    # Chronic Bunkers (Attendance < Threshold)
-    if sec_filter == "All Sections":
-        chronic_bunker_count = conn.execute("""
-            SELECT COUNT(*) FROM (
-                SELECT roll_no,
-                       SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted), 0) as pct
-                FROM attendance
-                WHERE semester = ?
-                GROUP BY roll_no
-                HAVING SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted), 0) > 0
-                   AND SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted), 0) < ?
-            ) AS sub
-        """, (sem, threshold)).fetchone()[0]
-    else:
-        chronic_bunker_count = conn.execute("""
-            SELECT COUNT(*) FROM (
-                SELECT a.roll_no,
-                       SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted), 0) as pct
-                FROM attendance a
-                JOIN students s ON a.roll_no = s.roll_no
-                WHERE a.semester = ? AND s.section = ?
-                GROUP BY a.roll_no
-                HAVING SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted), 0) > 0
-                   AND SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted), 0) < ?
-            ) AS sub
-        """, (sem, sec_filter, threshold)).fetchone()[0]
-    
-    # Display Custom Premium KPI Cards
+
+    df_stu = pd.DataFrame([dict(r) for r in student_rows])
+    total_students      = len(df_stu)
+    avg_attendance      = round(df_stu['pct'].mean(), 1)
+    total_missed        = int(df_stu['missed'].sum())
+    total_cond          = int(df_stu['cond'].sum())
+    zero_bunk_count     = int((df_stu['missed'] == 0).sum())
+    chronic_count       = int((df_stu['pct'] < threshold).sum())
+    bunk_rate           = round(100 - avg_attendance, 2)
+
+    # ── KPI Cards ──────────────────────────────────────────────
+    def kpi(label, value, color="#f8fafc"):
+        return f"""<div style="background:linear-gradient(135deg,#1e293b,#0f172a);border:1px solid #334155;
+            border-radius:14px;padding:20px;text-align:center;box-shadow:0 4px 6px -1px rgba(0,0,0,.1);">
+            <div style="font-size:.75rem;text-transform:uppercase;color:#94a3b8;font-weight:600;letter-spacing:.07em;">{label}</div>
+            <div style="font-size:1.9rem;font-weight:700;color:{color};margin-top:6px;font-family:'Outfit';">{value}</div>
+        </div>"""
+
     st.markdown(f"""
-    <div class="metric-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 25px;">
-        <div class="metric-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 14px; padding: 20px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            <div class="metric-label" style="font-size: 0.8rem; text-transform: uppercase; color: #94a3b8; font-weight: 600; letter-spacing: 0.07em;">Total Students</div>
-            <div class="metric-value" style="font-size: 2rem; font-weight: 700; color: #f8fafc; margin-top: 5px; font-family: 'Outfit';">{total_students:,}</div>
-        </div>
-        <div class="metric-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 14px; padding: 20px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            <div class="metric-label" style="font-size: 0.8rem; text-transform: uppercase; color: #94a3b8; font-weight: 600; letter-spacing: 0.07em;">Conducted Hours</div>
-            <div class="metric-value" style="font-size: 2rem; font-weight: 700; color: #f8fafc; margin-top: 5px; font-family: 'Outfit';">{total_cond_hours:,}</div>
-        </div>
-        <div class="metric-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 14px; padding: 20px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            <div class="metric-label" style="font-size: 0.8rem; text-transform: uppercase; color: #94a3b8; font-weight: 600; letter-spacing: 0.07em;">Classes Missed</div>
-            <div class="metric-value" style="font-size: 2rem; font-weight: 700; color: #ef4444; margin-top: 5px; font-family: 'Outfit';">{total_bunks:,}</div>
-        </div>
-        <div class="metric-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 14px; padding: 20px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            <div class="metric-label" style="font-size: 0.8rem; text-transform: uppercase; color: #94a3b8; font-weight: 600; letter-spacing: 0.07em;">Overall Bunk Rate</div>
-            <div class="metric-value" style="font-size: 2rem; font-weight: 700; color: #f59e0b; margin-top: 5px; font-family: 'Outfit';">{bunk_rate:.2f}%</div>
-        </div>
-        <div class="metric-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 14px; padding: 20px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            <div class="metric-label" style="font-size: 0.8rem; text-transform: uppercase; color: #94a3b8; font-weight: 600; letter-spacing: 0.07em;">Zero Bunk Students</div>
-            <div class="metric-value" style="font-size: 2rem; font-weight: 700; color: #10b981; margin-top: 5px; font-family: 'Outfit';">{zero_bunk_count}</div>
-        </div>
-        <div class="metric-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 14px; padding: 20px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            <div class="metric-label" style="font-size: 0.8rem; text-transform: uppercase; color: #94a3b8; font-weight: 600; letter-spacing: 0.07em;">Debarment Risk</div>
-            <div class="metric-value" style="font-size: 2rem; font-weight: 700; color: #f43f5e; margin-top: 5px; font-family: 'Outfit';">{chronic_bunker_count}</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px;">
+        {kpi("Total Students",    f"{total_students:,}")}
+        {kpi("Avg Attendance",    f"{avg_attendance}%",   "#00D8C6")}
+        {kpi("Classes Missed",    f"{total_missed:,}",    "#ef4444")}
+        {kpi("Overall Bunk Rate", f"{bunk_rate}%",        "#f59e0b")}
+        {kpi("Perfect Attendance",f"{zero_bunk_count}",   "#10b981")}
+        {kpi("Debarment Risk",    f"{chronic_count}",     "#f43f5e")}
+    </div>""", unsafe_allow_html=True)
+
     st.markdown("---")
-    
-    # 2. Charts Row
+
+    # ── Charts Row 1 ────────────────────────────────────────────
     c1, c2 = st.columns(2)
+
+    # LEFT: Class-wise Average Attendance % (normalised)
     with c1:
         if sec_filter == "All Sections":
             st.markdown("### 📊 Class Bunk Leaderboard")
-            sec_rows = conn.execute("""
-                SELECT s.section, SUM(a.hours_conducted - a.hours_attended) as missed
-                FROM students s
-                JOIN attendance a ON s.roll_no = a.roll_no
+            cls_sql = """
+                SELECT s.section,
+                       ROUND(AVG(stu.pct), 1)             AS avg_att,
+                       ROUND(100 - AVG(stu.pct), 1)       AS avg_bunk_rate,
+                       SUM(stu.missed)                     AS total_missed,
+                       COUNT(DISTINCT a.roll_no)           AS students
+                FROM attendance a
+                JOIN students s ON a.roll_no = s.roll_no
+                JOIN (
+                    SELECT roll_no,
+                           SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted),0) AS pct,
+                           SUM(hours_conducted - hours_attended) AS missed
+                    FROM attendance
+                    WHERE semester = ?
+                    GROUP BY roll_no
+                ) stu ON stu.roll_no = a.roll_no
                 WHERE a.semester = ?
                 GROUP BY s.section
-                ORDER BY missed DESC
-            """, (sem,)).fetchall()
-            
-            if sec_rows:
-                df_sec = pd.DataFrame([dict(r) for r in sec_rows])
-                fig_sec = px.bar(
-                    df_sec, x='section', y='missed',
-                    color='missed', color_continuous_scale=[[0, '#8b5cf6'], [1, '#ef4444']],
-                    labels={'section': 'Class Section', 'missed': 'Total Missed Classes'}
+                ORDER BY avg_bunk_rate DESC
+            """
+            cls_rows = conn.execute(cls_sql, (sem, sem)).fetchall()
+            if cls_rows:
+                df_cls = pd.DataFrame([dict(r) for r in cls_rows])
+                fig_cls = px.bar(
+                    df_cls, x='section', y='total_missed',
+                    color='avg_bunk_rate',
+                    color_continuous_scale=[[0,'#4ade80'],[0.5,'#f59e0b'],[1,'#ef4444']],
+                    custom_data=['avg_att', 'avg_bunk_rate', 'students'],
+                    labels={'section':'Section','total_missed':'Total Missed Classes','avg_bunk_rate':'Avg Bunk Rate (%)'}
                 )
-                apply_premium_plotly_theme(fig_sec)
-                st.plotly_chart(fig_sec, use_container_width=True)
+                fig_cls.update_traces(
+                    hovertemplate="<b>%{x}</b><br>Missed: %{y}<br>Avg Attendance: %{customdata[0]}%<br>Avg Bunk Rate: %{customdata[1]}%<br>Students: %{customdata[2]}<extra></extra>"
+                )
+                apply_premium_plotly_theme(fig_cls)
+                st.plotly_chart(fig_cls, use_container_width=True)
             else:
                 st.info("No section data found.")
         else:
-            st.markdown("### 📊 Top Bunkers in Section")
-            top_sec_rows = conn.execute("""
-                SELECT s.name, SUM(a.hours_conducted - a.hours_attended) as missed
+            st.markdown(f"### 📊 Top Bunkers — {sec_filter}")
+            top_sql = """
+                SELECT s.name, s.roll_no,
+                       SUM(a.hours_conducted - a.hours_attended) AS missed,
+                       ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),1) AS pct
                 FROM students s
                 JOIN attendance a ON s.roll_no = a.roll_no
                 WHERE a.semester = ? AND s.section = ?
                 GROUP BY s.roll_no, s.name
                 ORDER BY missed DESC
-                LIMIT 15
-            """, (sem, sec_filter)).fetchall()
-            
-            if top_sec_rows:
-                df_top_sec = pd.DataFrame([dict(r) for r in top_sec_rows])
-                fig_top_sec = px.bar(
-                    df_top_sec, x='name', y='missed',
-                    color='missed', color_continuous_scale=[[0, '#8b5cf6'], [1, '#ef4444']],
-                    labels={'name': 'Student Name', 'missed': 'Total Missed Classes'}
+                LIMIT 20
+            """
+            top_rows = conn.execute(top_sql, (sem, sec_filter)).fetchall()
+            if top_rows:
+                df_top = pd.DataFrame([dict(r) for r in top_rows])
+                fig_top = px.bar(
+                    df_top, x='name', y='missed',
+                    color='pct',
+                    color_continuous_scale=[[0,'#ef4444'],[0.5,'#f59e0b'],[1,'#4ade80']],
+                    custom_data=['roll_no','pct'],
+                    labels={'name':'Student','missed':'Classes Missed','pct':'Attendance %'}
                 )
-                apply_premium_plotly_theme(fig_top_sec)
-                st.plotly_chart(fig_top_sec, use_container_width=True)
+                fig_top.update_traces(
+                    hovertemplate="<b>%{x}</b><br>Roll: %{customdata[0]}<br>Missed: %{y}<br>Attendance: %{customdata[1]}%<extra></extra>"
+                )
+                apply_premium_plotly_theme(fig_top)
+                st.plotly_chart(fig_top, use_container_width=True)
             else:
-                st.info("No student data found.")
-            
+                st.info("No data.")
+
+    # RIGHT: Subject Bunk Rate — per-student normalised
     with c2:
         st.markdown("### 📚 Subject Bunk Analysis")
-        if sec_filter == "All Sections":
-            sub_rows = conn.execute("""
-                SELECT a.subject, SUM(a.hours_conducted - a.hours_attended) as missed,
-                       ROUND(SUM(a.hours_conducted - a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted), 0), 1) as bunk_rate
-                FROM attendance a
-                WHERE a.semester = ? AND a.hours_conducted > 0
-                GROUP BY a.subject
-                ORDER BY bunk_rate DESC
-                LIMIT 10
-            """, (sem,)).fetchall()
-        else:
-            sub_rows = conn.execute("""
-                SELECT a.subject, SUM(a.hours_conducted - a.hours_attended) as missed,
-                       ROUND(SUM(a.hours_conducted - a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted), 0), 1) as bunk_rate
-                FROM attendance a
-                JOIN students s ON a.roll_no = s.roll_no
-                WHERE a.semester = ? AND s.section = ? AND a.hours_conducted > 0
-                GROUP BY a.subject
-                ORDER BY bunk_rate DESC
-                LIMIT 10
-            """, (sem, sec_filter)).fetchall()
-        
-        if sub_rows:
-            df_sub = pd.DataFrame([dict(r) for r in sub_rows])
+        subj_sql = f"""
+            SELECT a.subject,
+                   COUNT(DISTINCT a.roll_no)                                                AS students,
+                   SUM(a.hours_conducted)                                                   AS total_cond,
+                   SUM(a.hours_attended)                                                    AS total_att,
+                   SUM(a.hours_conducted - a.hours_attended)                                AS total_missed,
+                   ROUND(SUM(a.hours_conducted - a.hours_attended)*100.0
+                         / NULLIF(SUM(a.hours_conducted),0), 1)                             AS bunk_rate
+            FROM attendance a
+            {sec_join}
+            WHERE a.semester = ? {sec_where}
+              AND a.hours_conducted > 0
+            GROUP BY a.subject
+            HAVING SUM(a.hours_conducted) >= 5
+            ORDER BY bunk_rate DESC
+            LIMIT 15
+        """
+        subj_rows = conn.execute(subj_sql, params_s).fetchall()
+        if subj_rows:
+            df_sub = pd.DataFrame([dict(r) for r in subj_rows])
             fig_sub = px.bar(
                 df_sub, x='bunk_rate', y='subject', orientation='h',
-                color='bunk_rate', color_continuous_scale=[[0, '#a78bfa'], [1, '#ef4444']],
-                labels={'bunk_rate': 'Bunk Rate (%)', 'subject': 'Subject'}
+                color='bunk_rate',
+                color_continuous_scale=[[0,'#4ade80'],[0.5,'#f59e0b'],[1,'#ef4444']],
+                custom_data=['students','total_missed','total_cond'],
+                labels={'bunk_rate':'Bunk Rate (%)','subject':'Subject'}
+            )
+            fig_sub.update_traces(
+                hovertemplate="<b>%{y}</b><br>Bunk Rate: %{x}%<br>Missed: %{customdata[1]} / %{customdata[2]}<br>Students: %{customdata[0]}<extra></extra>"
             )
             fig_sub.update_layout(yaxis={'categoryorder':'total ascending'})
             apply_premium_plotly_theme(fig_sub)
             st.plotly_chart(fig_sub, use_container_width=True)
         else:
             st.info("No subject data found.")
-            
+
     st.markdown("---")
-    
-    # 3. Table of Chronic Bunkers
-    st.markdown(f"### ⚠️ Debarment Warning Directory (< {threshold}% attendance)")
-    if sec_filter == "All Sections":
-        cb_rows = conn.execute("""
-            SELECT 
-                s.roll_no, s.name, s.section,
-                SUM(a.hours_conducted) as cond,
-                SUM(a.hours_attended) as att,
-                ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted), 0), 1) as pct,
-                SUM(a.hours_conducted - a.hours_attended) as missed
+
+    # ── Charts Row 2: Attendance Distribution ──────────────────
+    c3, c4 = st.columns(2)
+    with c3:
+        st.markdown("### 🎯 Attendance Distribution")
+        bins   = [0, 50, 60, 65, 75, 85, 100]
+        labels = ['<50%','50-60%','60-65%','65-75%','75-85%','>85%']
+        colors = ['#ef4444','#f97316','#f59e0b','#eab308','#84cc16','#22c55e']
+        df_stu['bucket'] = pd.cut(df_stu['pct'], bins=bins, labels=labels, include_lowest=True)
+        bucket_counts = df_stu['bucket'].value_counts().reindex(labels, fill_value=0).reset_index()
+        bucket_counts.columns = ['Range','Count']
+        fig_dist = px.bar(
+            bucket_counts, x='Range', y='Count',
+            color='Range', color_discrete_sequence=colors,
+            labels={'Range':'Attendance Range','Count':'Number of Students'}
+        )
+        fig_dist.update_layout(showlegend=False)
+        apply_premium_plotly_theme(fig_dist)
+        st.plotly_chart(fig_dist, use_container_width=True)
+
+    with c4:
+        st.markdown("### 🏆 Worst Bunkers College-Wide")
+        worst_sql = f"""
+            SELECT s.name, s.roll_no, s.section,
+                   ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),1) AS pct,
+                   SUM(a.hours_conducted - a.hours_attended) AS missed
             FROM students s
             JOIN attendance a ON s.roll_no = a.roll_no
-            WHERE a.semester = ?
+            {("JOIN (SELECT roll_no FROM students WHERE section=?) AS sf ON sf.roll_no=s.roll_no" if sec_filter!="All Sections" else "")}
+            WHERE a.semester = ? {"AND s.section=?" if sec_filter!="All Sections" else ""}
             GROUP BY s.roll_no, s.name, s.section
-            HAVING SUM(a.hours_conducted) > 0 AND (SUM(a.hours_attended)*100.0/SUM(a.hours_conducted)) < ?
-            ORDER BY missed DESC
-        """, (sem, threshold)).fetchall()
+            HAVING SUM(a.hours_conducted) > 0
+            ORDER BY pct ASC
+            LIMIT 10
+        """
+        worst_params = (sec_filter, sem, sec_filter) if sec_filter != "All Sections" else (sem,)
+        worst_rows = conn.execute(worst_sql, worst_params).fetchall()
+        if worst_rows:
+            df_worst = pd.DataFrame([dict(r) for r in worst_rows])
+            fig_worst = px.bar(
+                df_worst, x='pct', y='name', orientation='h',
+                color='pct',
+                color_continuous_scale=[[0,'#ef4444'],[0.5,'#f59e0b'],[1,'#4ade80']],
+                custom_data=['roll_no','section','missed'],
+                labels={'pct':'Attendance %','name':'Student'}
+            )
+            fig_worst.update_traces(
+                hovertemplate="<b>%{y}</b><br>Roll: %{customdata[0]} | Section: %{customdata[1]}<br>Attendance: %{x}%<br>Missed: %{customdata[2]}<extra></extra>"
+            )
+            fig_worst.update_layout(yaxis={'categoryorder':'total ascending'})
+            apply_premium_plotly_theme(fig_worst)
+            st.plotly_chart(fig_worst, use_container_width=True)
+        else:
+            st.info("No data.")
+
+    st.markdown("---")
+
+    # ── Debarment Warning Table ─────────────────────────────────
+    st.markdown(f"### ⚠️ Debarment Warning Directory  — below {threshold}% attendance")
+
+    debar_sql = f"""
+        SELECT s.roll_no, s.name, s.section,
+               SUM(a.hours_conducted)                                                       AS cond,
+               SUM(a.hours_attended)                                                        AS att,
+               SUM(a.hours_conducted - a.hours_attended)                                    AS missed,
+               ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),1)       AS pct,
+               -- Classes needed to attend to reach target threshold
+               CAST(CEIL(
+                   (? * SUM(a.hours_conducted) / 100.0 - SUM(a.hours_attended))
+                   / (1.0 - ? / 100.0)
+               ) AS INTEGER)                                                                AS classes_needed
+        FROM students s
+        JOIN attendance a ON s.roll_no = a.roll_no
+        {sec_join}
+        WHERE a.semester = ? {sec_where}
+        GROUP BY s.roll_no, s.name, s.section
+        HAVING SUM(a.hours_conducted) > 0
+           AND (SUM(a.hours_attended)*100.0/SUM(a.hours_conducted)) < ?
+        ORDER BY pct ASC
+    """
+    debar_params = (threshold, threshold) + params_s + (threshold,)
+    debar_rows = conn.execute(debar_sql, debar_params).fetchall()
+
+    if debar_rows:
+        df_db = pd.DataFrame([dict(r) for r in debar_rows])
+        df_db['classes_needed'] = df_db['classes_needed'].apply(lambda x: max(0, x) if pd.notna(x) else 0)
+        df_db.columns = ['Roll No','Name','Section','Conducted','Attended','Missed','Attendance %','Classes Needed to Recover']
+
+        # Color-code attendance column
+        def color_pct(val):
+            if val < 50:   return 'background-color:#7f1d1d;color:#fca5a5'
+            elif val < 65: return 'background-color:#78350f;color:#fcd34d'
+            elif val < 75: return 'background-color:#713f12;color:#fde68a'
+            return ''
+
+        styled = df_db.style.applymap(color_pct, subset=['Attendance %'])
+        st.dataframe(styled, use_container_width=True, hide_index=True)
+
+        # Download button
+        csv = df_db.to_csv(index=False).encode('utf-8')
+        st.download_button("⬇️ Download Debarment List (CSV)", csv,
+                           file_name=f"debarment_{sem.replace(' ','_')}_{sec_filter.replace(' ','_')}.csv",
+                           mime='text/csv')
+        st.caption(f"**'Classes Needed to Recover'** = consecutive classes this student must attend (without bunking) to reach {threshold}% attendance.")
     else:
-        cb_rows = conn.execute("""
-            SELECT 
-                s.roll_no, s.name, s.section,
-                SUM(a.hours_conducted) as cond,
-                SUM(a.hours_attended) as att,
-                ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted), 0), 1) as pct,
-                SUM(a.hours_conducted - a.hours_attended) as missed
-            FROM students s
-            JOIN attendance a ON s.roll_no = a.roll_no
-            WHERE a.semester = ? AND s.section = ?
-            GROUP BY s.roll_no, s.name, s.section
-            HAVING SUM(a.hours_conducted) > 0 AND (SUM(a.hours_attended)*100.0/SUM(a.hours_conducted)) < ?
-            ORDER BY missed DESC
-        """, (sem, sec_filter, threshold)).fetchall()
-    
-    if cb_rows:
-        df_cb = pd.DataFrame([dict(r) for r in cb_rows])
-        df_cb.columns = ['Roll Number', 'Student Name', 'Section', 'Conducted Classes', 'Attended Classes', 'Attendance %', 'Classes Missed']
-        st.dataframe(df_cb, use_container_width=True, hide_index=True)
-    else:
-        st.success("🎉 No debarment warnings found matching this threshold!")
-        
+        st.success(f"All students are above {threshold}% attendance!")
+
     conn.close()
 
 
-# ══════════════════════════════════════════════════════════════
 # ROUTER
 # ══════════════════════════════════════════════════════════════
 if _DB_FALLBACK:
