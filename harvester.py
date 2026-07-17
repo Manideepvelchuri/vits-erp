@@ -3,7 +3,7 @@ harvester.py — Smart portal attendance scraper.
 Semester-aware. Scheduler-safe. Logs every run.
 """
 import os, io, sys, logging, time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import requests
 from database import get_db_connection, CLASSES, get_portal_yr_br
@@ -122,7 +122,8 @@ def scrape_portal(start_date=None, end_date=None, section=None,
         sem_num = 2
 
     fdt = start_date or cfg.get('start_date', '2026-01-27')
-    tdt = end_date   or datetime.now().strftime('%Y-%m-%d')
+    ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    tdt = end_date   or ist_now.strftime('%Y-%m-%d')
     sc  = section    or 'ECE_B'
 
     logger.info(f'Scraping {sc} | {semester} | {fdt} → {tdt}')
@@ -245,7 +246,8 @@ def scrape_portal(start_date=None, end_date=None, section=None,
 
     duration = round(time.time() - t_start, 2)
     status   = 'success' if success_dates else 'failed'
-    now      = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    ist_now_ts = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    now      = ist_now_ts.strftime('%Y-%m-%d %H:%M:%S')
 
     try:
         cursor.execute("UPDATE config SET value=? WHERE key='last_scraped_at'", (now,))

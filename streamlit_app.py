@@ -58,8 +58,20 @@ else:
         score_to_grade, gp_to_grade, compute_sgpa, backup_db, compute_cgpa,
         parse_sem1_results_csv, decode_roll_branch
     )
-import harvester
-import pdf_generator
+def get_subject_credits(sub):
+    if not sub:
+        return 3.0
+    clean = str(sub).strip().upper()
+    if clean in SUBJECT_CREDITS:
+        return SUBJECT_CREDITS[clean]
+    # Fallback to JNTUH dynamic defaults
+    if 'LAB' in clean or 'PRACTICAL' in clean or 'SIMULATION' in clean:
+        return 1.5
+    if 'PROJECT' in clean or 'MINI' in clean:
+        return 2.0
+    if any(x in clean for x in ['CRT', 'TA', 'SSC', 'ES', 'NPTEL', 'IP']):
+        return 0.0
+    return 3.0
 
 
 def get_image_base64(path):
@@ -1376,7 +1388,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         score = m['score']
         gp_val = m['grade_point'] or 0.0
         grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if score is None else 'F')
-        c_val = SUBJECT_CREDITS.get(sub, 3.0)
+        c_val = get_subject_credits(sub)
         if grade not in ['F', 'Ab']:
             completed_credits += c_val
 
@@ -1785,7 +1797,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
                 'Exam Type': r['exam_type'].replace(f"{sem} ", ""),
                 'Score': r['score'] if r['score'] is not None else 'Ab',
                 'Grade': gp_to_grade(r['grade_point']) if (r['grade_point'] or 0.0) > 0.0 else ('Ab' if r['score'] is None else 'F'),
-                'Credits': SUBJECT_CREDITS.get(r['subject'], 3.0)
+                'Credits': get_subject_credits(r['subject'])
             } for r in sem_final_marks])
             st_premium_table(grades_df)
         else:
@@ -1968,7 +1980,7 @@ def show_marks_page(sem, marks_rows):
                 'Subject': r['subject'],
                 'Score': r['score'] if r['score'] is not None else 'Ab',
                 'Grade': grade, 'GP': gp_val,
-                'Credits': SUBJECT_CREDITS.get(r['subject'], 0)
+                'Credits': get_subject_credits(r['subject'])
             })
 
     trend_data = []
@@ -2037,7 +2049,7 @@ def show_sgpa_page(sem, marks_rows):
 
     projected = {}
     for sub in subjects:
-        cr = SUBJECT_CREDITS.get(sub, 0)
+        cr = get_subject_credits(sub)
         if cr == 0:
             continue
         # Default to 0 for projections if no actual score exists
@@ -2046,7 +2058,7 @@ def show_sgpa_page(sem, marks_rows):
 
     total_cr, weighted = 0.0, 0.0
     for subj, score in projected.items():
-        cr = SUBJECT_CREDITS.get(subj, 0)
+        cr = get_subject_credits(subj)
         _, gp = score_to_grade(score)
         weighted += gp * cr; total_cr += cr
     sgpa = round(weighted / total_cr, 2) if total_cr else 0.0
@@ -2805,7 +2817,8 @@ def admin_scraper():
     st.markdown("### 📆 Date Range")
     c1, c2 = st.columns(2)
     sd = c1.date_input("From", value=dt.strptime(cfg.get('start_date', '2026-01-27'), '%Y-%m-%d'))
-    ed = c2.date_input("To", value=dt.now())
+    ist_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
+    ed = c2.date_input("To", value=ist_now.date())
 
     st.markdown("### 🎯 Scrape Single Section")
     section = st.selectbox("Section", CLASSES)
