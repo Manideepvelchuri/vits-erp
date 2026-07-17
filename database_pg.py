@@ -428,22 +428,23 @@ def _get_pool():
     """
     Create a ThreadedConnectionPool once per app session.
     Cached by Streamlit so it survives reruns — connections are REUSED.
-    minconn=1, maxconn=4 handles concurrent Streamlit reruns safely without overloading Supabase.
+    minconn=1, maxconn=15 handles concurrent Streamlit reruns safely without overloading Supabase.
     """
     from psycopg2 import pool as pg_pool
     url = _get_pg_url()
     try:
         p = pg_pool.ThreadedConnectionPool(
-            minconn=1, maxconn=4,
+            minconn=1, maxconn=15,
             dsn=url, sslmode='require', connect_timeout=15
         )
         return p
     except Exception:
         p = pg_pool.ThreadedConnectionPool(
-            minconn=1, maxconn=4,
+            minconn=1, maxconn=15,
             dsn=url, connect_timeout=15
         )
         return p
+
 
 
 _CONN_LAST_USED = {}
@@ -499,11 +500,18 @@ class _LazyPGConn:
             self._real_conn.close()
             self._real_conn = None
 
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
         self.close()
+
 
 
 def get_db_connection():
