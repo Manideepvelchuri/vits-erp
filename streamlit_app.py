@@ -3044,15 +3044,34 @@ def admin_bunk_analysis():
 
     conn = get_db_connection()
     cfg  = get_config_map(conn)
-    sem  = cfg.get('active_semester', 'Sem 3')
+    
+    # Semester Date Ranges Helper
+    def get_semester_date_range(sem_str, cfg_map):
+        if sem_str == cfg_map.get('active_semester', 'Sem 3'):
+            return cfg_map.get('start_date', '2026-07-06'), cfg_map.get('end_date', '2026-07-17')
+        ranges = {
+            'Sem 1': ('2025-08-01', '2025-12-20'),
+            'Sem 2': ('2026-01-27', '2026-05-21'),
+            'Sem 3': ('2026-07-06', '2026-07-17'),
+        }
+        return ranges.get(sem_str, ('2026-01-01', '2026-12-31'))
+
+    default_sem = cfg.get('active_semester', 'Sem 3')
+    sem_list = [f"Sem {i}" for i in range(1, 9)]
+    try:
+        default_idx = sem_list.index(default_sem)
+    except ValueError:
+        default_idx = 2
 
     # ── Filters ────────────────────────────────────────────────
-    col_f1, col_f2 = st.columns(2)
+    col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
-        sec_filter = st.selectbox("Drilldown Section", ["All Sections"] + CLASSES)
+        sem = st.selectbox("Select Semester", sem_list, index=default_idx)
     with col_f2:
+        sec_filter = st.selectbox("Drilldown Section", ["All Sections"] + CLASSES)
+    with col_f3:
         threshold = st.slider("Debarment Alert Threshold (%)", 30, 90, 75, 5,
-                              help="Flag students whose overall attendance is below this %.")
+                               help="Flag students whose overall attendance is below this %.")
 
     # ── Create Tabs ────────────────────────────────────────────
     tab_debarment, tab_patterns = st.tabs(["📋 Attendance & Debarment Tracker", "🕵️ Intermittent Bunking Patterns"])
@@ -3062,13 +3081,18 @@ def admin_bunk_analysis():
     sec_where = "AND s.section = ?" if sec_filter != "All Sections" else ""
     params_s  = (sem, sec_filter) if sec_filter != "All Sections" else (sem,)
 
+    # Get semester date range
+    start_dt, end_dt = get_semester_date_range(sem, cfg)
+
     # ═══════════════════════════════════════════════════════════
     # TAB 1: ATTENDANCE & DEBARMENT TRACKER
     # ═══════════════════════════════════════════════════════════
     with tab_debarment:
         # Determine whether to use hour-wise scraper data or fallback to cumulative snapshots.
-        # Hour-wise data is available and accurate for Sem 2. Sem 3/others use cumulative database snapshots.
-        use_hour_wise = (sem == "Sem 2")
+        # We check if there is actually scraped hour-wise data for the selected date range.
+        check_sql = "SELECT COUNT(*) FROM hour_wise_attendance WHERE date >= ? AND date <= ?"
+        check_cnt = conn.execute(check_sql, (start_dt, end_dt)).fetchone()[0]
+        use_hour_wise = (check_cnt > 0)
 
         if use_hour_wise:
             try:
@@ -3084,16 +3108,18 @@ def admin_bunk_analysis():
                     SELECT DISTINCT date, section, hour
                     FROM hour_wise_attendance
                     WHERE section IS NOT NULL AND section != ''
+                      AND date >= ? AND date <= ?
                 """
-                cond_params = ()
+                cond_params = (start_dt, end_dt)
                 
                 abs_sql = """
                     SELECT h.date, h.roll_no, h.hour
                     FROM hour_wise_attendance h
                     JOIN students s ON h.roll_no = s.roll_no
                     WHERE s.semester = ? AND h.roll_no IS NOT NULL AND h.roll_no != ''
+                      AND h.date >= ? AND h.date <= ?
                 """
-                abs_params = (sem_num,)
+                abs_params = (sem_num, start_dt, end_dt)
             else:
                 stu_sql = "SELECT roll_no, name, section FROM students WHERE semester = ? AND section = ?"
                 stu_params = (sem_num, sec_filter)
@@ -3102,16 +3128,18 @@ def admin_bunk_analysis():
                     SELECT DISTINCT date, section, hour
                     FROM hour_wise_attendance
                     WHERE section = ?
+                      AND date >= ? AND date <= ?
                 """
-                cond_params = (sec_filter,)
+                cond_params = (sec_filter, start_dt, end_dt)
                 
                 abs_sql = """
                     SELECT h.date, h.roll_no, h.hour
                     FROM hour_wise_attendance h
                     JOIN students s ON h.roll_no = s.roll_no
                     WHERE s.semester = ? AND s.section = ? AND h.roll_no IS NOT NULL AND h.roll_no != ''
+                      AND h.date >= ? AND h.date <= ?
                 """
-                abs_params = (sem_num, sec_filter)
+                abs_params = (sem_num, sec_filter, start_dt, end_dt)
 
             stu_rows = conn.execute(stu_sql, stu_params).fetchall()
             df_stu_raw = pd.DataFrame([dict(r) for r in stu_rows]) if stu_rows else pd.DataFrame(columns=['roll_no', 'name', 'section'])
@@ -3161,13 +3189,13 @@ def admin_bunk_analysis():
                 
                 df_stu = pd.DataFrame(student_results)
         else:
-            # Fallback to cumulative attendance table for Sem 3/others (accurate for current active semester)
+            # Fallback to cumulative attendance table (accurate for Sem 3/others)
             student_sql = f"""
                 SELECT
                     a.roll_no,
                     SUM(a.hours_conducted)                                          AS cond,
                     SUM(a.hours_attended)                                           AS att,
-                    SUM(a.hours_conducted) - SUM(a.hours_attended)                  AS missed,
+                    SUM(a.hours_conducted - a.hours_attended)                  AS missed,
                     ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),2) AS pct
                 FROM attendance a
                 {sec_join}
@@ -3320,6 +3348,7 @@ def admin_bunk_analysis():
                                    (MAX(total_present) + MAX(total_absent)) AS total_cond,
                                    MAX(total_absent) AS total_missed
                             FROM hour_wise_attendance
+                            WHERE date >= ? AND date <= ?
                             GROUP BY date, section, hour, subject
                         ) h
                         LEFT JOIN hour_wise_attendance abs_t 
@@ -3328,11 +3357,11 @@ def admin_bunk_analysis():
                          AND h.hour = abs_t.hour 
                          AND h.subject = abs_t.subject
                         JOIN students s ON abs_t.roll_no = s.roll_no
-                        WHERE s.semester = ?
+                        WHERE s.semester = ? AND abs_t.date >= ? AND abs_t.date <= ?
                         GROUP BY h.subject
                         ORDER BY bunk_rate DESC
                     """
-                    subj_params = (sem_num,)
+                    subj_params = (start_dt, end_dt, sem_num, start_dt, end_dt)
                 else:
                     subj_sql = f"""
                         SELECT a.subject,
@@ -3585,30 +3614,34 @@ def admin_bunk_analysis():
                 FROM hour_wise_attendance h
                 JOIN students s ON h.roll_no = s.roll_no
                 WHERE s.semester = ? AND h.roll_no IS NOT NULL AND h.roll_no != ''
+                  AND h.date >= ? AND h.date <= ?
             """
-            abs_params = (sem_num,)
+            abs_params = (sem_num, start_dt, end_dt)
 
             cond_sql = """
                 SELECT DISTINCT date, section, hour
                 FROM hour_wise_attendance
                 WHERE section IS NOT NULL AND section != ''
+                  AND date >= ? AND date <= ?
             """
-            cond_params = ()
+            cond_params = (start_dt, end_dt)
         else:
             abs_sql = """
                 SELECT h.date, h.roll_no, h.hour, h.subject, s.name, s.section
                 FROM hour_wise_attendance h
                 JOIN students s ON h.roll_no = s.roll_no
                 WHERE s.semester = ? AND s.section = ? AND h.roll_no IS NOT NULL AND h.roll_no != ''
+                  AND h.date >= ? AND h.date <= ?
             """
-            abs_params = (sem_num, sec_filter)
+            abs_params = (sem_num, sec_filter, start_dt, end_dt)
 
             cond_sql = """
                 SELECT DISTINCT date, section, hour
                 FROM hour_wise_attendance
                 WHERE section = ?
+                  AND date >= ? AND date <= ?
             """
-            cond_params = (sec_filter,)
+            cond_params = (sec_filter, start_dt, end_dt)
 
         abs_rows = conn.execute(abs_sql, abs_params).fetchall()
         cond_rows = conn.execute(cond_sql, cond_params).fetchall()
