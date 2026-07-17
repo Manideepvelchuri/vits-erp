@@ -3088,11 +3088,7 @@ def admin_bunk_analysis():
     # TAB 1: ATTENDANCE & DEBARMENT TRACKER
     # ═══════════════════════════════════════════════════════════
     with tab_debarment:
-        # Determine whether to use hour-wise scraper data or fallback to cumulative snapshots.
-        # We check if there is actually scraped hour-wise data for the selected date range.
-        check_sql = "SELECT COUNT(*) FROM hour_wise_attendance WHERE date >= ? AND date <= ?"
-        check_cnt = conn.execute(check_sql, (start_dt, end_dt)).fetchone()[0]
-        use_hour_wise = (check_cnt > 0)
+        use_hour_wise = False
 
         if use_hour_wise:
             try:
