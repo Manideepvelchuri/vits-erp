@@ -1,5 +1,5 @@
 """
-database.py — Complete with Sem 1 + Sem 2 from real CSVs.
+database.py — Complete with Sem 1 + Sem 2 from real CSVs. Sem 3 support added July 2026.
 """
 import sqlite3, os, shutil, csv, io
 from datetime import datetime
@@ -11,7 +11,7 @@ CSV_DIR  = os.path.join(BASE_DIR, 'attandance database for db construction')
 RESULTS_CSV_DIR = os.path.join(BASE_DIR, 'resutls database for db construction')
 
 DEFAULT_STUDENT_PASSWORD = 'PENDING'
-ACTIVE_SEMESTER = 'Sem 2'
+ACTIVE_SEMESTER = 'Sem 3'
 
 CLASSES = [
     'AIDS', 'AIML', 'CIVIL',
@@ -24,6 +24,7 @@ CLASSES = [
 
 SEM1_SUBJECTS = ['IEE', 'ED', 'PPS', 'ENG', 'M&C', 'AEP']
 
+# Sem 2 subjects per section (active during Jan–Jun 2026)
 SECTION_SUBJECTS = {
     'AIDS':  ['BEE','BEE LAB','EWS','EDC','DS','DS LAB','PYTHON LAB','EC','EC LAB','ODEVC','CRT'],
     'AIML':  ['BEE','BEE LAB','EWS','EDC','DS','DS LAB','PYTHON LAB','EC','EC LAB','ODEVC','CRT'],
@@ -48,18 +49,46 @@ SECTION_SUBJECTS = {
     'MECH':  ['EEEE','EEEE LAB','ED& CAD','TD','PYTHON','PYTHON LAB','EC','EC LAB','ODEVC','CRT'],
 }
 
+# Sem 3 subjects per section — July 2026 onwards
+# Subjects will be populated via Admin CSV upload once attendance sheets are available.
+# Add subject names here once confirmed by section coordinators.
+SEM3_SUBJECTS = {
+    'AIDS':  [],
+    'AIML':  [],
+    'CIVIL': [],
+    'CSE_A': [],
+    'CSE_B': [],
+    'CSE_C': [],
+    'CSE_D': [],
+    'CSM_A': [],
+    'CSM_B': [],
+    'CSM_C': [],
+    'CSM_D': [],
+    'CSM_E': [],
+    'DS_A':  [],
+    'DS_B':  [],
+    'DS_C':  [],
+    'ECE_A': [],
+    'ECE_B': [],
+    'EEE':   [],
+    'EIE':   [],
+    'IT':    [],
+    'MECH':  [],
+}
+
 SUBJECT_CREDITS = {
-    # Sem 1 (from real results CSV)
+    # Sem 1
     'IEE': 4.0, 'ED': 4.0, 'PPS': 4.0, 'ENG': 3.0, 'M&C': 4.0, 'AEP': 3.0,
     # Theory (Sem 2)
     'BEE': 3.0, 'EWS': 3.0, 'NAS': 3.0, 'DS': 3.0, 'EDC': 3.0,
     'EC': 3.0, 'EC_II': 3.0, 'ODEVC': 3.0, 'BPC': 3.0, 'EM': 3.0,
-    'EEEE': 3.0, 'AEP': 3.0, 'ESE': 3.0, 'ITW': 3.0, 'TD': 3.0,
+    'EEEE': 3.0, 'ESE': 3.0, 'ITW': 3.0, 'TD': 3.0,
     'PYTHON': 3.0, 'ED&CAD': 3.0, 'ED& CAD': 3.0,
-    # Labs
+    # Labs (Sem 2)
     'BEE LAB': 1.5, 'DS LAB': 1.5, 'PYTHON LAB': 1.5, 'PHYTHON LAB': 1.5,
     'APP PHTH LAB': 1.5, 'EC LAB': 1.5, 'EEEE LAB': 1.5, 'AEP LAB': 1.5,
     'ELCS LAB': 1.5, 'EE LAB': 1.5,
+    # Sem 3 credits will be added here once subjects are confirmed
     'CRT': 0.0,
 }
 
