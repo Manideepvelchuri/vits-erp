@@ -3066,25 +3066,91 @@ def admin_bunk_analysis():
     # TAB 1: ATTENDANCE & DEBARMENT TRACKER
     # ═══════════════════════════════════════════════════════════
     with tab_debarment:
-        student_sql = f"""
-            SELECT
-                a.roll_no,
-                SUM(a.hours_conducted)                                          AS cond,
-                SUM(a.hours_attended)                                           AS att,
-                SUM(a.hours_conducted) - SUM(a.hours_attended)                  AS missed,
-                ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),2) AS pct
-            FROM attendance a
-            {sec_join}
-            WHERE a.semester = ? {sec_where}
-              AND a.hours_conducted > 0
-            GROUP BY a.roll_no
-        """
-        student_rows = conn.execute(student_sql, params_s).fetchall()
+        # Load students and calculate hour-wise attendance in memory for best accuracy
+        try:
+            sem_num = int(sem.replace("Sem ", "").strip())
+        except Exception:
+            sem_num = 3
 
-        if not student_rows:
-            st.warning(f"No attendance data found for {sem}. Run the scraper or import CSVs first!")
+        if sec_filter == "All Sections":
+            stu_sql = "SELECT roll_no, name, section FROM students WHERE semester = ?"
+            stu_params = (sem_num,)
+            
+            cond_sql = """
+                SELECT DISTINCT date, section, hour
+                FROM hour_wise_attendance
+                WHERE section IS NOT NULL AND section != ''
+            """
+            cond_params = ()
+            
+            abs_sql = """
+                SELECT h.date, h.roll_no, h.hour
+                FROM hour_wise_attendance h
+                JOIN students s ON h.roll_no = s.roll_no
+                WHERE s.semester = ? AND h.roll_no IS NOT NULL AND h.roll_no != ''
+            """
+            abs_params = (sem_num,)
         else:
-            df_stu = pd.DataFrame([dict(r) for r in student_rows])
+            stu_sql = "SELECT roll_no, name, section FROM students WHERE semester = ? AND section = ?"
+            stu_params = (sem_num, sec_filter)
+            
+            cond_sql = """
+                SELECT DISTINCT date, section, hour
+                FROM hour_wise_attendance
+                WHERE section = ?
+            """
+            cond_params = (sec_filter,)
+            
+            abs_sql = """
+                SELECT h.date, h.roll_no, h.hour
+                FROM hour_wise_attendance h
+                JOIN students s ON h.roll_no = s.roll_no
+                WHERE s.semester = ? AND s.section = ? AND h.roll_no IS NOT NULL AND h.roll_no != ''
+            """
+            abs_params = (sem_num, sec_filter)
+
+        df_stu_raw = pd.read_sql_query(stu_sql, conn, params=stu_params)
+        
+        if df_stu_raw.empty:
+            st.warning(f"No students found for {sem} ({sec_filter}).")
+        else:
+            # Load unique conducted classes
+            df_cond_raw = pd.read_sql_query(cond_sql, conn, params=cond_params)
+            # Load absences
+            df_abs_raw = pd.read_sql_query(abs_sql, conn, params=abs_params)
+            
+            # Map conducted classes per section
+            cond_by_sec = df_cond_raw.groupby('section').size().to_dict()
+            # Map absences per roll number
+            abs_by_roll = df_abs_raw.groupby('roll_no').size().to_dict()
+            
+            # Build student attendance list
+            student_results = []
+            for _, row in df_stu_raw.iterrows():
+                roll = row['roll_no']
+                name = row['name']
+                sec = row['section']
+                
+                cond_cnt = cond_by_sec.get(sec, 0)
+                missed_cnt = abs_by_roll.get(roll, 0)
+                
+                # Make sure missed doesn't exceed conducted
+                missed_cnt = min(missed_cnt, cond_cnt)
+                att_cnt = cond_cnt - missed_cnt
+                
+                pct_val = round(att_cnt * 100.0 / cond_cnt, 2) if cond_cnt > 0 else 0.0
+                
+                student_results.append({
+                    'roll_no': roll,
+                    'name': name,
+                    'section': sec,
+                    'cond': cond_cnt,
+                    'att': att_cnt,
+                    'missed': missed_cnt,
+                    'pct': pct_val
+                })
+            
+            df_stu = pd.DataFrame(student_results)
             total_students      = len(df_stu)
             avg_attendance      = round(df_stu['pct'].mean(), 1)
             total_missed        = int(df_stu['missed'].sum())
@@ -3119,38 +3185,25 @@ def admin_bunk_analysis():
             with c1:
                 if sec_filter == "All Sections":
                     st.markdown("### 📊 Class Absence Leaderboard")
-                    cls_sql = """
-                        SELECT s.section,
-                               ROUND(AVG(stu.pct), 1)             AS avg_att,
-                               ROUND(100 - AVG(stu.pct), 1)       AS avg_bunk_rate,
-                               SUM(stu.missed)                     AS total_missed,
-                               COUNT(DISTINCT a.roll_no)           AS students
-                        FROM attendance a
-                        JOIN students s ON a.roll_no = s.roll_no
-                        JOIN (
-                            SELECT roll_no,
-                                   SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted),0) AS pct,
-                                   SUM(hours_conducted - hours_attended) AS missed
-                            FROM attendance
-                            WHERE semester = ?
-                            GROUP BY roll_no
-                        ) stu ON stu.roll_no = a.roll_no
-                        WHERE a.semester = ?
-                        GROUP BY s.section
-                        ORDER BY avg_bunk_rate DESC
-                    """
-                    cls_rows = conn.execute(cls_sql, (sem, sem)).fetchall()
-                    if cls_rows:
-                        df_cls = pd.DataFrame([dict(r) for r in cls_rows])
+                    df_cls = df_stu.groupby('section').agg(
+                        avg_att=('pct', 'mean'),
+                        total_missed=('missed', 'sum'),
+                        students=('roll_no', 'count')
+                    ).reset_index()
+                    df_cls['avg_att'] = df_cls['avg_att'].round(1)
+                    df_cls['avg_bunk_rate'] = (100 - df_cls['avg_att']).round(1)
+                    df_cls = df_cls.sort_values(by='avg_bunk_rate', ascending=False)
+                    
+                    if not df_cls.empty:
                         fig_cls = px.bar(
                             df_cls, x='section', y='total_missed',
                             color='avg_bunk_rate',
                             color_continuous_scale=[[0,'#4ade80'],[0.5,'#f59e0b'],[1,'#ef4444']],
                             custom_data=['avg_att', 'avg_bunk_rate', 'students'],
-                            labels={'section':'Section','total_missed':'Total Missed Classes','avg_bunk_rate':'Avg Bunk Rate (%)'}
+                            labels={'section':'Section','total_missed':'Total Missed Classes','avg_bunk_rate':'Avg Absence Rate (%)'}
                         )
                         fig_cls.update_traces(
-                            hovertemplate="<b>%{x}</b><br>Missed: %{y}<br>Avg Attendance: %{customdata[0]}%<br>Avg Bunk Rate: %{customdata[1]}%<br>Students: %{customdata[2]}<extra></extra>"
+                            hovertemplate="<b>%{x}</b><br>Missed: %{y}<br>Avg Attendance: %{customdata[0]}%<br>Avg Absence Rate: %{customdata[1]}%<br>Students: %{customdata[2]}<extra></extra>"
                         )
                         apply_premium_plotly_theme(fig_cls)
                         st.plotly_chart(fig_cls, use_container_width=True)
@@ -3158,20 +3211,8 @@ def admin_bunk_analysis():
                         st.info("No section data found.")
                 else:
                     st.markdown(f"### 📊 Lowest Attendance Students — {sec_filter}")
-                    top_sql = """
-                        SELECT s.name, s.roll_no,
-                               SUM(a.hours_conducted - a.hours_attended) AS missed,
-                               ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),1) AS pct
-                        FROM students s
-                        JOIN attendance a ON s.roll_no = a.roll_no
-                        WHERE a.semester = ? AND s.section = ?
-                        GROUP BY s.roll_no, s.name
-                        ORDER BY missed DESC
-                        LIMIT 20
-                    """
-                    top_rows = conn.execute(top_sql, (sem, sec_filter)).fetchall()
-                    if top_rows:
-                        df_top = pd.DataFrame([dict(r) for r in top_rows])
+                    df_top = df_stu.sort_values(by='missed', ascending=False).head(20)
+                    if not df_top.empty:
                         fig_top = px.bar(
                             df_top, x='name', y='missed',
                             color='pct',
@@ -3189,24 +3230,61 @@ def admin_bunk_analysis():
 
             with c2:
                 st.markdown("### 📚 Subject Absence Analysis")
-                subj_sql = f"""
-                    SELECT a.subject,
-                           COUNT(DISTINCT a.roll_no)                                                AS students,
-                           SUM(a.hours_conducted)                                                   AS total_cond,
-                           SUM(a.hours_attended)                                                    AS total_att,
-                           SUM(a.hours_conducted - a.hours_attended)                                AS total_missed,
-                           ROUND(SUM(a.hours_conducted - a.hours_attended)*100.0
-                                 / NULLIF(SUM(a.hours_conducted),0), 1)                             AS bunk_rate
-                    FROM attendance a
-                    {sec_join}
-                    WHERE a.semester = ? {sec_where}
-                      AND a.hours_conducted > 0
-                    GROUP BY a.subject
-                    HAVING SUM(a.hours_conducted) >= 5
-                    ORDER BY bunk_rate DESC
-                    LIMIT 15
-                """
-                subj_rows = conn.execute(subj_sql, params_s).fetchall()
+                if sec_filter == "All Sections":
+                    subj_sql = """
+                        SELECT 
+                            h.subject,
+                            COUNT(DISTINCT abs_t.roll_no) as students,
+                            SUM(h.total_cond) as total_cond,
+                            SUM(h.total_missed) as total_missed,
+                            ROUND(SUM(h.total_missed)*100.0/NULLIF(SUM(h.total_cond),0),1) as bunk_rate
+                        FROM (
+                            SELECT date, section, hour, subject, 
+                                   (MAX(total_present) + MAX(total_absent)) AS total_cond,
+                                   MAX(total_absent) AS total_missed
+                            FROM hour_wise_attendance
+                            GROUP BY date, section, hour, subject
+                        ) h
+                        LEFT JOIN hour_wise_attendance abs_t 
+                          ON h.date = abs_t.date 
+                         AND h.section = abs_t.section 
+                         AND h.hour = abs_t.hour 
+                         AND h.subject = abs_t.subject
+                        JOIN students s ON abs_t.roll_no = s.roll_no
+                        WHERE s.semester = ?
+                        GROUP BY h.subject
+                        ORDER BY bunk_rate DESC
+                    """
+                    subj_params = (sem_num,)
+                else:
+                    subj_sql = """
+                        SELECT 
+                            h.subject,
+                            COUNT(DISTINCT abs_t.roll_no) as students,
+                            SUM(h.total_cond) as total_cond,
+                            SUM(h.total_missed) as total_missed,
+                            ROUND(SUM(h.total_missed)*100.0/NULLIF(SUM(h.total_cond),0),1) as bunk_rate
+                        FROM (
+                            SELECT date, section, hour, subject, 
+                                   (MAX(total_present) + MAX(total_absent)) AS total_cond,
+                                   MAX(total_absent) AS total_missed
+                            FROM hour_wise_attendance
+                            WHERE section = ?
+                            GROUP BY date, section, hour, subject
+                        ) h
+                        LEFT JOIN hour_wise_attendance abs_t 
+                          ON h.date = abs_t.date 
+                         AND h.section = abs_t.section 
+                         AND h.hour = abs_t.hour 
+                         AND h.subject = abs_t.subject
+                        JOIN students s ON abs_t.roll_no = s.roll_no
+                        WHERE s.semester = ? AND s.section = ?
+                        GROUP BY h.subject
+                        ORDER BY bunk_rate DESC
+                    """
+                    subj_params = (sec_filter, sem_num, sec_filter)
+                
+                subj_rows = conn.execute(subj_sql, subj_params).fetchall()
                 if subj_rows:
                     df_sub = pd.DataFrame([dict(r) for r in subj_rows])
                     fig_sub = px.bar(
@@ -3217,7 +3295,7 @@ def admin_bunk_analysis():
                         labels={'bunk_rate':'Absence Rate (%)','subject':'Subject'}
                     )
                     fig_sub.update_traces(
-                        hovertemplate="<b>%{y}</b><br>Bunk Rate: %{x}%<br>Missed: %{customdata[1]} / %{customdata[2]}<br>Students: %{customdata[0]}<extra></extra>"
+                        hovertemplate="<b>%{y}</b><br>Absence Rate: %{x}%<br>Missed: %{customdata[1]} / %{customdata[2]}<br>Students: %{customdata[0]}<extra></extra>"
                     )
                     fig_sub.update_layout(yaxis={'categoryorder':'total ascending'})
                     apply_premium_plotly_theme(fig_sub)
@@ -3230,33 +3308,20 @@ def admin_bunk_analysis():
             # ── Debarment Warning Table ─────────────────────────────────
             st.markdown(f"### ⚠️ Debarment Warning Directory  — below {threshold}% attendance")
 
-            debar_sql = f"""
-                SELECT s.roll_no, s.name, s.section,
-                       SUM(a.hours_conducted)                                                       AS cond,
-                       SUM(a.hours_attended)                                                        AS att,
-                       SUM(a.hours_conducted - a.hours_attended)                                    AS missed,
-                       ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),1)       AS pct,
-                       -- Classes needed to attend to reach target threshold
-                       CAST(CEIL(
-                           (? * SUM(a.hours_conducted) / 100.0 - SUM(a.hours_attended))
-                           / (1.0 - ? / 100.0)
-                       ) AS INTEGER)                                                                AS classes_needed
-                FROM students s
-                JOIN attendance a ON s.roll_no = a.roll_no
-                {sec_join}
-                WHERE a.semester = ? {sec_where}
-                GROUP BY s.roll_no, s.name, s.section
-                HAVING SUM(a.hours_conducted) > 0
-                   AND (SUM(a.hours_attended)*100.0/SUM(a.hours_conducted)) < ?
-                ORDER BY pct ASC
-            """
-            debar_params = (threshold, threshold) + params_s + (threshold,)
-            debar_rows = conn.execute(debar_sql, debar_params).fetchall()
-
-            if debar_rows:
-                df_db = pd.DataFrame([dict(r) for r in debar_rows])
-                df_db['classes_needed'] = df_db['classes_needed'].apply(lambda x: max(0, x) if pd.notna(x) else 0)
-                df_db.columns = ['Roll No','Name','Section','Conducted','Attended','Missed','Attendance %','Classes Needed to Recover']
+            import math
+            target = threshold / 100.0
+            df_db = df_stu[df_stu['pct'] < threshold].copy()
+            
+            if not df_db.empty:
+                df_db['classes_needed'] = df_db.apply(
+                    lambda r: int(math.ceil((target * r['cond'] - r['att']) / (1.0 - target))) if target < 1.0 else 0,
+                    axis=1
+                )
+                df_db['classes_needed'] = df_db['classes_needed'].apply(lambda x: max(0, x))
+                df_db = df_db.sort_values(by='pct', ascending=True)
+                
+                df_db_display = df_db[['roll_no', 'name', 'section', 'cond', 'att', 'missed', 'pct', 'classes_needed']].copy()
+                df_db_display.columns = ['Roll No','Name','Section','Conducted','Attended','Missed','Attendance %','Classes Needed to Recover']
 
                 # Color-code attendance column — use .map (applymap deprecated in pandas >=2.1)
                 def color_pct(val):
@@ -3270,13 +3335,13 @@ def admin_bunk_analysis():
                     return ''
 
                 try:
-                    styled = df_db.style.map(color_pct, subset=['Attendance %'])
+                    styled = df_db_display.style.map(color_pct, subset=['Attendance %'])
                 except AttributeError:
-                    styled = df_db.style.applymap(color_pct, subset=['Attendance %'])
+                    styled = df_db_display.style.applymap(color_pct, subset=['Attendance %'])
                 st.dataframe(styled, use_container_width=True, hide_index=True)
 
                 # Download button
-                csv = df_db.to_csv(index=False).encode('utf-8')
+                csv = df_db_display.to_csv(index=False).encode('utf-8')
                 st.download_button("⬇️ Download Debarment List (CSV)", csv,
                                    file_name=f"debarment_{sem.replace(' ','_')}_{sec_filter.replace(' ','_')}.csv",
                                    mime='text/csv')
@@ -3291,7 +3356,6 @@ def admin_bunk_analysis():
             st.markdown(f"### 📉 Students Not Coming — Below {DANGER_THRESHOLD}% Attendance")
             st.caption(f"Charts below are scoped to students with attendance < {DANGER_THRESHOLD}% (chronic absentees).")
 
-            # Per-student data filtered to <65%
             danger_df = df_stu[df_stu['pct'] < DANGER_THRESHOLD].copy()
 
             if danger_df.empty:
@@ -3316,25 +3380,10 @@ def admin_bunk_analysis():
                     st.plotly_chart(fig_d, use_container_width=True)
 
                 with cb:
-                    # Top worst bunkers from <65% pool
                     st.markdown("#### 🏆 Chronic Absentees (< 65% only)")
-                    worst_sql2 = f"""
-                        SELECT s.name, s.roll_no, s.section,
-                               ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),1) AS pct,
-                               SUM(a.hours_conducted - a.hours_attended) AS missed
-                        FROM students s
-                        JOIN attendance a ON s.roll_no = a.roll_no
-                        WHERE a.semester = ? {"AND s.section = ?" if sec_filter != "All Sections" else ""}
-                        GROUP BY s.roll_no, s.name, s.section
-                        HAVING SUM(a.hours_conducted) > 0
-                           AND (SUM(a.hours_attended)*100.0/SUM(a.hours_conducted)) < {DANGER_THRESHOLD}
-                        ORDER BY pct ASC
-                        LIMIT 15
-                    """
-                    w2_params = (sem, sec_filter) if sec_filter != "All Sections" else (sem,)
-                    w2_rows = conn.execute(worst_sql2, w2_params).fetchall()
-                    if w2_rows:
-                        df_w2 = pd.DataFrame([dict(r) for r in w2_rows])
+                    df_w2 = df_stu[df_stu['pct'] < DANGER_THRESHOLD].sort_values(by='pct', ascending=True).head(15)
+                    
+                    if not df_w2.empty:
                         fig_w2 = px.bar(
                             df_w2, x='pct', y='name', orientation='h',
                             color='pct',
@@ -3357,28 +3406,15 @@ def admin_bunk_analysis():
 
                 st.markdown(f"#### 📊 Section-wise Count of Students below {DANGER_THRESHOLD}%")
                 if 'section' in danger_df.columns:
-                    # Re-join with student sections
-                    sec_danger_sql = f"""
-                        SELECT s.section,
-                               COUNT(DISTINCT s.roll_no) AS danger_students,
-                               ROUND(AVG(sub.pct),1) AS avg_att
-                        FROM students s
-                        JOIN (
-                            SELECT roll_no,
-                                   SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted),0) AS pct
-                            FROM attendance
-                            WHERE semester = ?
-                            GROUP BY roll_no
-                            HAVING (SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted),0)) < {DANGER_THRESHOLD}
-                        ) sub ON sub.roll_no = s.roll_no
-                        {"WHERE s.section = ?" if sec_filter != "All Sections" else ""}
-                        GROUP BY s.section
-                        ORDER BY danger_students DESC
-                    """
-                    sd_params = (sem, sec_filter) if sec_filter != "All Sections" else (sem,)
-                    sd_rows = conn.execute(sec_danger_sql, sd_params).fetchall()
-                    if sd_rows:
-                        df_sd = pd.DataFrame([dict(r) for r in sd_rows])
+                    df_danger_all = df_stu[df_stu['pct'] < DANGER_THRESHOLD]
+                    df_sd = df_danger_all.groupby('section').agg(
+                        danger_students=('roll_no', 'count'),
+                        avg_att=('pct', 'mean')
+                    ).reset_index()
+                    df_sd['avg_att'] = df_sd['avg_att'].round(1)
+                    df_sd = df_sd.sort_values(by='danger_students', ascending=False)
+                    
+                    if not df_sd.empty:
                         fig_sd = px.bar(
                             df_sd, x='section', y='danger_students',
                             color='avg_att',
@@ -3393,7 +3429,6 @@ def admin_bunk_analysis():
                         )
                         apply_premium_plotly_theme(fig_sd)
                         st.plotly_chart(fig_sd, use_container_width=True)
-
     # ═══════════════════════════════════════════════════════════
     # TAB 2: SMART BUNKING & INTERMITTENT PATTERN ANALYSIS
     # ═══════════════════════════════════════════════════════════
