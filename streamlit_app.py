@@ -3109,15 +3109,18 @@ def admin_bunk_analysis():
             """
             abs_params = (sem_num, sec_filter)
 
-        df_stu_raw = pd.read_sql_query(stu_sql, conn, params=stu_params)
+        stu_rows = conn.execute(stu_sql, stu_params).fetchall()
+        df_stu_raw = pd.DataFrame([dict(r) for r in stu_rows]) if stu_rows else pd.DataFrame(columns=['roll_no', 'name', 'section'])
         
         if df_stu_raw.empty:
             st.warning(f"No students found for {sem} ({sec_filter}).")
         else:
             # Load unique conducted classes
-            df_cond_raw = pd.read_sql_query(cond_sql, conn, params=cond_params)
+            cond_rows = conn.execute(cond_sql, cond_params).fetchall()
+            df_cond_raw = pd.DataFrame([dict(r) for r in cond_rows]) if cond_rows else pd.DataFrame(columns=['date', 'section', 'hour'])
             # Load absences
-            df_abs_raw = pd.read_sql_query(abs_sql, conn, params=abs_params)
+            abs_rows = conn.execute(abs_sql, abs_params).fetchall()
+            df_abs_raw = pd.DataFrame([dict(r) for r in abs_rows]) if abs_rows else pd.DataFrame(columns=['date', 'roll_no', 'hour'])
             
             # Map conducted classes per section
             cond_by_sec = df_cond_raw.groupby('section').size().to_dict()
