@@ -3229,60 +3229,6 @@ def admin_bunk_analysis():
 
     st.markdown("---")
 
-    # ── Charts Row 2: Attendance Distribution ──────────────────
-    c3, c4 = st.columns(2)
-    with c3:
-        st.markdown("### 🎯 Attendance Distribution")
-        bins   = [0, 50, 60, 65, 75, 85, 100]
-        labels = ['<50%','50-60%','60-65%','65-75%','75-85%','>85%']
-        colors = ['#ef4444','#f97316','#f59e0b','#eab308','#84cc16','#22c55e']
-        df_stu['bucket'] = pd.cut(df_stu['pct'], bins=bins, labels=labels, include_lowest=True)
-        bucket_counts = df_stu['bucket'].value_counts().reindex(labels, fill_value=0).reset_index()
-        bucket_counts.columns = ['Range','Count']
-        fig_dist = px.bar(
-            bucket_counts, x='Range', y='Count',
-            color='Range', color_discrete_sequence=colors,
-            labels={'Range':'Attendance Range','Count':'Number of Students'}
-        )
-        fig_dist.update_layout(showlegend=False)
-        apply_premium_plotly_theme(fig_dist)
-        st.plotly_chart(fig_dist, use_container_width=True)
-
-    with c4:
-        st.markdown("### 🏆 Worst Bunkers College-Wide")
-        worst_sql = f"""
-            SELECT s.name, s.roll_no, s.section,
-                   ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),1) AS pct,
-                   SUM(a.hours_conducted - a.hours_attended) AS missed
-            FROM students s
-            JOIN attendance a ON s.roll_no = a.roll_no
-            {("JOIN (SELECT roll_no FROM students WHERE section=?) AS sf ON sf.roll_no=s.roll_no" if sec_filter!="All Sections" else "")}
-            WHERE a.semester = ? {"AND s.section=?" if sec_filter!="All Sections" else ""}
-            GROUP BY s.roll_no, s.name, s.section
-            HAVING SUM(a.hours_conducted) > 0
-            ORDER BY pct ASC
-            LIMIT 10
-        """
-        worst_params = (sec_filter, sem, sec_filter) if sec_filter != "All Sections" else (sem,)
-        worst_rows = conn.execute(worst_sql, worst_params).fetchall()
-        if worst_rows:
-            df_worst = pd.DataFrame([dict(r) for r in worst_rows])
-            fig_worst = px.bar(
-                df_worst, x='pct', y='name', orientation='h',
-                color='pct',
-                color_continuous_scale=[[0,'#ef4444'],[0.5,'#f59e0b'],[1,'#4ade80']],
-                custom_data=['roll_no','section','missed'],
-                labels={'pct':'Attendance %','name':'Student'}
-            )
-            fig_worst.update_traces(
-                hovertemplate="<b>%{y}</b><br>Roll: %{customdata[0]} | Section: %{customdata[1]}<br>Attendance: %{x}%<br>Missed: %{customdata[2]}<extra></extra>"
-            )
-            fig_worst.update_layout(yaxis={'categoryorder':'total ascending'})
-            apply_premium_plotly_theme(fig_worst)
-            st.plotly_chart(fig_worst, use_container_width=True)
-        else:
-            st.info("No data.")
-
     st.markdown("---")
 
     # ── Debarment Warning Table ─────────────────────────────────
@@ -3316,14 +3262,21 @@ def admin_bunk_analysis():
         df_db['classes_needed'] = df_db['classes_needed'].apply(lambda x: max(0, x) if pd.notna(x) else 0)
         df_db.columns = ['Roll No','Name','Section','Conducted','Attended','Missed','Attendance %','Classes Needed to Recover']
 
-        # Color-code attendance column
+        # Color-code attendance column — use .map (applymap deprecated in pandas >=2.1)
         def color_pct(val):
-            if val < 50:   return 'background-color:#7f1d1d;color:#fca5a5'
-            elif val < 65: return 'background-color:#78350f;color:#fcd34d'
-            elif val < 75: return 'background-color:#713f12;color:#fde68a'
+            try:
+                v = float(val)
+                if v < 50:   return 'background-color:#7f1d1d;color:#fca5a5'
+                elif v < 65: return 'background-color:#78350f;color:#fcd34d'
+                elif v < 75: return 'background-color:#713f12;color:#fde68a'
+            except Exception:
+                pass
             return ''
 
-        styled = df_db.style.applymap(color_pct, subset=['Attendance %'])
+        try:
+            styled = df_db.style.map(color_pct, subset=['Attendance %'])
+        except AttributeError:
+            styled = df_db.style.applymap(color_pct, subset=['Attendance %'])
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
         # Download button
@@ -3334,6 +3287,117 @@ def admin_bunk_analysis():
         st.caption(f"**'Classes Needed to Recover'** = consecutive classes this student must attend (without bunking) to reach {threshold}% attendance.")
     else:
         st.success(f"All students are above {threshold}% attendance!")
+
+    st.markdown("---")
+
+    # ── Charts: Who is NOT Coming — <65% students only ─────────
+    DANGER_THRESHOLD = 65
+    st.markdown(f"### 📉 Students Not Coming — Below {DANGER_THRESHOLD}% Attendance")
+    st.caption(f"Charts below are scoped to students with attendance < {DANGER_THRESHOLD}% (chronic absentees).")
+
+    # Per-student data filtered to <65%
+    danger_df = df_stu[df_stu['pct'] < DANGER_THRESHOLD].copy()
+
+    if danger_df.empty:
+        st.success(f"No students below {DANGER_THRESHOLD}% attendance!")
+    else:
+        ca, cb = st.columns(2)
+
+        with ca:
+            # Attendance distribution of danger students
+            st.markdown("#### 🎯 Attendance Distribution (below 65%)")
+            bins2   = [0, 30, 40, 50, 55, 60, 65]
+            labels2 = ['<30%','30-40%','40-50%','50-55%','55-60%','60-65%']
+            colors2 = ['#7f1d1d','#991b1b','#ef4444','#f97316','#fb923c','#fbbf24']
+            danger_df['bucket'] = pd.cut(danger_df['pct'], bins=bins2, labels=labels2, include_lowest=True)
+            bc2 = danger_df['bucket'].value_counts().reindex(labels2, fill_value=0).reset_index()
+            bc2.columns = ['Range','Count']
+            fig_d = px.bar(bc2, x='Range', y='Count',
+                           color='Range', color_discrete_sequence=colors2,
+                           labels={'Range':'Attendance Range','Count':'Students'})
+            fig_d.update_layout(showlegend=False)
+            apply_premium_plotly_theme(fig_d)
+            st.plotly_chart(fig_d, use_container_width=True)
+
+        with cb:
+            # Top worst bunkers from <65% pool
+            st.markdown("#### 🏆 Worst Bunkers (< 65% only)")
+            worst_sql2 = f"""
+                SELECT s.name, s.roll_no, s.section,
+                       ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0),1) AS pct,
+                       SUM(a.hours_conducted - a.hours_attended) AS missed
+                FROM students s
+                JOIN attendance a ON s.roll_no = a.roll_no
+                WHERE a.semester = ? {"AND s.section = ?" if sec_filter != "All Sections" else ""}
+                GROUP BY s.roll_no, s.name, s.section
+                HAVING SUM(a.hours_conducted) > 0
+                   AND (SUM(a.hours_attended)*100.0/SUM(a.hours_conducted)) < {DANGER_THRESHOLD}
+                ORDER BY pct ASC
+                LIMIT 15
+            """
+            w2_params = (sem, sec_filter) if sec_filter != "All Sections" else (sem,)
+            w2_rows = conn.execute(worst_sql2, w2_params).fetchall()
+            if w2_rows:
+                df_w2 = pd.DataFrame([dict(r) for r in w2_rows])
+                fig_w2 = px.bar(
+                    df_w2, x='pct', y='name', orientation='h',
+                    color='pct',
+                    range_color=[0, DANGER_THRESHOLD],
+                    color_continuous_scale=[[0,'#7f1d1d'],[0.5,'#ef4444'],[1,'#f97316']],
+                    custom_data=['roll_no','section','missed'],
+                    labels={'pct':'Attendance %','name':'Student'}
+                )
+                fig_w2.update_traces(
+                    hovertemplate="<b>%{y}</b><br>Roll: %{customdata[0]}<br>Section: %{customdata[1]}<br>Attendance: %{x}%<br>Missed: %{customdata[2]} classes<extra></extra>"
+                )
+                fig_w2.update_layout(
+                    yaxis={'categoryorder':'total ascending'},
+                    xaxis=dict(range=[0, DANGER_THRESHOLD], title='Attendance %')
+                )
+                apply_premium_plotly_theme(fig_w2)
+                st.plotly_chart(fig_w2, use_container_width=True)
+            else:
+                st.info(f"No students below {DANGER_THRESHOLD}%.")
+
+        # Section-wise breakdown of danger students
+        st.markdown(f"#### 📊 Section-wise Count of Students below {DANGER_THRESHOLD}%")
+        if 'section' in danger_df.columns:
+            # Re-join with student sections
+            sec_danger_sql = f"""
+                SELECT s.section,
+                       COUNT(DISTINCT s.roll_no) AS danger_students,
+                       ROUND(AVG(sub.pct),1) AS avg_att
+                FROM students s
+                JOIN (
+                    SELECT roll_no,
+                           SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted),0) AS pct
+                    FROM attendance
+                    WHERE semester = ?
+                    GROUP BY roll_no
+                    HAVING (SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted),0)) < {DANGER_THRESHOLD}
+                ) sub ON sub.roll_no = s.roll_no
+                {"WHERE s.section = ?" if sec_filter != "All Sections" else ""}
+                GROUP BY s.section
+                ORDER BY danger_students DESC
+            """
+            sd_params = (sem, sec_filter) if sec_filter != "All Sections" else (sem,)
+            sd_rows = conn.execute(sec_danger_sql, sd_params).fetchall()
+            if sd_rows:
+                df_sd = pd.DataFrame([dict(r) for r in sd_rows])
+                fig_sd = px.bar(
+                    df_sd, x='section', y='danger_students',
+                    color='avg_att',
+                    color_continuous_scale=[[0,'#7f1d1d'],[0.5,'#ef4444'],[1,'#f97316']],
+                    custom_data=['avg_att'],
+                    labels={'section':'Section','danger_students':'Students Below 65%','avg_att':'Avg Attendance %'},
+                    text='danger_students'
+                )
+                fig_sd.update_traces(
+                    textposition='outside',
+                    hovertemplate="<b>%{x}</b><br>Students below 65%: %{y}<br>Avg Attendance: %{customdata[0]}%<extra></extra>"
+                )
+                apply_premium_plotly_theme(fig_sd)
+                st.plotly_chart(fig_sd, use_container_width=True)
 
     conn.close()
 
