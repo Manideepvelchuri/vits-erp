@@ -44,7 +44,16 @@ def _login(session):
 def _fetch_df(session, sc, semester, fdt, tdt, max_retries=3):
     """Fetch attendance DataFrame from portal."""
     yr, br = get_portal_yr_br(sc, semester)
-    payload = {'br': br, 'yr': yr, 'sc': sc,
+    
+    # For Year >= 2, section codes on the portal are B, A, C instead of ECE_B, CSE_A
+    portal_sc = sc
+    if int(yr) >= 2:
+        if '_' in sc:
+            portal_sc = sc.split('_')[1]
+        else:
+            portal_sc = 'A'
+            
+    payload = {'br': br, 'yr': yr, 'sc': portal_sc,
                'fdt': fdt, 'tdt': tdt, 'Submit': 'Submit'}
 
     for attempt in range(1, max_retries + 1):

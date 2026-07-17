@@ -20,7 +20,7 @@ CSV_DIR  = os.path.join(BASE_DIR, 'attandance database for db construction')
 RESULTS_CSV_DIR = os.path.join(BASE_DIR, 'resutls database for db construction')
 
 DEFAULT_STUDENT_PASSWORD = 'PENDING'
-ACTIVE_SEMESTER = 'Sem 2'
+ACTIVE_SEMESTER = 'Sem 3'
 
 CLASSES = [
     'AIDS', 'AIML', 'CIVIL',
@@ -694,7 +694,15 @@ def get_portal_yr_br(section, semester):
         br = 'BSH'
     else:
         prefix = section.split('_')[0].upper() if '_' in section else section.upper()
-        br = prefix
+        # Map database branch names to portal branch codes for Year >= 2
+        mapping = {
+            'CIVIL': 'CE',
+            'MECH': 'ME',
+            'DS': 'CSD',
+            'AIDS': 'AIDS',
+            'AIML': 'CSM'
+        }
+        br = mapping.get(prefix, prefix)
     return yr, br
 
 
