@@ -3093,8 +3093,8 @@ def admin_bunk_analysis():
                 SELECT roll_no, SUM(hours_conducted - hours_attended) as tb
                 FROM attendance
                 WHERE semester = ?
-                GROUP BY roll_no HAVING tb = 0
-            )
+                GROUP BY roll_no HAVING SUM(hours_conducted - hours_attended) = 0
+            ) AS sub
         """, (sem,)).fetchone()[0]
     else:
         zero_bunk_count = conn.execute("""
@@ -3103,29 +3103,35 @@ def admin_bunk_analysis():
                 FROM attendance a
                 JOIN students s ON a.roll_no = s.roll_no
                 WHERE a.semester = ? AND s.section = ?
-                GROUP BY a.roll_no HAVING tb = 0
-            )
+                GROUP BY a.roll_no HAVING SUM(a.hours_conducted - a.hours_attended) = 0
+            ) AS sub
         """, (sem, sec_filter)).fetchone()[0]
     
     # Chronic Bunkers (Attendance < Threshold)
     if sec_filter == "All Sections":
         chronic_bunker_count = conn.execute("""
             SELECT COUNT(*) FROM (
-                SELECT roll_no, SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted), 0) as pct
+                SELECT roll_no,
+                       SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted), 0) as pct
                 FROM attendance
                 WHERE semester = ?
-                GROUP BY roll_no HAVING pct > 0 AND pct < ?
-            )
+                GROUP BY roll_no
+                HAVING SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted), 0) > 0
+                   AND SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted), 0) < ?
+            ) AS sub
         """, (sem, threshold)).fetchone()[0]
     else:
         chronic_bunker_count = conn.execute("""
             SELECT COUNT(*) FROM (
-                SELECT a.roll_no, SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted), 0) as pct
+                SELECT a.roll_no,
+                       SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted), 0) as pct
                 FROM attendance a
                 JOIN students s ON a.roll_no = s.roll_no
                 WHERE a.semester = ? AND s.section = ?
-                GROUP BY a.roll_no HAVING pct > 0 AND pct < ?
-            )
+                GROUP BY a.roll_no
+                HAVING SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted), 0) > 0
+                   AND SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted), 0) < ?
+            ) AS sub
         """, (sem, sec_filter, threshold)).fetchone()[0]
     
     # Display Custom Premium KPI Cards
