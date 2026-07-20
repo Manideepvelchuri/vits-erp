@@ -328,9 +328,9 @@ def check_and_trigger_auto_scrape():
         threading.Thread(target=_bg_run, daemon=True).start()
 
 
+@st.fragment(run_every=2)
 def render_background_sync_indicator():
-    """Compact single-line sync strip. Shows current DB state — no auto-rerun."""
-    import time as _time
+    """Auto-refreshes every 2s independently via st.fragment — navigation unaffected."""
     status, section, current, total = _get_scrape_status()
     if status != 'running':
         return
