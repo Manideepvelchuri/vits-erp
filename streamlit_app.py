@@ -263,27 +263,35 @@ def check_and_trigger_auto_scrape():
         
     ist_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
     current_time = ist_now.time()
-    
-    # Auto-scrape window: before 7:30 AM IST or after 5:00 PM IST
-    in_window = (current_time < datetime.time(7, 30)) or (current_time > datetime.time(17, 0))
-    if not in_window:
-        return
+    current_date_str = ist_now.strftime('%Y-%m-%d')
         
     conn = get_db_connection()
     cfg = get_config_map(conn)
     conn.close()
     
     last_scraped_str = cfg.get('last_scraped_at', '') # YYYY-MM-DD HH:MM:SS
-    should_scrape = True
-    if last_scraped_str:
+    should_scrape = False
+    
+    if not last_scraped_str:
+        # Never scraped before — definitely trigger
+        should_scrape = True
+    else:
         try:
             last_scraped_dt = datetime.datetime.strptime(last_scraped_str, '%Y-%m-%d %H:%M:%S')
-            time_diff = (ist_now.replace(tzinfo=None) - last_scraped_dt).total_seconds()
-            # If successfully scraped in the last 4 hours, skip to avoid duplicates
-            if time_diff < 4 * 3600:
-                should_scrape = False
+            last_scraped_date = last_scraped_dt.strftime('%Y-%m-%d')
+            
+            # Condition 1: If the site hasn't been scraped yet today, trigger immediately regardless of time
+            if last_scraped_date != current_date_str:
+                should_scrape = True
+            else:
+                # Condition 2: Already scraped today — only scrape again if we are inside morning/evening windows
+                # and at least 4 hours have passed since last scrape
+                in_window = (current_time < datetime.time(7, 30)) or (current_time > datetime.time(17, 0))
+                time_diff = (ist_now.replace(tzinfo=None) - last_scraped_dt).total_seconds()
+                if in_window and time_diff >= 4 * 3600:
+                    should_scrape = True
         except Exception:
-            pass
+            should_scrape = True
             
     if should_scrape:
         import threading
