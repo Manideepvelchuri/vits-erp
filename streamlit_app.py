@@ -2993,24 +2993,29 @@ def admin_scraper():
             else:  st.error(msg)
 
     st.markdown("### 🚀 Bulk Scrape ALL Sections")
-    st.warning(f"Will scrape all {len(CLASSES)} sections. Runs in the background — you can keep browsing.")
-    if st.button("🚀 Scrape ALL Sections", use_container_width=True):
-        status, *_ = _get_scrape_status()
-        if status == 'running':
-            st.warning("⚠️ A sync is already in progress. Watch the progress bar above.")
+    if st.button("🚀 Scrape ALL Sections", use_container_width=True, type="primary"):
+        progress_bar = st.progress(0)
+        status_text  = st.empty()
+        results = []
+        for i, sec in enumerate(CLASSES):
+            status_text.markdown(f"⚡ Scraping **{sec}** ({i+1}/{len(CLASSES)})...")
+            ok, msg = harvester.scrape_portal(
+                start_date=sd.strftime('%Y-%m-%d'),
+                end_date=ed.strftime('%Y-%m-%d'),
+                section=sec, semester=sem
+            )
+            results.append({'section': sec, 'ok': ok})
+            progress_bar.progress((i + 1) / len(CLASSES))
+        ok_count = sum(1 for r in results if r['ok'])
+        status_text.empty()
+        progress_bar.empty()
+        if ok_count == len(CLASSES):
+            st.success(f"✅ All {len(CLASSES)} sections synced successfully!")
+        elif ok_count > 0:
+            st.warning(f"⚠️ {ok_count}/{len(CLASSES)} sections synced. Some sections may have no data yet.")
         else:
-            def _bg_manual_run():
-                try:
-                    harvester.bulk_scrape_all(
-                        semester=sem,
-                        start_date=sd.strftime('%Y-%m-%d'),
-                        end_date=ed.strftime('%Y-%m-%d'),
-                    )
-                except Exception as bg_e:
-                    print(f"[Manual-Scrape] Error: {bg_e}")
-            threading.Thread(target=_bg_manual_run, daemon=True).start()
-            st.success("🚀 Sync started! The progress bar will appear at the top of the page.")
-            st.rerun()
+            st.error("❌ No sections synced. The portal may be down or returning empty data today.")
+        st.rerun()
 
     st.markdown("### 📜 Sync History")
     if logs:
@@ -3977,17 +3982,7 @@ if not st.session_state.get('logged_in'):
     login_page()
 elif st.session_state.get('needs_dob_setup'):
     setup_dob_page()
+elif st.session_state.get('role') == 'admin':
+    admin_dashboard()
 else:
-    # Trigger auto-scrape once per session after login (safe top-level call)
-    if 'auto_scraped_checked' not in st.session_state:
-        st.session_state['auto_scraped_checked'] = True
-        try:
-            check_and_trigger_auto_scrape()
-        except Exception:
-            pass
-    # Show compact sync strip if scraping is running (top-level = clean rerun, no overlap)
-    render_background_sync_indicator()
-    if st.session_state.get('role') == 'admin':
-        admin_dashboard()
-    else:
-        student_dashboard()
+    student_dashboard()
