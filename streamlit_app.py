@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 import os, math, hashlib
 import datetime
 from datetime import datetime as dt
+import harvester
 
 # Auto-detect: use PostgreSQL (Supabase) if DATABASE_URL or st.secrets is set, else SQLite
 @st.cache_resource(ttl=300)
@@ -255,6 +256,57 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+def check_and_trigger_auto_scrape():
+    # Only auto-scrape on PostgreSQL to prevent local SQLite file locks
+    if _DB_BACKEND != "pg":
+        return
+        
+    ist_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
+    current_time = ist_now.time()
+    
+    # Auto-scrape window: before 7:30 AM IST or after 5:00 PM IST
+    in_window = (current_time < datetime.time(7, 30)) or (current_time > datetime.time(17, 0))
+    if not in_window:
+        return
+        
+    conn = get_db_connection()
+    cfg = get_config_map(conn)
+    conn.close()
+    
+    last_scraped_str = cfg.get('last_scraped_at', '') # YYYY-MM-DD HH:MM:SS
+    should_scrape = True
+    if last_scraped_str:
+        try:
+            last_scraped_dt = datetime.datetime.strptime(last_scraped_str, '%Y-%m-%d %H:%M:%S')
+            time_diff = (ist_now.replace(tzinfo=None) - last_scraped_dt).total_seconds()
+            # If successfully scraped in the last 4 hours, skip to avoid duplicates
+            if time_diff < 4 * 3600:
+                should_scrape = False
+        except Exception:
+            pass
+            
+    if should_scrape:
+        import threading
+        def _bg_run():
+            try:
+                conn_bg = get_db_connection()
+                cfg_bg = get_config_map(conn_bg)
+                sem = cfg_bg.get('active_semester', 'Sem 3')
+                # Run bulk scrape (updates last_scraped_at inside scrape_portal)
+                harvester.bulk_scrape_all(semester=sem)
+                conn_bg.close()
+            except Exception as bg_e:
+                print(f"[Auto-Scrape] Background execution error: {bg_e}")
+                
+        t = threading.Thread(target=_bg_run, daemon=True)
+        t.start()
+
+if 'auto_scraped_checked' not in st.session_state:
+    st.session_state['auto_scraped_checked'] = True
+    try:
+        check_and_trigger_auto_scrape()
+    except Exception:
+        pass
 
 # ── Custom CSS (dark glassmorphism) ──────────────────────────
 st.markdown("""
