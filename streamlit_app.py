@@ -248,33 +248,7 @@ def startup_db_init():
 
 startup_db_init()
 
-# Global thread-safe state to track running background auto-scrapes
 import threading
-_scrape_lock = threading.Lock()
-_scrape_in_progress = False
-_scrape_progress_msg = "Initializing..."
-_scrape_progress_percent = 0.0
-
-def set_scrape_in_progress(val):
-    global _scrape_in_progress
-    with _scrape_lock:
-        _scrape_in_progress = val
-        
-def get_scrape_in_progress():
-    global _scrape_in_progress
-    with _scrape_lock:
-        return _scrape_in_progress
-        
-def set_scrape_progress(msg, percent):
-    global _scrape_progress_msg, _scrape_progress_percent
-    with _scrape_lock:
-        _scrape_progress_msg = msg
-        _scrape_progress_percent = percent
-        
-def get_scrape_progress():
-    global _scrape_progress_msg, _scrape_progress_percent
-    with _scrape_lock:
-        return _scrape_progress_msg, _scrape_progress_percent
 
 defaults = {
     'logged_in': False, 'role': None, 'user_id': None,
@@ -284,66 +258,116 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+
+def _get_scrape_status():
+    """Read scrape_status from DB. Returns ('idle', '', 0, 0) or ('running', section, current, total)."""
+    try:
+        conn = get_db_connection()
+        row = conn.execute("SELECT value FROM config WHERE key='scrape_status'").fetchone()
+        conn.close()
+        if not row:
+            return 'idle', '', 0, 0
+        val = row[0] if isinstance(row, (list, tuple)) else row['value']
+        if val and val.startswith('running:'):
+            parts = val.split(':')  # running:SECTION:current:total
+            section = parts[1] if len(parts) > 1 else '...'
+            current = int(parts[2]) if len(parts) > 2 else 0
+            total   = int(parts[3]) if len(parts) > 3 else 21
+            return 'running', section, current, total
+    except Exception:
+        pass
+    return 'idle', '', 0, 0
+
+
 def check_and_trigger_auto_scrape():
-    # Only auto-scrape on PostgreSQL to prevent local SQLite file locks
+    """Trigger background scrape if conditions are met. Only runs on pg backend."""
     if _DB_BACKEND != "pg":
         return
-        
+
     ist_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
-    current_time = ist_now.time()
     current_date_str = ist_now.strftime('%Y-%m-%d')
-        
+    current_time     = ist_now.time()
+
     conn = get_db_connection()
-    cfg = get_config_map(conn)
+    cfg  = get_config_map(conn)
     conn.close()
-    
-    last_scraped_str = cfg.get('last_scraped_at', '') # YYYY-MM-DD HH:MM:SS
+
+    # Don't double-trigger if already running
+    status, *_ = _get_scrape_status()
+    if status == 'running':
+        return
+
+    last_scraped_str = cfg.get('last_scraped_at', '')
     should_scrape = False
-    
+
     if not last_scraped_str:
-        # Never scraped before — definitely trigger
         should_scrape = True
     else:
         try:
-            last_scraped_dt = datetime.datetime.strptime(last_scraped_str, '%Y-%m-%d %H:%M:%S')
-            last_scraped_date = last_scraped_dt.strftime('%Y-%m-%d')
-            
-            # Condition 1: If the site hasn't been scraped yet today, trigger immediately regardless of time
-            if last_scraped_date != current_date_str:
+            last_dt   = datetime.datetime.strptime(last_scraped_str, '%Y-%m-%d %H:%M:%S')
+            last_date = last_dt.strftime('%Y-%m-%d')
+            if last_date != current_date_str:
                 should_scrape = True
             else:
-                # Condition 2: Already scraped today — only scrape again if we are inside morning/evening windows
-                # and at least 4 hours have passed since last scrape
                 in_window = (current_time < datetime.time(7, 30)) or (current_time > datetime.time(17, 0))
-                time_diff = (ist_now.replace(tzinfo=None) - last_scraped_dt).total_seconds()
-                if in_window and time_diff >= 4 * 3600:
+                elapsed   = (ist_now.replace(tzinfo=None) - last_dt).total_seconds()
+                if in_window and elapsed >= 4 * 3600:
                     should_scrape = True
         except Exception:
             should_scrape = True
-            
+
     if should_scrape:
-        set_scrape_in_progress(True)
-        set_scrape_progress("Starting auto-sync...", 0.0)
-        import threading
         def _bg_run():
             try:
                 conn_bg = get_db_connection()
-                cfg_bg = get_config_map(conn_bg)
-                sem = cfg_bg.get('active_semester', 'Sem 3')
-                
-                def cb(section, current, total):
-                    pct = float(current) / total
-                    set_scrape_progress(f"Syncing {section} ({current}/{total})", pct)
-                    
-                harvester.bulk_scrape_all(semester=sem, progress_callback=cb)
+                sem = get_config_map(conn_bg).get('active_semester', 'Sem 3')
                 conn_bg.close()
-            except Exception as bg_e:
-                print(f"[Auto-Scrape] Background execution error: {bg_e}")
-            finally:
-                set_scrape_in_progress(False)
-                
-        t = threading.Thread(target=_bg_run, daemon=True)
-        t.start()
+                harvester.bulk_scrape_all(semester=sem)
+            except Exception as e:
+                print(f"[Auto-Scrape] Error: {e}")
+        threading.Thread(target=_bg_run, daemon=True).start()
+
+
+def render_background_sync_indicator():
+    """Read scrape_status from DB and show a live progress bar. Auto-refreshes every 2s while running."""
+    import time as _time
+    status, section, current, total = _get_scrape_status()
+    if status != 'running':
+        return
+
+    pct = int((current / total * 100) if total > 0 else 0)
+    st.markdown(f"""
+    <div style="background:rgba(139,92,246,0.07);border:1px solid rgba(139,92,246,0.25);
+                border-radius:12px;padding:14px 20px;margin-bottom:18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:12px;height:12px;border:2px solid rgba(139,92,246,0.3);
+                            border-top:2px solid #a78bfa;border-radius:50%;
+                            animation:spin 1s linear infinite;flex-shrink:0;"></div>
+                <span style="color:#a78bfa;font-weight:600;font-size:0.9rem;font-family:'Inter',sans-serif;">
+                    ⚡ Syncing attendance data in background...
+                </span>
+            </div>
+            <span style="color:#94a3b8;font-family:'JetBrains Mono',monospace;font-size:0.8rem;font-weight:600;">
+                {section} &nbsp;·&nbsp; {current}/{total} &nbsp;·&nbsp; {pct}%
+            </span>
+        </div>
+        <div style="width:100%;height:6px;background:#1e293b;border-radius:3px;overflow:hidden;">
+            <div style="width:{pct}%;height:100%;
+                        background:linear-gradient(90deg,#8b5cf6 0%,#00d8c6 100%);
+                        border-radius:3px;"></div>
+        </div>
+        <div style="margin-top:8px;font-size:0.75rem;color:#475569;text-align:center;">
+            Data will update automatically when complete. You can keep browsing.
+        </div>
+    </div>
+    <style>
+    @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
+    </style>
+    """, unsafe_allow_html=True)
+    _time.sleep(2)
+    st.rerun()
+
 
 if 'auto_scraped_checked' not in st.session_state:
     st.session_state['auto_scraped_checked'] = True
@@ -352,48 +376,6 @@ if 'auto_scraped_checked' not in st.session_state:
     except Exception:
         pass
 
-def render_background_sync_indicator():
-    if get_scrape_in_progress():
-        msg, pct = get_scrape_progress()
-        pct_int = int(pct * 100)
-        st.markdown(f"""
-        <div style="background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.2);
-                    border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;
-                    animation: pulse 2s infinite ease-in-out;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="width: 14px; height: 14px; border: 2px solid rgba(139, 92, 246, 0.3);
-                                border-top: 2px solid #a78bfa; border-radius: 50%;
-                                animation: spin 1s linear infinite; flex-shrink: 0;"></div>
-                    <span style="color: #a78bfa; font-size: 0.9rem; font-weight: 600; font-family: 'Inter', sans-serif;">
-                        ⚡ System Auto-Sync in progress...
-                    </span>
-                </div>
-                <span style="color: #94a3b8; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; font-weight: 600;">
-                    {msg} ({pct_int}%)
-                </span>
-            </div>
-            <div style="width: 100%; height: 6px; background-color: #1e293b; border-radius: 3px; overflow: hidden;">
-                <div style="width: {pct_int}%; height: 100%; 
-                            background: linear-gradient(90deg, #8b5cf6 0%, #00d8c6 100%); 
-                            border-radius: 3px; transition: width 0.4s ease;"></div>
-            </div>
-        </div>
-        <style>
-        @keyframes spin {{
-            0% {{ transform: rotate(0deg); }}
-            100% {{ transform: rotate(360deg); }}
-        }}
-        @keyframes pulse {{
-            0% {{ opacity: 0.85; }}
-            50% {{ opacity: 1; }}
-            100% {{ opacity: 0.85; }}
-        }}
-        </style>
-        """, unsafe_allow_html=True)
-        import time
-        time.sleep(1.5)
-        st.rerun()
 
 # ── Custom CSS (dark glassmorphism) ──────────────────────────
 st.markdown("""
@@ -3018,35 +3000,23 @@ def admin_scraper():
             else:  st.error(msg)
 
     st.markdown("### 🚀 Bulk Scrape ALL Sections")
-    st.warning(f"Will scrape all {len(CLASSES)} sections. Runs in background.")
+    st.warning(f"Will scrape all {len(CLASSES)} sections. Runs in the background — you can keep browsing.")
     if st.button("🚀 Scrape ALL Sections", use_container_width=True):
-        if get_scrape_in_progress():
-            st.warning("⚠️ A sync is already in progress in the background. Please wait for it to complete.")
+        status, *_ = _get_scrape_status()
+        if status == 'running':
+            st.warning("⚠️ A sync is already in progress. Watch the progress bar above.")
         else:
-            set_scrape_in_progress(True)
-            set_scrape_progress("Initializing bulk sync...", 0.0)
-            
-            import threading
             def _bg_manual_run():
                 try:
-                    def cb(section, current, total):
-                        pct = float(current) / total
-                        set_scrape_progress(f"Syncing {section} ({current}/{total})", pct)
-                        
                     harvester.bulk_scrape_all(
                         semester=sem,
                         start_date=sd.strftime('%Y-%m-%d'),
                         end_date=ed.strftime('%Y-%m-%d'),
-                        progress_callback=cb
                     )
                 except Exception as bg_e:
-                    print(f"[Manual-Scrape] Background error: {bg_e}")
-                finally:
-                    set_scrape_in_progress(False)
-                    
-            t = threading.Thread(target=_bg_manual_run, daemon=True)
-            t.start()
-            st.success("🚀 Bulk sync started in the background! You can monitor the progress bar at the top.")
+                    print(f"[Manual-Scrape] Error: {bg_e}")
+            threading.Thread(target=_bg_manual_run, daemon=True).start()
+            st.success("🚀 Sync started! The progress bar will appear at the top of the page.")
             st.rerun()
 
     st.markdown("### 📜 Sync History")

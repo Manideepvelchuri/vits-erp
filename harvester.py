@@ -377,12 +377,36 @@ def scrape_portal(start_date=None, end_date=None, section=None,
 
 
 def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_callback=None):
-    """Scrape all sections independently."""
+    """Scrape all sections. Writes live progress to DB config so all sessions can see it."""
+    total = len(CLASSES)
     results = []
+
+    def _write_progress(section, current, pct_done):
+        """Write scrape status to DB config table — shared across all sessions."""
+        try:
+            conn = get_db_connection()
+            conn.execute("UPDATE config SET value=? WHERE key='scrape_status'",
+                         (f'running:{section}:{current}:{total}',))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    # Mark as started
+    try:
+        conn = get_db_connection()
+        conn.execute("INSERT INTO config(key,value) VALUES('scrape_status','running:Starting:0:" + str(total) + "') "
+                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
     for idx, sec in enumerate(CLASSES):
+        _write_progress(sec, idx + 1, (idx + 1) / total)
         if progress_callback:
             try:
-                progress_callback(sec, idx + 1, len(CLASSES))
+                progress_callback(sec, idx + 1, total)
             except Exception:
                 pass
         ok, msg = scrape_portal(
@@ -391,6 +415,16 @@ def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_call
         )
         results.append({'section': sec, 'ok': ok, 'msg': msg})
         logger.info(msg)
+
+    # Mark as done
+    try:
+        conn = get_db_connection()
+        conn.execute("UPDATE config SET value='idle' WHERE key='scrape_status'")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
     return results
 
 
