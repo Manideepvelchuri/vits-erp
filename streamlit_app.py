@@ -329,52 +329,30 @@ def check_and_trigger_auto_scrape():
 
 
 def render_background_sync_indicator():
-    """Read scrape_status from DB and show a live progress bar. Auto-refreshes every 2s while running."""
+    """Compact single-line sync strip. Auto-refreshes every 2s while running."""
     import time as _time
     status, section, current, total = _get_scrape_status()
     if status != 'running':
         return
-
     pct = int((current / total * 100) if total > 0 else 0)
     st.markdown(f"""
-    <div style="background:rgba(139,92,246,0.07);border:1px solid rgba(139,92,246,0.25);
-                border-radius:12px;padding:14px 20px;margin-bottom:18px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="display:flex;align-items:center;gap:10px;">
-                <div style="width:12px;height:12px;border:2px solid rgba(139,92,246,0.3);
-                            border-top:2px solid #a78bfa;border-radius:50%;
-                            animation:spin 1s linear infinite;flex-shrink:0;"></div>
-                <span style="color:#a78bfa;font-weight:600;font-size:0.9rem;font-family:'Inter',sans-serif;">
-                    ⚡ Syncing attendance data in background...
-                </span>
-            </div>
-            <span style="color:#94a3b8;font-family:'JetBrains Mono',monospace;font-size:0.8rem;font-weight:600;">
-                {section} &nbsp;·&nbsp; {current}/{total} &nbsp;·&nbsp; {pct}%
-            </span>
+    <div style="display:flex;align-items:center;gap:10px;background:rgba(139,92,246,0.06);
+                border:1px solid rgba(139,92,246,0.2);border-radius:8px;
+                padding:8px 14px;margin-bottom:12px;">
+        <div style="width:10px;height:10px;border:2px solid rgba(139,92,246,0.3);
+                    border-top:2px solid #a78bfa;border-radius:50%;
+                    animation:spin 1s linear infinite;flex-shrink:0;"></div>
+        <div style="flex:1;height:4px;background:#1e293b;border-radius:2px;overflow:hidden;">
+            <div style="width:{pct}%;height:100%;background:linear-gradient(90deg,#8b5cf6,#00d8c6);border-radius:2px;"></div>
         </div>
-        <div style="width:100%;height:6px;background:#1e293b;border-radius:3px;overflow:hidden;">
-            <div style="width:{pct}%;height:100%;
-                        background:linear-gradient(90deg,#8b5cf6 0%,#00d8c6 100%);
-                        border-radius:3px;"></div>
-        </div>
-        <div style="margin-top:8px;font-size:0.75rem;color:#475569;text-align:center;">
-            Data will update automatically when complete. You can keep browsing.
-        </div>
+        <span style="color:#94a3b8;font-family:'JetBrains Mono',monospace;font-size:0.75rem;white-space:nowrap;">
+            ⚡ {section} &nbsp;{current}/{total} &nbsp;{pct}%
+        </span>
     </div>
-    <style>
-    @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
-    </style>
+    <style>@keyframes spin{{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}</style>
     """, unsafe_allow_html=True)
     _time.sleep(2)
     st.rerun()
-
-
-if 'auto_scraped_checked' not in st.session_state:
-    st.session_state['auto_scraped_checked'] = True
-    try:
-        check_and_trigger_auto_scrape()
-    except Exception:
-        pass
 
 
 # ── Custom CSS (dark glassmorphism) ──────────────────────────
@@ -1459,6 +1437,10 @@ def student_dashboard():
             st.rerun()
 
     render_college_header("student", student, active_page=page)
+    if 'auto_scraped_checked' not in st.session_state:
+        st.session_state['auto_scraped_checked'] = True
+        try: check_and_trigger_auto_scrape()
+        except Exception: pass
     render_background_sync_indicator()
 
     sem = st.session_state['selected_sem']
@@ -2487,6 +2469,10 @@ def admin_dashboard():
             st.rerun()
 
     render_college_header("admin", active_page=page)
+    if 'auto_scraped_checked' not in st.session_state:
+        st.session_state['auto_scraped_checked'] = True
+        try: check_and_trigger_auto_scrape()
+        except Exception: pass
     render_background_sync_indicator()
 
     pages = {
