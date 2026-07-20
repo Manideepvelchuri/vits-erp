@@ -329,7 +329,7 @@ def check_and_trigger_auto_scrape():
 
 
 def render_background_sync_indicator():
-    """Compact single-line sync strip. Auto-refreshes every 2s while running."""
+    """Compact single-line sync strip. Shows current DB state — no auto-rerun."""
     import time as _time
     status, section, current, total = _get_scrape_status()
     if status != 'running':
@@ -351,8 +351,6 @@ def render_background_sync_indicator():
     </div>
     <style>@keyframes spin{{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}</style>
     """, unsafe_allow_html=True)
-    _time.sleep(2)
-    st.rerun()
 
 
 # ── Custom CSS (dark glassmorphism) ──────────────────────────
@@ -1437,11 +1435,6 @@ def student_dashboard():
             st.rerun()
 
     render_college_header("student", student, active_page=page)
-    if 'auto_scraped_checked' not in st.session_state:
-        st.session_state['auto_scraped_checked'] = True
-        try: check_and_trigger_auto_scrape()
-        except Exception: pass
-    render_background_sync_indicator()
 
     sem = st.session_state['selected_sem']
     att_rows = conn.execute(
@@ -2469,11 +2462,6 @@ def admin_dashboard():
             st.rerun()
 
     render_college_header("admin", active_page=page)
-    if 'auto_scraped_checked' not in st.session_state:
-        st.session_state['auto_scraped_checked'] = True
-        try: check_and_trigger_auto_scrape()
-        except Exception: pass
-    render_background_sync_indicator()
 
     pages = {
         "🏠 Dashboard": admin_overview,
@@ -3970,7 +3958,17 @@ if not st.session_state.get('logged_in'):
     login_page()
 elif st.session_state.get('needs_dob_setup'):
     setup_dob_page()
-elif st.session_state.get('role') == 'admin':
-    admin_dashboard()
 else:
-    student_dashboard()
+    # Trigger auto-scrape once per session after login (safe top-level call)
+    if 'auto_scraped_checked' not in st.session_state:
+        st.session_state['auto_scraped_checked'] = True
+        try:
+            check_and_trigger_auto_scrape()
+        except Exception:
+            pass
+    # Show compact sync strip if scraping is running (top-level = clean rerun, no overlap)
+    render_background_sync_indicator()
+    if st.session_state.get('role') == 'admin':
+        admin_dashboard()
+    else:
+        student_dashboard()
