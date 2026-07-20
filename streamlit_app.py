@@ -2861,6 +2861,50 @@ def admin_scraper():
     logs = conn.execute('SELECT * FROM scrape_log ORDER BY scraped_at DESC LIMIT 50').fetchall()
     conn.close()
 
+    # Calculate time ago and status
+    last_scraped_str = cfg.get('last_scraped_at', 'Never')
+    if last_scraped_str != 'Never':
+        try:
+            last_scraped_dt = datetime.datetime.strptime(last_scraped_str, '%Y-%m-%d %H:%M:%S')
+            ist_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
+            ist_now = ist_now.replace(tzinfo=None)
+            diff = ist_now - last_scraped_dt
+            seconds = diff.total_seconds()
+            
+            if seconds < 60:
+                time_ago_str = "just now"
+            elif seconds < 3600:
+                time_ago_str = f"{int(seconds // 60)} minutes ago"
+            elif seconds < 86400:
+                time_ago_str = f"{int(seconds // 3600)} hours ago"
+            else:
+                time_ago_str = f"{int(seconds // 86400)} days ago"
+                
+            if seconds < 12 * 3600:
+                status_color = "#10B981"
+                status_text = f"✅ Database is fully up-to-date (Synced {time_ago_str})"
+            else:
+                status_color = "#F59E0B"
+                status_text = f"⚠️ Database synced {time_ago_str}. You may trigger a new manual scrape if needed."
+        except Exception:
+            status_color = "#EF4444"
+            status_text = f"⚠️ Last Scrape Time: {last_scraped_str}"
+    else:
+        status_color = "#EF4444"
+        status_text = "🚨 No sync history found. Please run a scrape to populate database!"
+
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
+                border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px;
+                padding: 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 14px;">
+        <div style="width: 10px; height: 10px; border-radius: 50%; background-color: {status_color};
+                    box-shadow: 0 0 10px {status_color}; flex-shrink: 0;"></div>
+        <div style="color: #cbd5e1; font-size: 0.95rem; font-family: 'Inter', sans-serif; font-weight: 500;">
+            {status_text}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown("### 📅 Active Semester")
     sem = st.selectbox(
         "Currently scraping:",

@@ -108,23 +108,25 @@ def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
     yr, br = get_portal_yr_br(sc, semester)
     cursor = conn.cursor()
     
-    # Scrape hours 1 to 7
-    for hr in range(1, 8):
+    from concurrent.futures import ThreadPoolExecutor
+    
+    def fetch_hour_data(hr):
         try:
             payload = {'br': br, 'dt': target_date, 'hr': str(hr), 'Submit': 'Submit'}
             resp = session.post('http://103.52.36.11/Attendance/Hrprint.php', data=payload, timeout=10)
             if resp.status_code != 200 or 'uname' in resp.text:
-                continue
+                return []
                 
             tables = pd.read_html(io.StringIO(resp.text))
             if not tables or tables[0].empty:
-                continue
+                return []
                 
             df = tables[0]
             required_cols = {'Section', 'Hour', 'Subject', 'Total Present', 'Total Absent', 'Absentees List'}
             if not required_cols.issubset(df.columns):
-                continue
+                return []
                 
+            records = []
             for _, row in df.iterrows():
                 row_year = str(row.get('Year', '')).strip()
                 if row_year != str(yr):
@@ -145,23 +147,30 @@ def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
                 absentees_val = str(row.get('Absentees List', '--')).strip()
                 
                 if not absentees_val or absentees_val in ('--', 'nan', 'None', ''):
-                    cursor.execute('''
-                        INSERT INTO hour_wise_attendance 
-                        (date, branch, section, hour, subject, total_present, total_absent, roll_no)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT (date, section, hour, subject, roll_no) DO NOTHING
-                    ''', (target_date, br, section, hour_val, subject, tot_pres, tot_abs, ''))
+                    records.append((target_date, br, section, hour_val, subject, tot_pres, tot_abs, ''))
                 else:
                     roll_nos = [r.strip().upper() for r in absentees_val.split(',') if r.strip()]
                     for r_no in roll_nos:
-                        cursor.execute('''
-                            INSERT INTO hour_wise_attendance 
-                            (date, branch, section, hour, subject, total_present, total_absent, roll_no)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                            ON CONFLICT (date, section, hour, subject, roll_no) DO NOTHING
-                        ''', (target_date, br, section, hour_val, subject, tot_pres, tot_abs, r_no))
+                        records.append((target_date, br, section, hour_val, subject, tot_pres, tot_abs, r_no))
+            return records
         except Exception as e:
-            logger.warning(f'Failed to sync hour-wise for {sc} hour {hr} on {target_date}: {e}')
+            logger.warning(f'Failed to fetch hour-wise for {sc} hour {hr} on {target_date}: {e}')
+            return []
+
+    all_records = []
+    with ThreadPoolExecutor(max_workers=7) as executor:
+        results = executor.map(fetch_hour_data, range(1, 8))
+        for res in results:
+            if res:
+                all_records.extend(res)
+                
+    if all_records:
+        cursor.executemany('''
+            INSERT INTO hour_wise_attendance 
+            (date, branch, section, hour, subject, total_present, total_absent, roll_no)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (date, section, hour, subject, roll_no) DO NOTHING
+        ''', all_records)
 
 
 def scrape_portal(start_date=None, end_date=None, section=None,
