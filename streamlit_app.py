@@ -248,6 +248,34 @@ def startup_db_init():
 
 startup_db_init()
 
+# Global thread-safe state to track running background auto-scrapes
+import threading
+_scrape_lock = threading.Lock()
+_scrape_in_progress = False
+_scrape_progress_msg = "Initializing..."
+_scrape_progress_percent = 0.0
+
+def set_scrape_in_progress(val):
+    global _scrape_in_progress
+    with _scrape_lock:
+        _scrape_in_progress = val
+        
+def get_scrape_in_progress():
+    global _scrape_in_progress
+    with _scrape_lock:
+        return _scrape_in_progress
+        
+def set_scrape_progress(msg, percent):
+    global _scrape_progress_msg, _scrape_progress_percent
+    with _scrape_lock:
+        _scrape_progress_msg = msg
+        _scrape_progress_percent = percent
+        
+def get_scrape_progress():
+    global _scrape_progress_msg, _scrape_progress_percent
+    with _scrape_lock:
+        return _scrape_progress_msg, _scrape_progress_percent
+
 defaults = {
     'logged_in': False, 'role': None, 'user_id': None,
     'user_name': None, 'section': None
@@ -294,17 +322,25 @@ def check_and_trigger_auto_scrape():
             should_scrape = True
             
     if should_scrape:
+        set_scrape_in_progress(True)
+        set_scrape_progress("Starting auto-sync...", 0.0)
         import threading
         def _bg_run():
             try:
                 conn_bg = get_db_connection()
                 cfg_bg = get_config_map(conn_bg)
                 sem = cfg_bg.get('active_semester', 'Sem 3')
-                # Run bulk scrape (updates last_scraped_at inside scrape_portal)
-                harvester.bulk_scrape_all(semester=sem)
+                
+                def cb(section, current, total):
+                    pct = float(current) / total
+                    set_scrape_progress(f"Syncing {section} ({current}/{total})", pct)
+                    
+                harvester.bulk_scrape_all(semester=sem, progress_callback=cb)
                 conn_bg.close()
             except Exception as bg_e:
                 print(f"[Auto-Scrape] Background execution error: {bg_e}")
+            finally:
+                set_scrape_in_progress(False)
                 
         t = threading.Thread(target=_bg_run, daemon=True)
         t.start()
@@ -315,6 +351,49 @@ if 'auto_scraped_checked' not in st.session_state:
         check_and_trigger_auto_scrape()
     except Exception:
         pass
+
+def render_background_sync_indicator():
+    if get_scrape_in_progress():
+        msg, pct = get_scrape_progress()
+        pct_int = int(pct * 100)
+        st.markdown(f"""
+        <div style="background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.2);
+                    border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;
+                    animation: pulse 2s infinite ease-in-out;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 14px; height: 14px; border: 2px solid rgba(139, 92, 246, 0.3);
+                                border-top: 2px solid #a78bfa; border-radius: 50%;
+                                animation: spin 1s linear infinite; flex-shrink: 0;"></div>
+                    <span style="color: #a78bfa; font-size: 0.9rem; font-weight: 600; font-family: 'Inter', sans-serif;">
+                        ⚡ System Auto-Sync in progress...
+                    </span>
+                </div>
+                <span style="color: #94a3b8; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                    {msg} ({pct_int}%)
+                </span>
+            </div>
+            <div style="width: 100%; height: 6px; background-color: #1e293b; border-radius: 3px; overflow: hidden;">
+                <div style="width: {pct_int}%; height: 100%; 
+                            background: linear-gradient(90deg, #8b5cf6 0%, #00d8c6 100%); 
+                            border-radius: 3px; transition: width 0.4s ease;"></div>
+            </div>
+        </div>
+        <style>
+        @keyframes spin {{
+            0% {{ transform: rotate(0deg); }}
+            100% {{ transform: rotate(360deg); }}
+        }}
+        @keyframes pulse {{
+            0% {{ opacity: 0.85; }}
+            50% {{ opacity: 1; }}
+            100% {{ opacity: 0.85; }}
+        }}
+        </style>
+        """, unsafe_allow_html=True)
+        import time
+        time.sleep(1.5)
+        st.rerun()
 
 # ── Custom CSS (dark glassmorphism) ──────────────────────────
 st.markdown("""
@@ -1398,6 +1477,7 @@ def student_dashboard():
             st.rerun()
 
     render_college_header("student", student, active_page=page)
+    render_background_sync_indicator()
 
     sem = st.session_state['selected_sem']
     att_rows = conn.execute(
@@ -2425,6 +2505,7 @@ def admin_dashboard():
             st.rerun()
 
     render_college_header("admin", active_page=page)
+    render_background_sync_indicator()
 
     pages = {
         "🏠 Dashboard": admin_overview,
@@ -2937,23 +3018,36 @@ def admin_scraper():
             else:  st.error(msg)
 
     st.markdown("### 🚀 Bulk Scrape ALL Sections")
-    st.warning(f"Will scrape all {len(CLASSES)} sections. Takes 5-10 minutes.")
+    st.warning(f"Will scrape all {len(CLASSES)} sections. Runs in background.")
     if st.button("🚀 Scrape ALL Sections", use_container_width=True):
-        progress = st.progress(0)
-        status = st.empty()
-        results = []
-        # Bulk scrape sequentially without sharing single dynamic_conn to avoid SQLite locks
-        for i, sec in enumerate(CLASSES):
-            status.text(f"Scraping {sec} ({i+1}/{len(CLASSES)})...")
-            ok, msg = harvester.scrape_portal(
-                start_date=sd.strftime('%Y-%m-%d'),
-                end_date=ed.strftime('%Y-%m-%d'),
-                section=sec, semester=sem
-            )
-            results.append({'section': sec, 'ok': ok})
-            progress.progress((i+1) / len(CLASSES))
-        ok_count = sum(1 for r in results if r['ok'])
-        st.success(f"Done! {ok_count}/{len(CLASSES)} sections synced.")
+        if get_scrape_in_progress():
+            st.warning("⚠️ A sync is already in progress in the background. Please wait for it to complete.")
+        else:
+            set_scrape_in_progress(True)
+            set_scrape_progress("Initializing bulk sync...", 0.0)
+            
+            import threading
+            def _bg_manual_run():
+                try:
+                    def cb(section, current, total):
+                        pct = float(current) / total
+                        set_scrape_progress(f"Syncing {section} ({current}/{total})", pct)
+                        
+                    harvester.bulk_scrape_all(
+                        semester=sem,
+                        start_date=sd.strftime('%Y-%m-%d'),
+                        end_date=ed.strftime('%Y-%m-%d'),
+                        progress_callback=cb
+                    )
+                except Exception as bg_e:
+                    print(f"[Manual-Scrape] Background error: {bg_e}")
+                finally:
+                    set_scrape_in_progress(False)
+                    
+            t = threading.Thread(target=_bg_manual_run, daemon=True)
+            t.start()
+            st.success("🚀 Bulk sync started in the background! You can monitor the progress bar at the top.")
+            st.rerun()
 
     st.markdown("### 📜 Sync History")
     if logs:
