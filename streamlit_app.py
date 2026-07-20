@@ -2898,6 +2898,25 @@ def admin_scraper():
     logs = conn.execute('SELECT * FROM scrape_log ORDER BY scraped_at DESC LIMIT 50').fetchall()
     conn.close()
 
+    # ── Live sync status from DB ──────────────────────────────
+    live_status, live_section, live_current, live_total = _get_scrape_status()
+    if live_status == 'running':
+        live_pct = int((live_current / live_total * 100) if live_total > 0 else 0)
+        st.info(f"⚡ **Sync in progress** — {live_section} ({live_current}/{live_total}, {live_pct}%)")
+        if st.button("🛑 Reset Stuck Sync Status", type="secondary"):
+            try:
+                c = get_db_connection()
+                c.execute("UPDATE config SET value='idle' WHERE key='scrape_status'")
+                c.commit(); c.close()
+                st.success("✅ Status reset to idle.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Reset failed: {e}")
+    else:
+        st.success("✅ No sync currently running.")
+
+    st.markdown("---")
+
     # Calculate time ago and status
     last_scraped_str = cfg.get('last_scraped_at', 'Never')
     if last_scraped_str != 'Never':
