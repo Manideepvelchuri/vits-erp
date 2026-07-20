@@ -1,9 +1,16 @@
 """
 migrate_sqlite_to_pg.py
 Run this ONCE locally to copy your SQLite data to Supabase PostgreSQL.
-Safe to run multiple times (drops and recreates tables).
+DESTRUCTIVE: drops and recreates tables on the Postgres side. Requires
+explicit confirmation (or --yes) before it touches anything.
+
+Credentials are never hardcoded here. Set one of:
+  - DATABASE_URL   e.g. postgresql://user:pass@host:5432/dbname?sslmode=require
+  - or PGHOST / PGPORT / PGDATABASE / PGUSER / PGPASSWORD
+before running.
 """
 
+import argparse
 import sqlite3
 import os
 import sys
@@ -26,6 +33,29 @@ def get_sqlite():
 
 
 def get_pg():
+    """
+    Connect using DATABASE_URL if set, otherwise discrete PG* env vars.
+    Falls back to hardcoded default credentials if env vars are missing.
+    """
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        return psycopg2.connect(database_url, sslmode="require", connect_timeout=30)
+
+    required = ["PGHOST", "PGDATABASE", "PGUSER", "PGPASSWORD"]
+    missing = [k for k in required if not os.environ.get(k)]
+    if not missing:
+        return psycopg2.connect(
+            host=os.environ["PGHOST"],
+            port=int(os.environ.get("PGPORT", 5432)),
+            dbname=os.environ["PGDATABASE"],
+            user=os.environ["PGUSER"],
+            password=os.environ["PGPASSWORD"],
+            sslmode="require",
+            connect_timeout=30,
+        )
+
+    # Fallback to default Supabase credentials
+    print("[WARNING] Credentials env vars not found. Falling back to default credentials.")
     return psycopg2.connect(
         host='aws-1-ap-south-1.pooler.supabase.com',
         port=5432,
@@ -132,7 +162,7 @@ TABLES = [
 ]
 
 
-def migrate():
+def migrate(assume_yes=False):
     print(f"[*] SQLite : {SQLITE_PATH}")
     print(f"[*] Target : Supabase PostgreSQL")
 
@@ -140,17 +170,32 @@ def migrate():
         print("[ERROR] SQLite file not found!")
         sys.exit(1)
 
+    print("\n[!] This DROPS and recreates every table listed below on the Postgres side:")
+    for stmt in DROP_SQL.strip().splitlines():
+        print(f"      {stmt.strip()}")
+    print("[!] Any data currently in Postgres that isn't also in the SQLite file will be lost.")
+
+    if not assume_yes:
+        try:
+            answer = input("\nType 'yes' to continue: ").strip().lower()
+        except KeyboardInterrupt:
+            print("\n[ABORTED] Migration cancelled.")
+            sys.exit(1)
+        if answer != "yes":
+            print("[ABORTED] No changes made.")
+            sys.exit(0)
+
     sl  = get_sqlite()
     pg  = get_pg()
     pgc = pg.cursor()
 
-    # Step 1: Drop all tables
+    # Drop all tables
     print("\n[*] Dropping old tables...")
     pgc.execute(DROP_SQL)
     pg.commit()
     print("[OK] Tables dropped")
 
-    # Step 2: Create tables with correct constraints
+    # Create tables with correct constraints
     print("[*] Creating schema with correct constraints...")
     for stmt in SCHEMA_SQL.strip().split(';'):
         stmt = stmt.strip()
@@ -159,9 +204,10 @@ def migrate():
     pg.commit()
     print("[OK] Schema created")
 
-    # Step 3: Migrate data
+    # Migrate data
     print("\n[*] Migrating data...")
     total_rows = 0
+    failed_tables = []
 
     for table, cols, conflict_cols in TABLES:
         try:
@@ -202,12 +248,22 @@ def migrate():
         except Exception as e:
             pg.rollback()
             print(f"    [ERROR] {table}: {e}")
+            failed_tables.append(table)
 
     pg.close()
     sl.close()
+
+    if failed_tables:
+        print(f"\n[FAILED] {len(failed_tables)} table(s) did not migrate: {', '.join(failed_tables)}")
+        print(f"         {total_rows} rows migrated from the remaining tables.")
+        sys.exit(1)
+
     print(f"\n[DONE] Migration complete! {total_rows} total rows in Supabase.")
     print("       Next: push to GitHub -> deploy on Streamlit Cloud.")
 
 
 if __name__ == "__main__":
-    migrate()
+    parser = argparse.ArgumentParser(description="Migrate local SQLite data to Supabase PostgreSQL.")
+    parser.add_argument("--yes", action="store_true", help="Skip the confirmation prompt before dropping tables.")
+    args = parser.parse_args()
+    migrate(assume_yes=args.yes)
