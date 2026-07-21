@@ -769,19 +769,30 @@ def fill_attendance_history_gaps(conn, section, fdt, tdt):
         # Check if we are running on PostgreSQL (which wraps cursor with _CursorProxy)
         if hasattr(cursor, '_cur') and hasattr(cursor._pg, '_conn'):
             import psycopg2.extras
-            psycopg2.extras.execute_values(
-                cursor._cur,
-                '''
-                INSERT INTO attendance_history
-                    (snapshot_date, roll_no, subject_code, running_attended, running_conducted, percentage)
-                VALUES %s
-                ON CONFLICT(roll_no, subject_code, snapshot_date) DO UPDATE SET
-                    running_attended = EXCLUDED.running_attended,
-                    running_conducted = EXCLUDED.running_conducted,
-                    percentage = EXCLUDED.percentage
-                ''',
-                insert_data
-            )
+            # Batch into chunks of 500 to avoid Supabase statement timeout
+            batch_size = 500
+            for i in range(0, len(insert_data), batch_size):
+                batch = insert_data[i:i + batch_size]
+                try:
+                    psycopg2.extras.execute_values(
+                        cursor._cur,
+                        '''
+                        INSERT INTO attendance_history
+                            (snapshot_date, roll_no, subject_code, running_attended, running_conducted, percentage)
+                        VALUES %s
+                        ON CONFLICT(roll_no, subject_code, snapshot_date) DO UPDATE SET
+                            running_attended = EXCLUDED.running_attended,
+                            running_conducted = EXCLUDED.running_conducted,
+                            percentage = EXCLUDED.percentage
+                        ''',
+                        batch
+                    )
+                    conn.commit()
+                except Exception:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
         else:
             # Fallback for SQLite
             cursor.executemany('''
