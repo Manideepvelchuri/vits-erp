@@ -52,8 +52,8 @@ CSV_BACKUP_DIR  = os.path.join(BASE_DIR, 'csv_backups')
 
 PORTAL_LOGIN  = 'http://103.52.36.11/Attendance/Validate.php'
 PORTAL_REPORT = 'http://103.52.36.11/Attendance/Crprint.php'
-PORTAL_USER   = os.environ.get('PORTAL_USERNAME', '848')
-PORTAL_PASS   = os.environ.get('PORTAL_PASSWORD', 'vits')
+PORTAL_USER   = os.environ.get('PORTAL_USERNAME') or '848'
+PORTAL_PASS   = os.environ.get('PORTAL_PASSWORD') or 'vits'
 
 SKIP_COLS = {'S.No.', 'H.T No.', 'Student Name', 'Total', 'Percentage(%)', 'Section'}
 
