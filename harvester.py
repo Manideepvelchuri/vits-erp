@@ -406,22 +406,55 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     ist_now_ts = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
     now      = ist_now_ts.strftime('%Y-%m-%d %H:%M:%S')
 
+    # Detect if transaction has been aborted
+    is_aborted = False
     try:
-        cursor.execute("UPDATE config SET value=? WHERE key='last_scraped_at'", (now,))
-        cursor.execute("UPDATE config SET value=? WHERE key='start_date'",      (fdt,))
-        cursor.execute("UPDATE config SET value=? WHERE key='end_date'",        (tdt,))
-        cursor.execute('''
-            INSERT INTO scrape_log(scraped_at,section,students,status,duration)
-            VALUES(?,?,?,?,?)
-        ''', (now, sc, student_count, status, duration))
-    except Exception as log_e:
-        logger.error(f'Failed to write scrape log: {log_e}')
+        cursor.execute("SELECT 1")
+    except Exception:
+        is_aborted = True
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
+    # If the transaction was aborted, or we scraped 0 dates successfully, write a failed log
+    if is_aborted or not success_dates:
+        try:
+            # Open a fresh log insert (which is clean now after rollback)
+            cursor.execute('''
+                INSERT INTO scrape_log(scraped_at,section,students,status,duration)
+                VALUES(?,?,?,?,?)
+            ''', (now, sc, 0, 'failed', duration))
+            conn.commit()
+        except Exception as log_e:
+            logger.error(f'Failed to write scrape log: {log_e}')
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+    else:
+        # Success path! Update config and write success log
+        try:
+            cursor.execute("UPDATE config SET value=? WHERE key='last_scraped_at'", (now,))
+            cursor.execute("UPDATE config SET value=? WHERE key='start_date'",      (fdt,))
+            cursor.execute("UPDATE config SET value=? WHERE key='end_date'",        (tdt,))
+            cursor.execute('''
+                INSERT INTO scrape_log(scraped_at,section,students,status,duration)
+                VALUES(?,?,?,?,?)
+            ''', (now, sc, student_count, status, duration))
+            conn.commit()
+        except Exception as log_e:
+            logger.error(f'Failed to write scrape log: {log_e}')
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     if dynamic_conn is None:
         try:
-            conn.commit()
-        finally:
             conn.close()
+        except Exception:
+            pass
 
     # Save per-section CSV backup
     if last_df is not None:
@@ -565,6 +598,7 @@ def fill_attendance_history_gaps(conn, section, fdt, tdt):
         history_by_student_subject.setdefault(key, []).append(r)
         
     insert_data = []
+    filled_keys = set()
     
     for roll in students:
         for sub in subjects:
@@ -586,6 +620,7 @@ def fill_attendance_history_gaps(conn, section, fdt, tdt):
                 for d_str in all_dates_str:
                     if d_str not in existing_map:
                         insert_data.append((d_str, roll, sub, att, cond, pct))
+                        filled_keys.add((d_str, roll, sub))
                 continue
                 
             # Discrete step-wise interpolation for gaps
@@ -597,6 +632,7 @@ def fill_attendance_history_gaps(conn, section, fdt, tdt):
                 for d_str in all_dates_str:
                     if d_str not in existing_map:
                         insert_data.append((d_str, roll, sub, att, cond, pct))
+                        filled_keys.add((d_str, roll, sub))
                 continue
                 
             # For each consecutive pair of dates, fill the gap discretely
@@ -654,6 +690,7 @@ def fill_attendance_history_gaps(conn, section, fdt, tdt):
                     current_att += conducted_distribution[i] - bunk_distribution[i]
                     pct = round(current_att / current_cond * 100, 2) if current_cond > 0 else 0.0
                     insert_data.append((d_str, roll, sub, current_att, current_cond, pct))
+                    filled_keys.add((d_str, roll, sub))
                     
             # Extrapolate outside sorted_dates range if all_dates_str starts earlier or ends later
             first_date_str = sorted_dates[0]
@@ -668,13 +705,15 @@ def fill_attendance_history_gaps(conn, section, fdt, tdt):
                 if d_str in existing_map:
                     continue
                 # Check if it was filled by the gap loop
-                if any(x[0] == d_str and x[1] == roll and x[2] == sub for x in insert_data):
+                if (d_str, roll, sub) in filled_keys:
                     continue
                     
                 if d_str < first_date_str:
                     insert_data.append((d_str, roll, sub, att_f, cond_f, pct_f))
+                    filled_keys.add((d_str, roll, sub))
                 elif d_str > last_date_str:
                     insert_data.append((d_str, roll, sub, att_l, cond_l, pct_l))
+                    filled_keys.add((d_str, roll, sub))
                 
     if insert_data:
         cursor.executemany('''
