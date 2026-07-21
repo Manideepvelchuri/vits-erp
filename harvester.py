@@ -388,10 +388,11 @@ def scrape_portal(start_date=None, end_date=None, section=None,
             logger.error(f'[{sc}] Failed to update aggregate attendance/students tables: {update_e}')
 
     # Interpolate attendance gaps dynamically to populate daily records for the last 30 days
-    try:
-        fill_attendance_history_gaps(conn, sc, fdt, tdt)
-    except Exception as fill_e:
-        logger.warning(f'Failed to interpolate attendance history: {fill_e}')
+    if success_dates:
+        try:
+            fill_attendance_history_gaps(conn, sc, fdt, tdt)
+        except Exception as fill_e:
+            logger.warning(f'Failed to interpolate attendance history: {fill_e}')
     # Sync hour-wise attendance details for the successfully scraped dates
     for s_date in success_dates:
         try:
