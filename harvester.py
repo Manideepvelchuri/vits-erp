@@ -6,7 +6,39 @@ import os, io, sys, logging, time
 from datetime import datetime, timedelta, timezone
 import pandas as pd
 import requests
-from database import get_db_connection, CLASSES, get_portal_yr_br
+from database import CLASSES, get_portal_yr_br
+
+def _check_pg_available():
+    if os.environ.get("USE_SQLITE", "").lower() == "true":
+        return False
+    pg_url = ""
+    try:
+        import streamlit as _st
+        pg_url = _st.secrets.get("database", {}).get("url", "")
+    except Exception:
+        pass
+    if not pg_url:
+        pg_url = os.environ.get("DATABASE_URL", "")
+    if pg_url:
+        try:
+            import psycopg2
+            if "pooler.supabase.com:5432" in pg_url:
+                pg_url = pg_url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543")
+            conn = psycopg2.connect(pg_url, connect_timeout=3)
+            conn.close()
+            return True
+        except Exception:
+            pass
+    return False
+
+def get_db_connection():
+    if _check_pg_available():
+        import database_pg
+        return database_pg.get_db_connection()
+    else:
+        import database
+        return database.get_db_connection()
+
 
 logger = logging.getLogger('harvester')
 logger.setLevel(logging.INFO)
@@ -176,7 +208,10 @@ def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
 def scrape_portal(start_date=None, end_date=None, section=None,
                   semester=None, dynamic_conn=None, max_retries=3):
     """Main scrape function. Returns (success, message)."""
-    from database import get_config_map
+    if _check_pg_available():
+        from database_pg import get_config_map
+    else:
+        from database import get_config_map
     conn_cfg = dynamic_conn if dynamic_conn is not None else get_db_connection()
     cfg      = get_config_map(conn_cfg)
     if dynamic_conn is None:
@@ -434,7 +469,10 @@ def start_scheduler(app):
         return None
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
-        from database import get_config_map, backup_db
+        if _check_pg_available():
+            from database_pg import get_config_map, backup_db
+        else:
+            from database import get_config_map, backup_db
 
         def _daily_job():
             with app.app_context():
