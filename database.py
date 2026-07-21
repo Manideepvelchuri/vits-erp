@@ -207,8 +207,8 @@ def get_portal_yr_br(section, semester):
             'CIVIL': 'CE',
             'MECH': 'ME',
             'DS': 'CSD',
-            'AIDS': 'AIDS',
-            'AIML': 'CSM'
+            'AIDS': 'AI&DS',
+            'AIML': 'AIML'
         }
         br = mapping.get(prefix, prefix)
     return yr, br
