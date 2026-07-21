@@ -12,7 +12,14 @@ import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Auto-detect backend
+is_github_action = os.environ.get("GITHUB_ACTIONS") == "true"
 pg_url = os.environ.get("DATABASE_URL", "")
+
+if is_github_action and not pg_url:
+    print("[ERROR] DATABASE_URL environment variable is missing!")
+    print("        Please ensure you have configured the DATABASE_URL secret in your GitHub repository secrets.")
+    sys.exit(1)
+
 if pg_url:
     print("[*] Database Backend: PostgreSQL (Supabase)")
     from database_pg import get_db_connection, get_config_map

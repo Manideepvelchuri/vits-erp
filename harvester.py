@@ -319,12 +319,6 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                     ''', (roll_no, name, 'PENDING',
                           f'{roll_no.lower()}@vits.edu', sem_num, branch, sc, branch))
                     student_count += 1
-                elif target_date == tdt:
-                    cursor.execute('''
-                        UPDATE students SET name=?,section=?,department=?,branch=?
-                        WHERE roll_no=?
-                    ''', (name, sc, branch, branch, roll_no))
-
                 for sub in subjects:
                     try:
                         cond_v = pd.to_numeric(conducted_row[sub], errors='coerce')
@@ -332,15 +326,6 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                         if pd.isna(cond_v) or pd.isna(att_v):
                             continue
                         cond, att = int(cond_v), int(att_v)
-
-                        if target_date == tdt:
-                            cursor.execute('''
-                                INSERT INTO attendance(roll_no,subject,semester,hours_attended,hours_conducted)
-                                VALUES(?,?,?,?,?)
-                                ON CONFLICT(roll_no,subject,semester) DO UPDATE SET
-                                    hours_attended=excluded.hours_attended,
-                                    hours_conducted=excluded.hours_conducted
-                            ''', (roll_no, sub, semester, att, cond))
 
                         pct = round(att / cond * 100, 2) if cond > 0 else 0.0
                         cursor.execute('''
@@ -356,10 +341,51 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                         continue
 
             success_dates.append(target_date)
-            if target_date == tdt:
-                last_df = df
+            last_df = df
         except Exception as e:
             logger.error(f'[{sc}] Failed for {target_date}: {e}')
+
+    # After processing all dates, update aggregate attendance/student tables using the latest successful date's data
+    if last_df is not None:
+        try:
+            conducted_row = last_df.iloc[0]
+            subjects = [c for c in last_df.columns
+                        if c not in SKIP_COLS and not str(c).startswith('Unnamed')]
+            branch = sc.split('_')[0] if '_' in sc else sc
+            
+            for idx in range(1, len(last_df)):
+                row     = last_df.iloc[idx]
+                roll_no = str(row.get('H.T No.', '')).strip().upper()
+                name    = str(row.get('Student Name', '')).strip()
+
+                if not roll_no or roll_no.lower() in ('nan', 'none', ''):
+                    continue
+
+                # Update student details from latest data
+                cursor.execute('''
+                    UPDATE students SET name=?,section=?,department=?,branch=?
+                    WHERE roll_no=?
+                ''', (name, sc, branch, branch, roll_no))
+
+                for sub in subjects:
+                    try:
+                        cond_v = pd.to_numeric(conducted_row[sub], errors='coerce')
+                        att_v  = pd.to_numeric(row[sub],           errors='coerce')
+                        if pd.isna(cond_v) or pd.isna(att_v):
+                            continue
+                        cond, att = int(cond_v), int(att_v)
+
+                        cursor.execute('''
+                            INSERT INTO attendance(roll_no,subject,semester,hours_attended,hours_conducted)
+                            VALUES(?,?,?,?,?)
+                            ON CONFLICT(roll_no,subject,semester) DO UPDATE SET
+                                hours_attended=excluded.hours_attended,
+                                hours_conducted=excluded.hours_conducted
+                        ''', (roll_no, sub, semester, att, cond))
+                    except Exception:
+                        continue
+        except Exception as update_e:
+            logger.error(f'[{sc}] Failed to update aggregate attendance/students tables: {update_e}')
 
     # Interpolate attendance gaps dynamically to populate daily records for the last 30 days
     try:

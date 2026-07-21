@@ -495,7 +495,7 @@ class _LazyPGConn:
 
     def cursor(self):
         real = self._get_real_conn()
-        return _CursorProxy(real.cursor(cursor_factory=psycopg2.extras.RealDictCursor), self)
+        return real.cursor()
 
     def commit(self):
         if self._real_conn is not None:
