@@ -290,12 +290,15 @@ class _PGConn:
             
         # Check query cache for reads
         if is_read:
-            cache_key = (sql, tuple(params) if params else ())
-            now = time.time()
-            if cache_key in _QUERY_CACHE:
-                expiry, cached_rows = _QUERY_CACHE[cache_key]
-                if now < expiry:
-                    return _CachedCursor(cached_rows)
+            sql_lower = sql.lower()
+            is_cacheable = 'config' not in sql_lower and 'scrape_log' not in sql_lower
+            if is_cacheable:
+                cache_key = (sql, tuple(params) if params else ())
+                now = time.time()
+                if cache_key in _QUERY_CACHE:
+                    expiry, cached_rows = _QUERY_CACHE[cache_key]
+                    if now < expiry:
+                        return _CachedCursor(cached_rows)
 
         adapted_sql = self._adapt_sql(sql)
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -304,11 +307,16 @@ class _PGConn:
 
         # Cache results if it's a read query
         if is_read:
-            cache_key = (sql, tuple(params) if params else ())
-            # Fetch all rows into RowWrappers
-            rows = wrapper.fetchall()
-            _QUERY_CACHE[cache_key] = (time.time() + 300, rows)  # cache for 5 minutes
-            return _CachedCursor(rows)
+            sql_lower = sql.lower()
+            is_cacheable = 'config' not in sql_lower and 'scrape_log' not in sql_lower
+            if is_cacheable:
+                cache_key = (sql, tuple(params) if params else ())
+                # Fetch all rows into RowWrappers
+                rows = wrapper.fetchall()
+                _QUERY_CACHE[cache_key] = (time.time() + 300, rows)  # cache for 5 minutes
+                return _CachedCursor(rows)
+            else:
+                return wrapper
 
         return wrapper
 
@@ -478,12 +486,15 @@ class _LazyPGConn:
             _clear_cache()
             
         if is_read:
-            cache_key = (sql, tuple(params) if params else ())
-            now = time.time()
-            if cache_key in _QUERY_CACHE:
-                expiry, cached_rows = _QUERY_CACHE[cache_key]
-                if now < expiry:
-                    return _CachedCursor(cached_rows)
+            sql_lower = sql.lower()
+            is_cacheable = 'config' not in sql_lower and 'scrape_log' not in sql_lower
+            if is_cacheable:
+                cache_key = (sql, tuple(params) if params else ())
+                now = time.time()
+                if cache_key in _QUERY_CACHE:
+                    expiry, cached_rows = _QUERY_CACHE[cache_key]
+                    if now < expiry:
+                        return _CachedCursor(cached_rows)
                     
         real = self._get_real_conn()
         return real.execute(sql, params)

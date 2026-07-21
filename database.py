@@ -320,20 +320,28 @@ class _SQLiteConn:
             _clear_cache()
 
         if is_read:
-            cache_key = (sql, tuple(params) if params else ())
-            now = time.time()
-            if cache_key in _QUERY_CACHE:
-                expiry, cached_rows = _QUERY_CACHE[cache_key]
-                if now < expiry:
-                    return _CachedCursor(cached_rows)
+            sql_lower = sql.lower()
+            is_cacheable = 'config' not in sql_lower and 'scrape_log' not in sql_lower
+            if is_cacheable:
+                cache_key = (sql, tuple(params) if params else ())
+                now = time.time()
+                if cache_key in _QUERY_CACHE:
+                    expiry, cached_rows = _QUERY_CACHE[cache_key]
+                    if now < expiry:
+                        return _CachedCursor(cached_rows)
 
         cur = self._conn.execute(sql, params)
         
         if is_read:
-            cache_key = (sql, tuple(params) if params else ())
-            rows = cur.fetchall()
-            _QUERY_CACHE[cache_key] = (time.time() + 300, rows)
-            return _CachedCursor(rows)
+            sql_lower = sql.lower()
+            is_cacheable = 'config' not in sql_lower and 'scrape_log' not in sql_lower
+            if is_cacheable:
+                cache_key = (sql, tuple(params) if params else ())
+                rows = cur.fetchall()
+                _QUERY_CACHE[cache_key] = (time.time() + 300, rows)
+                return _CachedCursor(rows)
+            else:
+                return cur
             
         return cur
 
