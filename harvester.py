@@ -245,7 +245,11 @@ def scrape_portal(start_date=None, end_date=None, section=None,
             WHERE roll_no IN (SELECT roll_no FROM students WHERE section = ?)
         ''', (sc,)).fetchone()[0] > 0
     except Exception:
-        pass
+        # Query may have timed out on large tables — rollback to clear aborted state
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
     target_dates = []
     if has_history:
@@ -295,11 +299,17 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                         if c not in SKIP_COLS and not str(c).startswith('Unnamed')]
 
             for sub in subjects:
-                cursor.execute('''
-                    INSERT INTO subjects(subject_code,subject_name,semester,section)
-                    VALUES(?,?,?,?)
-                    ON CONFLICT(subject_code, semester, section) DO NOTHING
-                ''', (sub, sub, semester, sc))
+                try:
+                    cursor.execute('''
+                        INSERT INTO subjects(subject_code,subject_name,semester,section)
+                        VALUES(?,?,?,?)
+                        ON CONFLICT(subject_code, semester, section) DO NOTHING
+                    ''', (sub, sub, semester, sc))
+                except Exception:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
 
             branch = sc.split('_')[0] if '_' in sc else sc
 
@@ -311,14 +321,21 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                 if not roll_no or roll_no.lower() in ('nan', 'none', ''):
                     continue
 
-                cursor.execute('SELECT COUNT(*) FROM students WHERE roll_no=?', (roll_no,))
-                if not cursor.fetchone()[0]:
-                    cursor.execute('''
-                        INSERT INTO students(roll_no,name,dob,email,semester,department,section,branch)
-                        VALUES(?,?,?,?,?,?,?,?)
-                    ''', (roll_no, name, 'PENDING',
-                          f'{roll_no.lower()}@vits.edu', sem_num, branch, sc, branch))
-                    student_count += 1
+                try:
+                    cursor.execute('SELECT COUNT(*) FROM students WHERE roll_no=?', (roll_no,))
+                    if not cursor.fetchone()[0]:
+                        cursor.execute('''
+                            INSERT INTO students(roll_no,name,dob,email,semester,department,section,branch)
+                            VALUES(?,?,?,?,?,?,?,?)
+                        ''', (roll_no, name, 'PENDING',
+                              f'{roll_no.lower()}@vits.edu', sem_num, branch, sc, branch))
+                        student_count += 1
+                except Exception:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+
                 for sub in subjects:
                     try:
                         cond_v = pd.to_numeric(conducted_row[sub], errors='coerce')
@@ -338,12 +355,29 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                                 percentage=excluded.percentage
                         ''', (target_date, roll_no, sub, att, cond, pct))
                     except Exception:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
                         continue
+
+            # Commit after each successful date to save progress
+            try:
+                conn.commit()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
 
             success_dates.append(target_date)
             last_df = df
         except Exception as e:
             logger.error(f'[{sc}] Failed for {target_date}: {e}')
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     # After processing all dates, update aggregate attendance/student tables using the latest successful date's data
     if last_df is not None:
@@ -362,10 +396,16 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                     continue
 
                 # Update student details from latest data
-                cursor.execute('''
-                    UPDATE students SET name=?,section=?,department=?,branch=?
-                    WHERE roll_no=?
-                ''', (name, sc, branch, branch, roll_no))
+                try:
+                    cursor.execute('''
+                        UPDATE students SET name=?,section=?,department=?,branch=?
+                        WHERE roll_no=?
+                    ''', (name, sc, branch, branch, roll_no))
+                except Exception:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
 
                 for sub in subjects:
                     try:
@@ -383,23 +423,49 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                                 hours_conducted=excluded.hours_conducted
                         ''', (roll_no, sub, semester, att, cond))
                     except Exception:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
                         continue
+
+            # Commit aggregate updates
+            try:
+                conn.commit()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
         except Exception as update_e:
             logger.error(f'[{sc}] Failed to update aggregate attendance/students tables: {update_e}')
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     # Interpolate attendance gaps dynamically to populate daily records for the last 30 days
     if success_dates:
         try:
             fill_attendance_history_gaps(conn, sc, fdt, tdt)
+            conn.commit()
         except Exception as fill_e:
             logger.warning(f'Failed to interpolate attendance history: {fill_e}')
+            try:
+                conn.rollback()
+            except Exception:
+                pass
     # Sync hour-wise attendance details for the successfully scraped dates
     for s_date in success_dates:
         try:
             _sync_hour_wise_for_date(session, conn, sc, semester, s_date)
+            conn.commit()
         except Exception as hw_e:
             logger.warning(f'[{sc}] Failed to sync hour-wise attendance for {s_date}: {hw_e}')
-
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
 
     duration = round(time.time() - t_start, 2)
@@ -407,49 +473,32 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     ist_now_ts = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
     now      = ist_now_ts.strftime('%Y-%m-%d %H:%M:%S')
 
-    # Detect if transaction has been aborted
-    is_aborted = False
+    # Always ensure clean transaction state before writing logs
     try:
         cursor.execute("SELECT 1")
     except Exception:
-        is_aborted = True
         try:
             conn.rollback()
         except Exception:
             pass
 
-    # If the transaction was aborted, or we scraped 0 dates successfully, write a failed log
-    if is_aborted or not success_dates:
-        try:
-            # Open a fresh log insert (which is clean now after rollback)
-            cursor.execute('''
-                INSERT INTO scrape_log(scraped_at,section,students,status,duration)
-                VALUES(?,?,?,?,?)
-            ''', (now, sc, 0, 'failed', duration))
-            conn.commit()
-        except Exception as log_e:
-            logger.error(f'Failed to write scrape log: {log_e}')
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-    else:
-        # Success path! Update config and write success log
-        try:
+    # Write scrape log
+    try:
+        if success_dates:
             cursor.execute("UPDATE config SET value=? WHERE key='last_scraped_at'", (now,))
             cursor.execute("UPDATE config SET value=? WHERE key='start_date'",      (fdt,))
             cursor.execute("UPDATE config SET value=? WHERE key='end_date'",        (tdt,))
-            cursor.execute('''
-                INSERT INTO scrape_log(scraped_at,section,students,status,duration)
-                VALUES(?,?,?,?,?)
-            ''', (now, sc, student_count, status, duration))
-            conn.commit()
-        except Exception as log_e:
-            logger.error(f'Failed to write scrape log: {log_e}')
-            try:
-                conn.rollback()
-            except Exception:
-                pass
+        cursor.execute('''
+            INSERT INTO scrape_log(scraped_at,section,students,status,duration)
+            VALUES(?,?,?,?,?)
+        ''', (now, sc, student_count, status, duration))
+        conn.commit()
+    except Exception as log_e:
+        logger.error(f'Failed to write scrape log: {log_e}')
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
     if dynamic_conn is None:
         try:
