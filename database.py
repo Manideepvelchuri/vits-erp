@@ -995,7 +995,6 @@ def import_results_from_csvs(conn=None):
 
 # ── Dynamic Route Overrides (PG/Supabase support on Cloud) ──
 import os
-import streamlit as st
 
 def _should_use_pg():
     import sys
@@ -1006,6 +1005,7 @@ def _should_use_pg():
         if "sandbox" in str(arg).lower():
             return False
     try:
+        import streamlit as st
         url = st.secrets.get("database", {}).get("url", "")
         if url:
             return True
