@@ -12,7 +12,13 @@ from datetime import datetime
 
 import psycopg2
 import psycopg2.extras
-import streamlit as st
+try:
+    import streamlit as st
+    cache_resource = st.cache_resource
+except Exception:
+    st = None
+    def cache_resource(func):
+        return func
 
 # ── Constants (identical to database.py) ────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -177,14 +183,18 @@ BRANCH_CODE_MAP = {
 
 def _get_pg_url():
     """Get database URL from Streamlit secrets or environment variable."""
-    try:
-        url = st.secrets["database"]["url"]
-    except Exception:
+    url = ""
+    if st is not None:
+        try:
+            url = st.secrets["database"]["url"]
+        except Exception:
+            pass
+    if not url:
         url = os.environ.get("DATABASE_URL", "")
-        if not url:
-            raise RuntimeError(
-                "No DATABASE_URL found. Add it to .streamlit/secrets.toml or set as environment variable."
-            )
+    if not url:
+        raise RuntimeError(
+            "No DATABASE_URL found. Add it to .streamlit/secrets.toml or set as environment variable."
+        )
     
     # Automatically rewrite Supabase pooler port 5432 to 6543 for pooled connections
     if "pooler.supabase.com:5432" in url:
@@ -437,7 +447,7 @@ def _make_conn():
         return c
 
 
-@st.cache_resource
+@cache_resource
 def _get_pool():
     """
     Create a ThreadedConnectionPool once per app session.
