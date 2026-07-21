@@ -716,15 +716,33 @@ def fill_attendance_history_gaps(conn, section, fdt, tdt):
                     filled_keys.add((d_str, roll, sub))
                 
     if insert_data:
-        cursor.executemany('''
-            INSERT INTO attendance_history
-                (snapshot_date, roll_no, subject_code, running_attended, running_conducted, percentage)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(roll_no, subject_code, snapshot_date) DO UPDATE SET
-                running_attended = EXCLUDED.running_attended,
-                running_conducted = EXCLUDED.running_conducted,
-                percentage = EXCLUDED.percentage
-        ''', insert_data)
+        # Check if we are running on PostgreSQL (which wraps cursor with _CursorProxy)
+        if hasattr(cursor, '_cur') and hasattr(cursor._pg, '_conn'):
+            import psycopg2.extras
+            psycopg2.extras.execute_values(
+                cursor._cur,
+                '''
+                INSERT INTO attendance_history
+                    (snapshot_date, roll_no, subject_code, running_attended, running_conducted, percentage)
+                VALUES %s
+                ON CONFLICT(roll_no, subject_code, snapshot_date) DO UPDATE SET
+                    running_attended = EXCLUDED.running_attended,
+                    running_conducted = EXCLUDED.running_conducted,
+                    percentage = EXCLUDED.percentage
+                ''',
+                insert_data
+            )
+        else:
+            # Fallback for SQLite
+            cursor.executemany('''
+                INSERT INTO attendance_history
+                    (snapshot_date, roll_no, subject_code, running_attended, running_conducted, percentage)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(roll_no, subject_code, snapshot_date) DO UPDATE SET
+                    running_attended = EXCLUDED.running_attended,
+                    running_conducted = EXCLUDED.running_conducted,
+                    percentage = EXCLUDED.percentage
+            ''', insert_data)
 
 
 if __name__ == '__main__':
