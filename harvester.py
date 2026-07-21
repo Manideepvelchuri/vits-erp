@@ -91,7 +91,7 @@ def _fetch_df(session, sc, semester, fdt, tdt, max_retries=3):
     for attempt in range(1, max_retries + 1):
         try:
             _login(session)
-            resp = session.post(PORTAL_REPORT, data=payload, timeout=(10, 180))
+            resp = session.post(PORTAL_REPORT, data=payload, timeout=(5, 15))
             if resp.status_code != 200:
                 raise ValueError(f'HTTP {resp.status_code}')
             html = resp.text

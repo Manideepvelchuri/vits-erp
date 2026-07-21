@@ -10,6 +10,8 @@ import datetime
 
 # Add the current directory to sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(line_buffering=True)
 
 # Auto-detect backend
 is_github_action = os.environ.get("GITHUB_ACTIONS") == "true"
