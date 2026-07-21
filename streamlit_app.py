@@ -1949,15 +1949,6 @@ def show_attendance_page(roll, sem, att_rows):
             font-weight:500;margin:10px 0;font-family:'Inter',sans-serif;">
             🔍 No attendance data found for this semester.</div>""", unsafe_allow_html=True)
 
-    if st.button("🔄 Fetch Live Attendance from Portal"):
-        with st.spinner("Scraping portal... 30-60s"):
-            ok, msg = harvester.scrape_portal(section=st.session_state.section, semester=sem)
-            st.success(msg) if ok else st.error(msg)
-            if ok: st.rerun()
-
-    if not att_rows:
-        st.info("No attendance data yet. Click 'Fetch Live' above to sync from portal.")
-        return
 
     # Overall attendance skip predictor (new feature)
     if total_c > 0:
