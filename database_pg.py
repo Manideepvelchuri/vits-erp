@@ -385,11 +385,17 @@ class _CursorProxy:
         self._pg = pg_conn
 
     def execute(self, sql, params=()):
+        sql_upper = sql.strip().upper()
+        is_read = sql_upper.startswith('SELECT') or sql_upper.startswith('WITH')
+        if not is_read:
+            _clear_cache()
+            
         sql = self._pg._adapt_sql(sql)
         self._cur.execute(sql, params)
         return _CursorWrapper(self._cur)
 
     def executemany(self, sql, seq):
+        _clear_cache()
         sql = self._pg._adapt_sql(sql)
         self._cur.executemany(sql, seq)
 
@@ -489,7 +495,7 @@ class _LazyPGConn:
 
     def cursor(self):
         real = self._get_real_conn()
-        return real.cursor()
+        return _CursorProxy(real.cursor(cursor_factory=psycopg2.extras.RealDictCursor), self)
 
     def commit(self):
         if self._real_conn is not None:

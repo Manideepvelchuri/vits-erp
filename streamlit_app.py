@@ -279,78 +279,30 @@ def _get_scrape_status():
     return 'idle', '', 0, 0
 
 
-def check_and_trigger_auto_scrape():
-    """Trigger background scrape if conditions are met. Only runs on pg backend."""
-    if _DB_BACKEND != "pg":
-        return
-
-    ist_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
-    current_date_str = ist_now.strftime('%Y-%m-%d')
-    current_time     = ist_now.time()
-
-    conn = get_db_connection()
-    cfg  = get_config_map(conn)
-    conn.close()
-
-    # Don't double-trigger if already running
-    status, *_ = _get_scrape_status()
-    if status == 'running':
-        return
-
-    last_scraped_str = cfg.get('last_scraped_at', '')
-    should_scrape = False
-
-    if not last_scraped_str:
-        should_scrape = True
-    else:
-        try:
-            last_dt   = datetime.datetime.strptime(last_scraped_str, '%Y-%m-%d %H:%M:%S')
-            last_date = last_dt.strftime('%Y-%m-%d')
-            if last_date != current_date_str:
-                should_scrape = True
-            else:
-                in_window = (current_time < datetime.time(7, 30)) or (current_time > datetime.time(17, 0))
-                elapsed   = (ist_now.replace(tzinfo=None) - last_dt).total_seconds()
-                if in_window and elapsed >= 4 * 3600:
-                    should_scrape = True
-        except Exception:
-            should_scrape = True
-
-    if should_scrape:
-        def _bg_run():
-            try:
-                conn_bg = get_db_connection()
-                sem = get_config_map(conn_bg).get('active_semester', 'Sem 3')
-                conn_bg.close()
-                harvester.bulk_scrape_all(semester=sem)
-            except Exception as e:
-                print(f"[Auto-Scrape] Error: {e}")
-        threading.Thread(target=_bg_run, daemon=True).start()
-
-
-@st.fragment(run_every=2)
-def render_background_sync_indicator():
-    """Auto-refreshes every 2s independently via st.fragment — navigation unaffected."""
-    status, section, current, total = _get_scrape_status()
-    if status != 'running':
-        return
-    pct = int((current / total * 100) if total > 0 else 0)
-    st.markdown(f"""
-    <div style="display:flex;align-items:center;gap:10px;background:rgba(139,92,246,0.06);
-                border:1px solid rgba(139,92,246,0.2);border-radius:8px;
-                padding:8px 14px;margin-bottom:12px;">
-        <div style="width:10px;height:10px;border:2px solid rgba(139,92,246,0.3);
-                    border-top:2px solid #a78bfa;border-radius:50%;
-                    animation:spin 1s linear infinite;flex-shrink:0;"></div>
-        <div style="flex:1;height:4px;background:#1e293b;border-radius:2px;overflow:hidden;">
-            <div style="width:{pct}%;height:100%;background:linear-gradient(90deg,#8b5cf6,#00d8c6);border-radius:2px;"></div>
-        </div>
-        <span style="color:#94a3b8;font-family:'JetBrains Mono',monospace;font-size:0.75rem;white-space:nowrap;">
-            ⚡ {section} &nbsp;{current}/{total} &nbsp;{pct}%
-        </span>
-    </div>
-    <style>@keyframes spin{{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}</style>
-    """, unsafe_allow_html=True)
+def get_last_sync_info_str(cfg):
+    """Returns a nicely formatted string for the last scrape time with a time-ago description."""
+    last_scraped_str = cfg.get('last_scraped_at', 'Never')
+    if last_scraped_str == 'Never':
+        return "Never synced"
+    try:
+        last_scraped_dt = datetime.datetime.strptime(last_scraped_str, '%Y-%m-%d %H:%M:%S')
+        ist_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
+        ist_now = ist_now.replace(tzinfo=None)
+        diff = ist_now - last_scraped_dt
+        seconds = diff.total_seconds()
+        
+        if seconds < 60:
+            time_ago_str = "just now"
+        elif seconds < 3600:
+            time_ago_str = f"{int(seconds // 60)} minutes ago"
+        elif seconds < 86400:
+            time_ago_str = f"{int(seconds // 3600)} hours ago"
+        else:
+            time_ago_str = f"{int(seconds // 86400)} days ago"
+        
+        return f"{last_scraped_str} ({time_ago_str})"
+    except Exception:
+        return last_scraped_str
 
 
 # ── Custom CSS (dark glassmorphism) ──────────────────────────
@@ -1924,16 +1876,14 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
 
 def show_attendance_page(roll, sem, att_rows):
     st.markdown("## 📅 Attendance Overview")
-    if not att_rows:
-        st.info("🔍 No attendance records found for this semester.")
-        return
-    total_c = sum((r['hours_conducted'] or 0) for r in att_rows)
-    total_a = sum((r['hours_attended']  or 0) for r in att_rows)
-    overall = round(total_a / total_c * 100, 1) if total_c else 0.0
-
+    
+    # Fetch config for last sync time
     conn = get_db_connection()
+    cfg = get_config_map(conn)
     student = conn.execute('SELECT section FROM students WHERE roll_no=?', (roll,)).fetchone()
     sec = student['section'] if student else 'ECE_B'
+    
+    # Calculate average classes scheduled
     avg_classes = 7.0
     if sec:
         days_count = conn.execute('SELECT COUNT(DISTINCT day) FROM timetable WHERE section=?', (sec,)).fetchone()[0]
@@ -1942,15 +1892,45 @@ def show_attendance_page(roll, sem, att_rows):
             avg_classes = total_periods / days_count
     conn.close()
 
-    can_miss = can_miss_classes(total_a, total_c)
-    need = classes_needed(total_a, total_c)
-    can_miss_days = round(can_miss / avg_classes, 1) if avg_classes > 0 else 0.0
-    need_days = round(need / avg_classes, 1) if avg_classes > 0 else 0.0
+    # Show last sync info banner
+    sync_str = get_last_sync_info_str(cfg)
+    st.markdown(f"""
+    <div style="background: rgba(139, 92, 246, 0.05); border: 1px dashed rgba(139, 92, 246, 0.25);
+                border-radius: 10px; padding: 10px 14px; margin-bottom: 15px; font-size: 0.88rem; color: #a78bfa;">
+        📅 <b>Last Attendance Sync:</b> {sync_str}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Fetch Live button
+    if st.button("🔄 Fetch Live Attendance from Portal", use_container_width=True):
+        with st.spinner("Scraping portal... 30-60s"):
+            ok, msg = harvester.scrape_portal(section=st.session_state.section, semester=sem)
+            if ok:
+                st.success(msg)
+                st.rerun()
+            else:
+                st.error(msg)
+
+    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+
+    if not att_rows:
+        st.info("🔍 No attendance records found for this semester. Click the 'Fetch Live' button above to sync from the portal.")
+        return
+
+    total_c = sum((r['hours_conducted'] or 0) for r in att_rows)
+    total_a = sum((r['hours_attended']  or 0) for r in att_rows)
+    overall = round(total_a / total_c * 100, 1) if total_c else 0.0
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Hours Conducted", total_c)
     c2.metric("Hours Attended", total_a)
     c3.metric("Overall %", f"{overall}%")
+    
+    can_miss = can_miss_classes(total_a, total_c)
+    need = classes_needed(total_a, total_c)
+    can_miss_days = round(can_miss / avg_classes, 1) if avg_classes > 0 else 0.0
+    need_days = round(need / avg_classes, 1) if avg_classes > 0 else 0.0
+
     if overall >= 75:
         c4.metric("Can Miss", f"{can_miss} ({can_miss_days} d)")
     else:
