@@ -200,34 +200,8 @@ def classes_needed(attended, conducted, target=0.75):
 # Only run on local deployments (APScheduler crashes on Streamlit Cloud)
 @st.cache_resource
 def start_global_scheduler():
-    is_cloud = bool(os.environ.get("DATABASE_URL") or os.environ.get("STREAMLIT_SHARING_MODE"))
-    try:
-        is_cloud = is_cloud or bool(st.secrets.get("database"))
-    except Exception:
-        pass
-    if is_cloud:
-        print("[Scheduler] Cloud deployment detected — scheduler disabled. Use manual Fetch button.")
-        return None
-    try:
-        from apscheduler.schedulers.background import BackgroundScheduler
-        scheduler = BackgroundScheduler(daemon=True)
-        def _scheduled_scrape():
-            try:
-                conn = get_db_connection()
-                cfg = get_config_map(conn)
-                conn.close()
-                sem = cfg.get('active_semester', 'Sem 2')
-                harvester.bulk_scrape_all(semester=sem)
-                backup_db()
-            except Exception as e:
-                print(f"[Scheduler] error: {e}")
-        scheduler.add_job(_scheduled_scrape, 'cron', hour=18, minute=0,
-                          id='daily_scrape', replace_existing=True)
-        scheduler.start()
-        return scheduler
-    except Exception as e:
-        print(f"[Scheduler] Could not start: {e}")
-        return None
+    print("[Scheduler] Auto-scrape disabled on Streamlit server. GitHub Actions manages scheduled background scraping.")
+    return None
 
 global_scheduler = start_global_scheduler()
 
