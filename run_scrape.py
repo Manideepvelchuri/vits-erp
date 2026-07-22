@@ -63,10 +63,45 @@ def main():
             
     print(f"\n[+] Total sections synced successfully: {ok_count}/{len(results)}")
     
+    # Send Telegram notification if credentials are provided in env/secrets
+    send_telegram_summary(results, ok_count, len(results), ist_now.strftime('%Y-%m-%d %H:%M:%S'))
+    
     # If all sections failed, exit with error code so GitHub Action alerts us
     if len(results) > 0 and ok_count == 0:
         print("[ERROR] All sections failed to sync. Portal might be down.")
         sys.exit(1)
+
+
+def send_telegram_summary(results, ok_count, total_count, ist_now_str):
+    token = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID") or os.environ.get("CHAT_ID")
+    if not token or not chat_id:
+        print("[*] Telegram notification skipped (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not configured).")
+        return
+    try:
+        import urllib.request
+        import urllib.parse
+        import json
+        
+        status_emoji = "✅" if ok_count > 0 else "❌"
+        msg = f"{status_emoji} *VITS Attendance Scrape Completed!*\n\n"
+        msg += f"📅 *Time:* {ist_now_str} IST\n"
+        msg += f"📊 *Synced:* {ok_count}/{total_count} sections successfully\n\n"
+        
+        for r in results[:10]:
+            st_icon = "🟢" if r['ok'] else "🔴"
+            msg += f"{st_icon} *{r['section']}*: {r['msg']}\n"
+        if len(results) > 10:
+            msg += f"_\n...and {len(results) - 10} more sections._"
+
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = json.dumps({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}).encode('utf-8')
+        req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            if resp.status == 200:
+                print("[+] Telegram notification sent successfully to your phone!")
+    except Exception as e:
+        print(f"[!] Failed to send Telegram notification: {e}")
 
 if __name__ == "__main__":
     main()
