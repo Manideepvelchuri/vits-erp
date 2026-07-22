@@ -240,10 +240,15 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     # Check if section has history. If it does, only scrape today's date to keep it 5x faster.
     has_history = False
     try:
-        has_history = cursor.execute('''
-            SELECT COUNT(*) FROM attendance_history 
-            WHERE roll_no IN (SELECT roll_no FROM students WHERE section = ?)
-        ''', (sc,)).fetchone()[0] > 0
+        cursor.execute('''
+            SELECT EXISTS(
+                SELECT 1 FROM attendance_history ah
+                JOIN students s ON s.roll_no = ah.roll_no
+                WHERE s.section = ?
+            )
+        ''', (sc,))
+        res = cursor.fetchone()
+        has_history = res[0] if res else False
     except Exception:
         # Query may have timed out on large tables — rollback to clear aborted state
         try:
@@ -294,6 +299,7 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                         
             df = valid_df
             target_date = actual_date
+            student_count = max(student_count, len(df) - 1)
             conducted_row = df.iloc[0]
             subjects = [c for c in df.columns
                         if c not in SKIP_COLS and not str(c).startswith('Unnamed')]

@@ -1904,7 +1904,13 @@ def show_attendance_page(roll, sem, att_rows):
     # Fetch Live button
     if st.button("🔄 Fetch Live Attendance from Portal", use_container_width=True):
         with st.spinner("Scraping portal... 30-60s"):
-            ok, msg = harvester.scrape_portal(section=st.session_state.section, semester=sem)
+            conn_cfg = get_db_connection()
+            cfg_m = get_config_map(conn_cfg)
+            conn_cfg.close()
+            sd_val = cfg_m.get('start_date', '2026-06-01')
+            ist_now_dt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
+            ed_val = cfg_m.get('end_date', ist_now_dt.strftime('%Y-%m-%d'))
+            ok, msg = harvester.scrape_portal(start_date=sd_val, end_date=ed_val, section=st.session_state.section, semester=sem)
             if ok:
                 st.success(msg)
                 st.rerun()
