@@ -237,22 +237,38 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     conn          = dynamic_conn if dynamic_conn is not None else get_db_connection()
     cursor        = conn.cursor()
 
-    # Smart Skip: If already successfully scraped within the last 14 hours (e.g. evening sync done), skip to save resources
-    cutoff_str = (ist_now - timedelta(hours=14)).strftime('%Y-%m-%d %H:%M:%S')
+    # Smart Skip Logic:
+    # 1. Manual clicks pass force=True -> ALWAYS scrape fresh data.
+    # 2. Automated scheduled runs (force=False):
+    #    - Evening run (>= 17:00 IST): Only skip if a scrape already succeeded TODAY after 17:00 IST.
+    #    - Morning run (< 17:00 IST): Skip if a scrape succeeded yesterday after 17:00 IST or today.
     if not force:
         try:
-            cursor.execute('''
-                SELECT scraped_at FROM scrape_log 
-                WHERE section = ? AND status = 'success' AND scraped_at >= ?
-                ORDER BY id DESC LIMIT 1
-            ''', (sc, cutoff_str))
+            curr_hour = ist_now.hour
+            if curr_hour >= 17:
+                # Evening run: Only skip if today's post-17:00 scrape already succeeded
+                post_17_today = ist_now.strftime('%Y-%m-%d 17:00:00')
+                cursor.execute('''
+                    SELECT scraped_at FROM scrape_log 
+                    WHERE section = ? AND status = 'success' AND scraped_at >= ?
+                    ORDER BY id DESC LIMIT 1
+                ''', (sc, post_17_today))
+            else:
+                # Morning run: Skip if yesterday's evening scrape (after 17:00 yesterday) or today's scrape succeeded
+                yesterday_17 = (ist_now - timedelta(days=1)).strftime('%Y-%m-%d 17:00:00')
+                cursor.execute('''
+                    SELECT scraped_at FROM scrape_log 
+                    WHERE section = ? AND status = 'success' AND scraped_at >= ?
+                    ORDER BY id DESC LIMIT 1
+                ''', (sc, yesterday_17))
+
             res = cursor.fetchone()
             if res:
                 scraped_time = res[0]
-                logger.info(f'[{sc}] Already synced recently at {scraped_time} (<14h ago). Skipping.')
+                logger.info(f'[{sc}] Evening attendance already synced (at {scraped_time}). Skipping redundant run.')
                 if dynamic_conn is None:
                     conn.close()
-                return True, f'[{sc}] Already synced recently at {scraped_time}.'
+                return True, f'[{sc}] Evening attendance already synced (at {scraped_time}).'
         except Exception:
             try:
                 conn.rollback()
