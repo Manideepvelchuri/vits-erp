@@ -1048,24 +1048,6 @@ def color_for_pct(p):
 def login_page():
     # ── suppress h1 anchor icons globally on this page & style login elements ────────
     st.markdown("""
-    <head>
-        <link rel="manifest" href="app/static/manifest.json">
-        <meta name="theme-color" content="#00D8C6">
-        <meta name="mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <meta name="apple-mobile-web-app-title" content="VITS ERP">
-        <link rel="apple-touch-icon" href="app/static/icon-192.png">
-    </head>
-    <script>
-        if ('serviceWorker' in navigator) {
-          window.addEventListener('load', function() {
-            navigator.serviceWorker.register('app/static/sw.js')
-              .then(function(reg) { console.log('PWA ServiceWorker registered'); })
-              .catch(function(err) { console.log('PWA ServiceWorker failed: ', err); });
-          });
-        }
-    </script>
     <style>
     h1 a, h2 a, h3 a { display: none !important; }
     
