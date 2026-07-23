@@ -1061,6 +1061,7 @@ def login_page():
 <link rel="apple-touch-icon" href="app/static/icon-192.png">
 </head>
 <script>
+try { window.top.document.title = "VITS Student Dashboard"; } catch(e) {}
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('app/static/sw.js').catch(function(err){});
