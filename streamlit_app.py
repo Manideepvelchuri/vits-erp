@@ -2160,6 +2160,28 @@ def show_analytics_page(roll, sem):
     import datetime as dt_mod
     cutoff_date = (dt_mod.date.today() - dt_mod.timedelta(days=days)).strftime('%Y-%m-%d')
     conn = get_db_connection()
+    
+    # 1. Fetch valid subjects for selected semester to prevent 1st year leakage
+    sem_subj_rows = conn.execute('SELECT DISTINCT subject FROM attendance WHERE roll_no=? AND semester=?', (roll, sem)).fetchall()
+    valid_subjects = [r['subject'] for r in sem_subj_rows] if sem_subj_rows else []
+
+    # 2. Fetch student section & section average for benchmark
+    sec_row = conn.execute('SELECT section FROM students WHERE roll_no=?', (roll,)).fetchone()
+    sec = sec_row['section'] if sec_row else ''
+    
+    sec_avg = 0.0
+    if sec:
+        sec_avg_row = conn.execute('''
+            SELECT ROUND(AVG(pct), 1) FROM (
+                SELECT SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted),0) pct
+                FROM attendance a
+                JOIN students s ON a.roll_no = s.roll_no
+                WHERE a.semester=? AND s.section=?
+                GROUP BY a.roll_no
+            ) sub
+        ''', (sem, sec)).fetchone()
+        sec_avg = sec_avg_row[0] if sec_avg_row and sec_avg_row[0] is not None else 0.0
+
     rows = conn.execute('''
         SELECT snapshot_date, subject_code, percentage, running_attended, running_conducted
         FROM attendance_history
@@ -2172,13 +2194,44 @@ def show_analytics_page(roll, sem):
         st.info(f"No historical attendance data yet for {sem}. Trigger 'Fetch Live' on Attendance tab.")
         return
 
-    df = pd.DataFrame([dict(r) for r in rows])
+    df_raw = pd.DataFrame([dict(r) for r in rows])
+    
+    # Filter strictly by subjects belonging to the selected semester
+    if valid_subjects:
+        df = df_raw[df_raw['subject_code'].isin(valid_subjects)].copy()
+        if df.empty:
+            df = df_raw.copy()
+    else:
+        df = df_raw.copy()
+
+    # 📊 Section Benchmark Header Card
+    student_att_sum = df.groupby('snapshot_date')['percentage'].mean().iloc[-1] if not df.empty else 0.0
+    diff_from_sec = round(student_att_sum - sec_avg, 1)
+    diff_sign = "+" if diff_from_sec >= 0 else ""
+    diff_color = "#10b981" if diff_from_sec >= 0 else "#ef4444"
+
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
+                border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 18px; margin-bottom: 20px;
+                display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <div style="font-size: 0.78rem; text-transform: uppercase; color: #94a3b8; font-weight: 600;">Your Section Benchmark ({sec})</div>
+            <div style="font-size: 1.6rem; font-weight: 700; color: #ffffff; font-family: 'Outfit'; margin-top: 4px;">
+                Your Avg: <span style="color: #38bdf8;">{student_att_sum:.1f}%</span> vs Section Avg: <span style="color: #a78bfa;">{sec_avg:.1f}%</span>
+            </div>
+        </div>
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 8px 16px; border-radius: 10px;">
+            <span style="color: #cbd5e1; font-size: 0.85rem;">Difference: </span>
+            <strong style="color: {diff_color}; font-size: 1.1rem; font-family: 'JetBrains Mono';">{diff_sign}{diff_from_sec}%</strong>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("### 📈 Attendance Trend Over Time")
     fig = px.line(df, x='snapshot_date', y='percentage', color='subject_code', markers=True, render_mode='svg')
     fig.update_traces(line_shape='spline', line=dict(width=3))
-    fig.add_hline(y=75, line_dash="dash", line_color="#00D8C6")
-    fig.add_hline(y=65, line_dash="dash", line_color="#F59E0B")
+    fig.add_hline(y=75, line_dash="dash", line_color="#00D8C6", annotation_text="75% Safe")
+    fig.add_hline(y=65, line_dash="dash", line_color="#F59E0B", annotation_text="65% Min")
     apply_premium_plotly_theme(fig)
     st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
 
@@ -2192,18 +2245,39 @@ def show_analytics_page(roll, sem):
     apply_premium_plotly_theme(fig2)
     st.plotly_chart(fig2, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
 
-    # Attendance forecast (NEW — feature #12)
-    st.markdown("### 🔮 Attendance Forecast")
+    # Attendance Forecast & Subject Momentum Table
+    st.markdown("### 🔮 Subject Attendance Momentum & 1-Month Forecast")
     latest = df.sort_values('snapshot_date').groupby('subject_code').last().reset_index()
     fc_rows = []
     for _, r in latest.iterrows():
+        subj_code = r['subject_code']
         cur = r['percentage']
         a = r['running_attended']; c = r['running_conducted']
+        
+        # Calculate 14-day momentum trend
+        subj_df = df[df['subject_code'] == subj_code].sort_values('snapshot_date')
+        if len(subj_df) >= 2:
+            first_pct = subj_df.iloc[0]['percentage']
+            last_pct = subj_df.iloc[-1]['percentage']
+            diff = last_pct - first_pct
+            if diff > 1.5:
+                trend = "📈 Rising"
+            elif diff < -1.5:
+                trend = "📉 Dropping"
+            else:
+                trend = "➡️ Stable"
+        else:
+            trend = "➡️ Stable"
+
         # Project if attends all future (assume 5/week, 4 weeks)
         future = 20
         proj = round((a + future) / (c + future) * 100, 1) if c else cur
-        fc_rows.append({'Subject': r['subject_code'], 'Current %': cur,
-                        'If attend all (1 month)': f"{proj}%"})
+        fc_rows.append({
+            'Subject': subj_code, 
+            'Current %': f"{cur}%",
+            '14-Day Momentum': trend,
+            'If attend all (1 month)': f"{proj}%"
+        })
     st_premium_table(pd.DataFrame(fc_rows))
 
     conn = get_db_connection()
