@@ -237,20 +237,22 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     conn          = dynamic_conn if dynamic_conn is not None else get_db_connection()
     cursor        = conn.cursor()
 
-    # Smart Skip: If already successfully scraped today and not forced, skip to save resources
-    ist_today_str = ist_now.strftime('%Y-%m-%d')
+    # Smart Skip: If already successfully scraped within the last 14 hours (e.g. evening sync done), skip to save resources
+    cutoff_str = (ist_now - timedelta(hours=14)).strftime('%Y-%m-%d %H:%M:%S')
     if not force:
         try:
             cursor.execute('''
-                SELECT COUNT(*) FROM scrape_log 
-                WHERE section = ? AND status = 'success' AND scraped_at LIKE ?
-            ''', (sc, f'{ist_today_str}%'))
+                SELECT scraped_at FROM scrape_log 
+                WHERE section = ? AND status = 'success' AND scraped_at >= ?
+                ORDER BY id DESC LIMIT 1
+            ''', (sc, cutoff_str))
             res = cursor.fetchone()
-            if res and res[0] > 0:
-                logger.info(f'[{sc}] Already synced successfully today ({ist_today_str}). Skipping.')
+            if res:
+                scraped_time = res[0]
+                logger.info(f'[{sc}] Already synced recently at {scraped_time} (<14h ago). Skipping.')
                 if dynamic_conn is None:
                     conn.close()
-                return True, f'[{sc}] Already synced today ({ist_today_str}).'
+                return True, f'[{sc}] Already synced recently at {scraped_time}.'
         except Exception:
             try:
                 conn.rollback()
