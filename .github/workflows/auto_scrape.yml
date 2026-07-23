@@ -2,11 +2,11 @@ name: Scheduled Portal Scrape
 
 on:
   schedule:
-    # Runs twice daily:
-    # - 02:00 UTC = 07:30 AM IST (Morning Sync)
-    # - 12:00 UTC = 05:30 PM IST (Evening Sync)
-    - cron: '0 2,12 * * *'
-  workflow_dispatch: # Allows manual trigger from GitHub Actions tab in repository UI
+    # Runs twice daily (shifted to off-peak minutes to avoid GitHub queue delays):
+    # - 02:25 UTC = 07:55 AM IST (Morning Sync)
+    # - 12:25 UTC = 05:55 PM IST (Evening Sync)
+    - cron: '25 2,12 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
 
 jobs:
   scrape:
