@@ -3,6 +3,7 @@ VITS Academic ERP — Streamlit Version (FIXED + ENHANCED)
 Pure Python, multi-page web app
 """
 import streamlit as st
+st.set_page_config(page_title="VITS Student Dashboard", page_icon="🎓", layout="wide", initial_sidebar_state="expanded")
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -1053,7 +1054,7 @@ def login_page():
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="VITS ERP">
+<meta name="apple-mobile-web-app-title" content="VITS Student Dashboard">
 <link rel="apple-touch-icon" href="app/static/icon-192.png">
 </head>
 <script>

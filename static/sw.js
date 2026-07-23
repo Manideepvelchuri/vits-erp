@@ -1,7 +1,8 @@
-const CACHE_NAME = 'vits-erp-v1';
+const CACHE_NAME = 'vits-dashboard-v2';
 const urlsToCache = [
   '/',
-  'app/static/manifest.json'
+  '/app/static/manifest.json',
+  '/app/static/icon-192.png'
 ];
 
 self.addEventListener('install', event => {
