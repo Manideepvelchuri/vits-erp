@@ -2,11 +2,13 @@ name: Scheduled Portal Scrape
 
 on:
   schedule:
-    # Runs twice daily (shifted to off-peak minutes to avoid GitHub queue delays):
-    # - 02:25 UTC = 07:55 AM IST (Morning Sync)
-    # - 12:25 UTC = 05:55 PM IST (Evening Sync)
-    - cron: '25 2,12 * * *'
+    # Off-peak minute timing (:55) to bypass GitHub queue delays:
+    # - 23:55 UTC = 05:25 AM IST (Morning Sync)
+    # - 12:55 UTC = 06:25 PM IST (Evening Sync)
+    - cron: '55 12,23 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+  repository_dispatch:
+    types: [trigger-scrape]
 
 jobs:
   scrape:
