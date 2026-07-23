@@ -2205,8 +2205,17 @@ def show_analytics_page(roll, sem):
         df = df_raw.copy()
 
     # 📊 Section Benchmark Header Card
-    student_att_sum = df.groupby('snapshot_date')['percentage'].mean().iloc[-1] if not df.empty else 0.0
-    diff_from_sec = round(student_att_sum - sec_avg, 1)
+    try:
+        student_att_sum = float(df.groupby('snapshot_date')['percentage'].mean().iloc[-1]) if not df.empty else 0.0
+    except Exception:
+        student_att_sum = 0.0
+
+    try:
+        sec_avg_val = float(sec_avg) if (sec_avg is not None and not pd.isna(sec_avg)) else 0.0
+    except Exception:
+        sec_avg_val = 0.0
+
+    diff_from_sec = round(student_att_sum - sec_avg_val, 1)
     diff_sign = "+" if diff_from_sec >= 0 else ""
     diff_color = "#10b981" if diff_from_sec >= 0 else "#ef4444"
 
@@ -2217,7 +2226,7 @@ def show_analytics_page(roll, sem):
         <div>
             <div style="font-size: 0.78rem; text-transform: uppercase; color: #94a3b8; font-weight: 600;">Your Section Benchmark ({sec})</div>
             <div style="font-size: 1.6rem; font-weight: 700; color: #ffffff; font-family: 'Outfit'; margin-top: 4px;">
-                Your Avg: <span style="color: #38bdf8;">{student_att_sum:.1f}%</span> vs Section Avg: <span style="color: #a78bfa;">{sec_avg:.1f}%</span>
+                Your Avg: <span style="color: #38bdf8;">{student_att_sum:.1f}%</span> vs Section Avg: <span style="color: #a78bfa;">{sec_avg_val:.1f}%</span>
             </div>
         </div>
         <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 8px 16px; border-radius: 10px;">
