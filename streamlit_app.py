@@ -1843,8 +1843,9 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
             <p style="margin: 6px 0 0 0; font-size: 0.8rem; color: #94a3b8; line-height: 1.3;">Access lecture slides, textbook PDF drives, syllabus copies, and previous lab materials.</p>
         </div>
         """.replace('\n', ' '), unsafe_allow_html=True)
-        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-        st.link_button("📂 Open Cloud Drive", "https://drive.google.com/drive/folders/1bInXkRc9mQFdbVbUMNxG1VVnrpKEyoPN?usp=drive_link", use_container_width=True)
+        c_res1, c_res2 = st.columns(2)
+        c_res1.link_button("🌐 iResource Hub", "https://manideepvelchuri.github.io/vits-iresource-hub/", use_container_width=True)
+        c_res2.link_button("📂 Open Cloud Drive", "https://drive.google.com/drive/folders/1bInXkRc9mQFdbVbUMNxG1VVnrpKEyoPN?usp=drive_link", use_container_width=True)
 
 
 
