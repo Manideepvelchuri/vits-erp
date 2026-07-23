@@ -1902,20 +1902,31 @@ def show_attendance_page(roll, sem, att_rows):
     total_a = sum((r['hours_attended']  or 0) for r in att_rows)
     overall = round(total_a / total_c * 100, 1) if total_c else 0.0
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Hours Conducted", total_c)
-    c2.metric("Hours Attended", total_a)
-    c3.metric("Overall %", f"{overall}%")
-    
     can_miss = can_miss_classes(total_a, total_c)
     need = classes_needed(total_a, total_c)
     can_miss_days = round(can_miss / avg_classes, 1) if avg_classes > 0 else 0.0
     need_days = round(need / avg_classes, 1) if avg_classes > 0 else 0.0
 
-    if overall >= 75:
-        c4.metric("Can Miss", f"{can_miss} ({can_miss_days} d)")
-    else:
-        c4.metric("Attend Next", f"{need} ({need_days} d)")
+    def kpi_card(label, val, color="#f8fafc"):
+        return f"""<div style="background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(15,23,42,0.9));border:1px solid rgba(255,255,255,0.08);
+            border-radius:14px;padding:18px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+            <div style="font-size:0.75rem;text-transform:uppercase;color:#94a3b8;font-weight:600;letter-spacing:0.07em;">{label}</div>
+            <div style="font-size:1.8rem;font-weight:700;color:{color};margin-top:6px;font-family:'Outfit';">{val}</div>
+        </div>"""
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(kpi_card("Hours Conducted", f"{total_c}", "#94a3b8"), unsafe_allow_html=True)
+    with c2:
+        st.markdown(kpi_card("Hours Attended", f"{total_a}", "#38bdf8"), unsafe_allow_html=True)
+    with c3:
+        pct_color = "#10b981" if overall >= 75 else ("#f59e0b" if overall >= 65 else "#ef4444")
+        st.markdown(kpi_card("Overall %", f"{overall}%", pct_color), unsafe_allow_html=True)
+    with c4:
+        if overall >= 75:
+            st.markdown(kpi_card("Can Miss", f"{can_miss} <span style='font-size:0.85rem;color:#a78bfa;'>({can_miss_days}d)</span>", "#34d399"), unsafe_allow_html=True)
+        else:
+            st.markdown(kpi_card("Attend Next", f"{need} <span style='font-size:0.85rem;color:#f472b6;'>({need_days}d)</span>", "#fb7185"), unsafe_allow_html=True)
 
     if total_c > 0:
         if overall >= 75:
