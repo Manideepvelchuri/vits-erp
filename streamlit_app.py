@@ -1118,10 +1118,6 @@ def login_page():
     </style>
     """, unsafe_allow_html=True)
 
-    if st.session_state.get('show_signup_page', False):
-        render_student_signup_page()
-        return
-
     logo_path   = os.path.join(os.path.dirname(__file__), 'vits_logo.png')
     logo_base64 = get_image_base64(logo_path)
     logo_html   = f'<img src="data:image/png;base64,{logo_base64}" width="80" style="margin-bottom:10px;filter:drop-shadow(0 4px 12px rgba(0,216,198,0.3));"/>' if logo_base64 else '🎓'
@@ -1138,16 +1134,16 @@ def login_page():
     with col2:
         tab1, tab2 = st.tabs(["👤 Student", "🛡️ Admin"])
         with tab1:
-            with st.form("student_login_form"):
-                roll = st.text_input("Roll Number", placeholder="e.g. 23891A0401", key="login_roll")
-                pwd  = st.text_input("Password (DOB)", type="password", placeholder="Enter your DOB (YYYY-MM-DD or DD-MM-YYYY)", key="login_pwd")
-                if st.form_submit_button("Sign In", use_container_width=True, type="primary"):
+            with st.form("student_login"):
+                st.info(
+                    "🔑 **Password Instructions:**\n\n"
+                    "* **First-Time Login:** Use **`vits123`** as the password. You will then set your Date of Birth (DOB) as your permanent password.\n"
+                    "* **Returning Students:** Use your configured **Date of Birth** as the password (format: **`YYYY-MM-DD`** or **`DD-MM-YYYY`**, e.g., `2005-08-15` or `15-08-2005`)."
+                )
+                roll = st.text_input("Roll Number", placeholder="e.g. 23891A0401")
+                pwd  = st.text_input("Password", type="password", placeholder="Enter 'vits123' or your DOB")
+                if st.form_submit_button("Sign In", use_container_width=True):
                     handle_student_login(roll.strip().upper(), pwd.strip())
-
-            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-            if st.button("🆕 First-Time Login / Sign Up", use_container_width=True):
-                st.session_state['show_signup_page'] = True
-                st.rerun()
         with tab2:
             with st.form("admin_login"):
                 u = st.text_input("Admin Username")
@@ -1162,59 +1158,6 @@ def login_page():
                         st.rerun()
                     else:
                         st.error("Invalid credentials")
-
-
-def render_student_signup_page():
-    logo_path   = os.path.join(os.path.dirname(__file__), 'vits_logo.png')
-    logo_base64 = get_image_base64(logo_path)
-    logo_html   = f'<img src="data:image/png;base64,{logo_base64}" width="80" style="margin-bottom:10px;filter:drop-shadow(0 4px 12px rgba(0,216,198,0.3));"/>' if logo_base64 else '🎓'
-
-    st.markdown(f"""
-    <div class="login-header">
-        {logo_html}
-        <div class="login-title">First-Time Student Registration</div>
-        <div class="login-subtitle">Vignan Institute of Technology and Science</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.info("🆕 **Account Setup:** Enter your Roll Number and select your Date of Birth to set your permanent password.")
-        with st.form("dedicated_student_signup_form"):
-            signup_roll = st.text_input("Roll Number", placeholder="e.g. 23891A0401", key="d_signup_roll")
-            signup_dob  = st.date_input("Date of Birth (Password)", value=None,
-                                        min_value=datetime.date(1985, 1, 1),
-                                        max_value=datetime.date.today(), key="d_signup_dob")
-            if st.form_submit_button("Set Password & Sign In", use_container_width=True, type="primary"):
-                if not signup_roll or not signup_dob:
-                    st.error("Please enter your Roll Number and select your Date of Birth.")
-                else:
-                    handle_student_signup(signup_roll.strip().upper(), signup_dob)
-
-        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-        if st.button("⬅️ Back to Sign In Page", use_container_width=True):
-            st.session_state['show_signup_page'] = False
-            st.rerun()
-
-
-def handle_student_signup(roll, dob_val):
-    conn = get_db_connection()
-    st_row = conn.execute('SELECT roll_no, name, dob, section FROM students WHERE roll_no=?', (roll,)).fetchone()
-    if not st_row:
-        conn.close()
-        st.error("Roll number not found. Please contact Administrator.")
-        return
-    dob_str = dob_val.strftime('%Y-%m-%d')
-    conn.execute('UPDATE students SET dob=? WHERE roll_no=?', (dob_str, roll))
-    conn.commit()
-    conn.close()
-    st.session_state.update({
-        'logged_in': True, 'role': 'student',
-        'user_id': st_row['roll_no'], 'user_name': st_row['name'],
-        'section': st_row['section']
-    })
-    st.success(f"Welcome {st_row['name']}! Date of birth saved as password.")
-    st.rerun()
 
 
 
