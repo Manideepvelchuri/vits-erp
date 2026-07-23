@@ -1047,76 +1047,41 @@ def color_for_pct(p):
 # ══════════════════════════════════════════════════════════════
 def login_page():
     # ── suppress h1 anchor icons globally on this page & style login elements ────────
-    st.markdown("""
-    <style>
-    h1 a, h2 a, h3 a { display: none !important; }
-    
-    /* Login Header Styling */
-    .login-header {
-        text-align: center;
-        padding: 40px 0 24px 0;
-    }
-    .login-title {
-        color: #00D8C6;
-        font-family: 'Outfit', sans-serif;
-        font-size: 2.2rem;
-        font-weight: 800;
-        margin: 8px 0 4px 0;
-        text-shadow: 0 0 30px rgba(0,216,198,0.3);
-    }
-    .login-subtitle {
-        color: #94a3b8;
-        font-family: 'Inter', sans-serif;
-        font-size: 1rem;
-        letter-spacing: 0.5px;
-    }
-    
-    /* Mobile Layout Optimizations for Login Page Columns */
-    @media (max-width: 768px) {
-        .login-header {
-            padding: 20px 0 12px 0 !important;
-        }
-        .login-title {
-            font-size: 1.65rem !important;
-        }
-        .login-subtitle {
-            font-size: 0.85rem !important;
-        }
-        
-        /* Hide empty side columns on mobile to prevent empty vertical space */
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(1) {
-            display: none !important;
-        }
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(3) {
-            display: none !important;
-        }
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(2) {
-            width: 100% !important;
-            max-width: 100% !important;
-            flex: 1 1 100% !important;
-        }
-        
-        /* Reduce padding inside forms on mobile to maximize input field area */
-        div[data-testid="stForm"] {
-            padding: 16px !important;
-        }
-        
-        /* Make alert box more compact on mobile */
-        div[data-testid="stAlert"] {
-            padding: 10px 14px !important;
-        }
-        div[data-testid="stAlert"] [data-testid="stMarkdownContainer"] p {
-            font-size: 0.82rem !important;
-        }
-        
-        /* Adjust tab spacing on mobile */
-        button[role="tab"] {
-            padding: 8px 14px !important;
-            font-size: 0.9rem !important;
-        }
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    pwa_and_css = """<head>
+<link rel="manifest" href="app/static/manifest.json">
+<meta name="theme-color" content="#00D8C6">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VITS ERP">
+<link rel="apple-touch-icon" href="app/static/icon-192.png">
+</head>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('app/static/sw.js').catch(function(err){});
+  });
+}
+</script>
+<style>
+h1 a, h2 a, h3 a { display: none !important; }
+.login-header { text-align: center; padding: 40px 0 24px 0; }
+.login-title { color: #00D8C6; font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; margin: 8px 0 4px 0; text-shadow: 0 0 30px rgba(0,216,198,0.3); }
+.login-subtitle { color: #94a3b8; font-family: 'Inter', sans-serif; font-size: 1rem; letter-spacing: 0.5px; }
+@media (max-width: 768px) {
+  .login-header { padding: 20px 0 12px 0 !important; }
+  .login-title { font-size: 1.65rem !important; }
+  .login-subtitle { font-size: 0.85rem !important; }
+  div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(1) { display: none !important; }
+  div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(3) { display: none !important; }
+  div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(2) { width: 100% !important; max-width: 100% !important; flex: 1 1 100% !important; }
+  div[data-testid="stForm"] { padding: 16px !important; }
+  div[data-testid="stAlert"] { padding: 10px 14px !important; }
+  div[data-testid="stAlert"] [data-testid="stMarkdownContainer"] p { font-size: 0.82rem !important; }
+  button[role="tab"] { padding: 8px 14px !important; font-size: 0.9rem !important; }
+}
+</style>""".replace('\n', ' ')
+    st.markdown(pwa_and_css, unsafe_allow_html=True)
 
     logo_path   = os.path.join(os.path.dirname(__file__), 'vits_logo.png')
     logo_base64 = get_image_base64(logo_path)
