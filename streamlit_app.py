@@ -1054,61 +1054,24 @@ def login_page():
     logo_base64 = get_image_base64(logo_path)
     logo_html   = f'<img src="data:image/png;base64,{logo_base64}" width="80" style="margin-bottom:10px;filter:drop-shadow(0 4px 12px rgba(0,216,198,0.3));"/>' if logo_base64 else '🎓'
 
-    # ── suppress h1 anchor icons globally on this page & style login elements ────────
-    pwa_and_css = f"""<head>
-<link rel="manifest" href="app/static/manifest.json">
-<meta name="theme-color" content="#00D8C6">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="VITS Student Dashboard">
-<link rel="apple-touch-icon" href="data:image/png;base64,{logo_base64}">
-<link rel="shortcut icon" href="data:image/png;base64,{logo_base64}">
-</head>
-<script>
-try {{
-    var topDoc = window.top.document;
-    topDoc.title = "VITS Student Dashboard";
-    var oldLinks = topDoc.querySelectorAll("link[rel*='icon']");
-    for (var i=0; i<oldLinks.length; i++) {{ oldLinks[i].parentNode.removeChild(oldLinks[i]); }}
-    
-    var iconLink = topDoc.createElement('link');
-    iconLink.type = 'image/png';
-    iconLink.rel = 'shortcut icon';
-    iconLink.href = 'data:image/png;base64,{logo_base64}';
-    topDoc.getElementsByTagName('head')[0].appendChild(iconLink);
-
-    var appleLink = topDoc.createElement('link');
-    appleLink.rel = 'apple-touch-icon';
-    appleLink.href = 'data:image/png;base64,{logo_base64}';
-    topDoc.getElementsByTagName('head')[0].appendChild(appleLink);
-}} catch(e) {{}}
-
-if ('serviceWorker' in navigator) {{
-  window.addEventListener('load', function() {{
-    navigator.serviceWorker.register('app/static/sw.js').catch(function(err){{}});
-  }});
-}}
-</script>
-<style>
-h1 a, h2 a, h3 a {{ display: none !important; }}
-.login-header {{ text-align: center; padding: 40px 0 24px 0; }}
-.login-title {{ color: #00D8C6; font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; margin: 8px 0 4px 0; text-shadow: 0 0 30px rgba(0,216,198,0.3); }}
-.login-subtitle {{ color: #94a3b8; font-family: 'Inter', sans-serif; font-size: 1rem; letter-spacing: 0.5px; }}
-@media (max-width: 768px) {{
-  .login-header {{ padding: 20px 0 12px 0 !important; }}
-  .login-title {{ font-size: 1.65rem !important; }}
-  .login-subtitle {{ font-size: 0.85rem !important; }}
-  div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(1) {{ display: none !important; }}
-  div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(3) {{ display: none !important; }}
-  div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(2) {{ width: 100% !important; max-width: 100% !important; flex: 1 1 100% !important; }}
-  div[data-testid="stForm"] {{ padding: 16px !important; }}
-  div[data-testid="stAlert"] {{ padding: 10px 14px !important; }}
-  div[data-testid="stAlert"] [data-testid="stMarkdownContainer"] p {{ font-size: 0.82rem !important; }}
-  button[role="tab"] {{ padding: 8px 14px !important; font-size: 0.9rem !important; }}
-}}
-</style>""".replace('\n', ' ')
-    st.markdown(pwa_and_css, unsafe_allow_html=True)
+    st.markdown("""<style>
+h1 a, h2 a, h3 a { display: none !important; }
+.login-header { text-align: center; padding: 40px 0 24px 0; }
+.login-title { color: #00D8C6; font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; margin: 8px 0 4px 0; text-shadow: 0 0 30px rgba(0,216,198,0.3); }
+.login-subtitle { color: #94a3b8; font-family: 'Inter', sans-serif; font-size: 1rem; letter-spacing: 0.5px; }
+@media (max-width: 768px) {
+  .login-header { padding: 20px 0 12px 0 !important; }
+  .login-title { font-size: 1.65rem !important; }
+  .login-subtitle { font-size: 0.85rem !important; }
+  div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(1) { display: none !important; }
+  div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(3) { display: none !important; }
+  div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(2) { width: 100% !important; max-width: 100% !important; flex: 1 1 100% !important; }
+  div[data-testid="stForm"] { padding: 16px !important; }
+  div[data-testid="stAlert"] { padding: 10px 14px !important; }
+  div[data-testid="stAlert"] [data-testid="stMarkdownContainer"] p { font-size: 0.82rem !important; }
+  button[role="tab"] { padding: 8px 14px !important; font-size: 0.9rem !important; }
+}
+</style>""", unsafe_allow_html=True)
 
     st.markdown(f"""
     <div class="login-header">
