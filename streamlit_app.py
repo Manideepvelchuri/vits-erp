@@ -3206,11 +3206,7 @@ def admin_bunk_analysis():
     # TAB 1: ATTENDANCE & DEBARMENT TRACKER
     # ═══════════════════════════════════════════════════════════
     with tab_debarment:
-        try:
-            hw_count = conn.execute("SELECT COUNT(*) FROM hour_wise_attendance WHERE date >= ? AND date <= ?", (start_dt, end_dt)).fetchone()[0]
-            use_hour_wise = (hw_count > 0)
-        except Exception:
-            use_hour_wise = False
+        use_hour_wise = False
 
         if use_hour_wise:
             try:
