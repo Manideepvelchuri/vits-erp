@@ -218,8 +218,11 @@ st.set_page_config(
 # Initialize DB once per app lifetime (cached globally)
 @st.cache_resource
 def startup_db_init():
-    init_db()
-    ensure_admin_pwd()
+    try:
+        init_db()
+        ensure_admin_pwd()
+    except Exception as e:
+        print(f"[startup_db_init] Non-fatal notice: {e}")
 
 startup_db_init()
 
