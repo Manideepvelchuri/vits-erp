@@ -3206,7 +3206,11 @@ def admin_bunk_analysis():
     # TAB 1: ATTENDANCE & DEBARMENT TRACKER
     # ═══════════════════════════════════════════════════════════
     with tab_debarment:
-        use_hour_wise = False
+        try:
+            hw_count = conn.execute("SELECT COUNT(*) FROM hour_wise_attendance WHERE date >= ? AND date <= ?", (start_dt, end_dt)).fetchone()[0]
+            use_hour_wise = (hw_count > 0)
+        except Exception:
+            use_hour_wise = False
 
         if use_hour_wise:
             try:
@@ -3762,7 +3766,52 @@ def admin_bunk_analysis():
         df_cond = pd.DataFrame([dict(r) for r in cond_rows]) if cond_rows else pd.DataFrame(columns=['date', 'section', 'hour'])
 
         if df_abs.empty or df_cond.empty:
-            st.info("ℹ️ No hour-wise period attendance records found for this selection to perform pattern analysis.")
+            st.markdown("### 📅 Weekday Attendance & Absence Analysis (Monday – Saturday)")
+            st.caption("Daily attendance breakdown by weekday for the selected semester.")
+            
+            hist_sql = """
+                SELECT ah.snapshot_date, 
+                       SUM(ah.hours_conducted) as conducted,
+                       SUM(ah.hours_attended) as attended,
+                       SUM(ah.hours_conducted - ah.hours_attended) as missed
+                FROM attendance_history ah
+                JOIN students s ON ah.roll_no = s.roll_no
+                WHERE s.semester = ? AND ah.snapshot_date >= ? AND ah.snapshot_date <= ?
+                """ + (" AND s.section = ?" if sec_filter != "All Sections" else "") + """
+                GROUP BY ah.snapshot_date
+                ORDER BY ah.snapshot_date ASC
+            """
+            h_params = (sem_num, start_dt, end_dt, sec_filter) if sec_filter != "All Sections" else (sem_num, start_dt, end_dt)
+            try:
+                h_rows = conn.execute(hist_sql, h_params).fetchall()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                h_rows = []
+            if h_rows:
+                df_h = pd.DataFrame([dict(r) for r in h_rows])
+                df_h['day_of_week'] = pd.to_datetime(df_h['snapshot_date']).dt.day_name()
+                weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+                df_wk = df_h.groupby('day_of_week').agg(
+                    total_missed=('missed', 'sum'),
+                    total_cond=('conducted', 'sum')
+                ).reindex(weekday_order, fill_value=0).reset_index()
+                df_wk['absence_rate'] = (df_wk['total_missed'] * 100.0 / df_wk['total_cond'].replace(0, 1)).round(1)
+                
+                fig_wk = px.bar(
+                    df_wk, x='day_of_week', y='absence_rate',
+                    color='absence_rate',
+                    color_continuous_scale=[[0, '#10b981'], [0.5, '#f59e0b'], [1, '#ef4444']],
+                    labels={'day_of_week': 'Weekday', 'absence_rate': 'Absence Rate (%)'},
+                    text='absence_rate'
+                )
+                fig_wk.update_traces(texttemplate='%{text}%', textposition='outside')
+                apply_premium_plotly_theme(fig_wk)
+                st.plotly_chart(fig_wk, use_container_width=True)
+            else:
+                st.info("ℹ️ No historical date records found for pattern analysis in this range.")
         else:
             # Group conducted hours
             cond_map = df_cond.groupby(['date', 'section'])['hour'].apply(set).to_dict()
