@@ -206,7 +206,7 @@ def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
 
 
 def scrape_portal(start_date=None, end_date=None, section=None,
-                  semester=None, dynamic_conn=None, max_retries=3):
+                  semester=None, dynamic_conn=None, max_retries=3, force=False):
     """Main scrape function. Returns (success, message)."""
     if _check_pg_available():
         from database_pg import get_config_map
@@ -236,6 +236,26 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     session       = _make_session()
     conn          = dynamic_conn if dynamic_conn is not None else get_db_connection()
     cursor        = conn.cursor()
+
+    # Smart Skip: If already successfully scraped today and not forced, skip to save resources
+    ist_today_str = ist_now.strftime('%Y-%m-%d')
+    if not force:
+        try:
+            cursor.execute('''
+                SELECT COUNT(*) FROM scrape_log 
+                WHERE section = ? AND status = 'success' AND scraped_at LIKE ?
+            ''', (sc, f'{ist_today_str}%'))
+            res = cursor.fetchone()
+            if res and res[0] > 0:
+                logger.info(f'[{sc}] Already synced successfully today ({ist_today_str}). Skipping.')
+                if dynamic_conn is None:
+                    conn.close()
+                return True, f'[{sc}] Already synced today ({ist_today_str}).'
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     # Check if section has history. If it does, only scrape today's date to keep it 5x faster.
     has_history = False
@@ -525,7 +545,7 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     return True, f'[{sc}] Synced {student_count} students | {len(success_dates)} snapshots | {duration}s'
 
 
-def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_callback=None):
+def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_callback=None, force=False):
     """Scrape all sections. Writes live progress to DB config so all sessions can see it."""
     total = len(CLASSES)
     results = []
@@ -560,7 +580,7 @@ def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_call
                 pass
         ok, msg = scrape_portal(
             start_date=start_date, end_date=end_date,
-            section=sec, semester=semester, dynamic_conn=None
+            section=sec, semester=semester, dynamic_conn=None, force=force
         )
         results.append({'section': sec, 'ok': ok, 'msg': msg})
         logger.info(msg)

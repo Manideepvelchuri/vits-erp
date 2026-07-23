@@ -1884,7 +1884,7 @@ def show_attendance_page(roll, sem, att_rows):
             sd_val = cfg_m.get('start_date', '2026-06-01')
             ist_now_dt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
             ed_val = cfg_m.get('end_date', ist_now_dt.strftime('%Y-%m-%d'))
-            ok, msg = harvester.scrape_portal(start_date=sd_val, end_date=ed_val, section=sec, semester=sem)
+            ok, msg = harvester.scrape_portal(start_date=sd_val, end_date=ed_val, section=sec, semester=sem, force=True)
             if ok:
                 st.success(msg)
                 st.rerun()
@@ -2938,7 +2938,7 @@ def admin_scraper():
             ok, msg = harvester.scrape_portal(
                 start_date=sd.strftime('%Y-%m-%d'),
                 end_date=ed.strftime('%Y-%m-%d'),
-                section=section, semester=sem
+                section=section, semester=sem, force=True
             )
             if ok: st.success(msg)
             else:  st.error(msg)
@@ -2953,7 +2953,7 @@ def admin_scraper():
             ok, msg = harvester.scrape_portal(
                 start_date=sd.strftime('%Y-%m-%d'),
                 end_date=ed.strftime('%Y-%m-%d'),
-                section=sec, semester=sem
+                section=sec, semester=sem, force=True
             )
             results.append({'section': sec, 'ok': ok})
             progress_bar.progress((i + 1) / len(CLASSES))
