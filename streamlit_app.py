@@ -1434,12 +1434,23 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         best_subj = max(subj_data, key=lambda x: x['pct'])
         worst_subj = min(subj_data, key=lambda x: x['pct'])
 
-    # Welcome Header
-    hour = dt.now().hour
+    # Welcome Header (IST timezone UTC+5:30)
+    ist_now = datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
+    hour = ist_now.hour
     greeting = "Good Morning" if hour < 12 else "Good Afternoon" if hour < 17 else "Good Evening"
+
+    raw_name = student['name'] or ""
+    name_parts = raw_name.strip().split()
+    if len(name_parts) >= 2:
+        display_first_name = name_parts[1].upper() if len(name_parts[1]) > 1 else name_parts[0].upper()
+    elif len(name_parts) == 1:
+        display_first_name = name_parts[0].upper()
+    else:
+        display_first_name = "STUDENT"
+
     st.markdown(
         f"<div style='margin-bottom:25px;margin-top:5px;'>"
-        f"  <h1 style='font-family:Outfit;font-weight:800;font-size:2.5rem;color:#fff;margin:0;letter-spacing:-0.5px;'>{greeting}, {student['name'].split(' ')[0]}! 👋</h1>"
+        f"  <h1 style='font-family:Outfit;font-weight:800;font-size:2.5rem;color:#fff;margin:0;letter-spacing:-0.5px;'>{greeting}, {display_first_name}! 👋</h1>"
         f"  <div class='greeting-badge-container'>"
         f"    <span class='greeting-badge-pill badge-roll'>🆔 {student['roll_no']}</span>"
         f"    <span class='greeting-badge-pill badge-section'>🏫 SECTION {student['section']}</span>"
