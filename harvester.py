@@ -240,35 +240,34 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     # Smart Skip Logic:
     # 1. Manual clicks pass force=True -> ALWAYS scrape fresh data.
     # 2. Automated scheduled runs (force=False):
-    #    - Evening run (>= 17:00 IST): Only skip if a scrape already succeeded TODAY after 17:00 IST.
-    #    - Morning run (< 17:00 IST): Skip if a scrape succeeded yesterday after 17:00 IST or today.
+    #    - Evening run (>= 15:30 IST): Only skip if a scrape already succeeded TODAY after 15:30 IST.
+    #    - Morning run (< 15:30 IST): Only skip if a scrape already succeeded TODAY (since 00:00:00 IST today).
     if not force:
         try:
             curr_hour = ist_now.hour
-            if curr_hour >= 17:
-                # Evening run: Only skip if today's post-17:00 scrape already succeeded
-                post_17_today = ist_now.strftime('%Y-%m-%d 17:00:00')
-                cursor.execute('''
-                    SELECT scraped_at FROM scrape_log 
-                    WHERE section = ? AND status = 'success' AND scraped_at >= ?
-                    ORDER BY id DESC LIMIT 1
-                ''', (sc, post_17_today))
+            curr_min  = ist_now.minute
+            is_evening_slot = (curr_hour > 15) or (curr_hour == 15 and curr_min >= 30)
+
+            if is_evening_slot:
+                cutoff_time = ist_now.strftime('%Y-%m-%d 15:30:00')
+                skip_msg_prefix = "Evening"
             else:
-                # Morning run: Skip if yesterday's evening scrape (after 17:00 yesterday) or today's scrape succeeded
-                yesterday_17 = (ist_now - timedelta(days=1)).strftime('%Y-%m-%d 17:00:00')
-                cursor.execute('''
-                    SELECT scraped_at FROM scrape_log 
-                    WHERE section = ? AND status = 'success' AND scraped_at >= ?
-                    ORDER BY id DESC LIMIT 1
-                ''', (sc, yesterday_17))
+                cutoff_time = ist_now.strftime('%Y-%m-%d 00:00:00')
+                skip_msg_prefix = "Morning"
+
+            cursor.execute('''
+                SELECT scraped_at FROM scrape_log 
+                WHERE section = ? AND status = 'success' AND scraped_at >= ?
+                ORDER BY id DESC LIMIT 1
+            ''', (sc, cutoff_time))
 
             res = cursor.fetchone()
             if res:
                 scraped_time = res[0]
-                logger.info(f'[{sc}] Evening attendance already synced (at {scraped_time}). Skipping redundant run.')
+                logger.info(f'[{sc}] {skip_msg_prefix} attendance already synced today (at {scraped_time}). Skipping redundant run.')
                 if dynamic_conn is None:
                     conn.close()
-                return True, f'[{sc}] Evening attendance already synced (at {scraped_time}).'
+                return True, f'[{sc}] {skip_msg_prefix} attendance already synced today (at {scraped_time}).'
         except Exception:
             try:
                 conn.rollback()
