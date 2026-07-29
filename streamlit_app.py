@@ -3970,8 +3970,12 @@ def admin_bunk_analysis():
 
                 pres_hours = cond_hours - abs_hours
 
-                # EXCLUDE FULL-DAY ABSENTEES (Students absent for all classes on that date are NOT intermittent bunkers)
+                # 1. Exclude full-day absentees
                 if len(pres_hours) == 0:
+                    continue
+
+                # 2. Ignore 1st hour late arrivals (students who ONLY missed 1st hour)
+                if len(abs_hours - {1}) == 0:
                     continue
 
                 sorted_cond = sorted(list(cond_hours))
@@ -3979,36 +3983,7 @@ def admin_bunk_analysis():
                 for h in sorted_cond:
                     status_seq.append('A' if h in abs_hours else 'P')
                 status_str = "".join(status_seq)
-
                 abs_sorted = sorted(list(abs_hours))
-
-                # 1. Half-Day Permission Check (Morning P1-P4 absent OR Afternoon P5-P7 absent)
-                is_morning_halfday = all(h in abs_hours for h in [1, 2, 3, 4]) and all(h in pres_hours for h in [5, 6, 7])
-                is_afternoon_halfday = all(h in pres_hours for h in [1, 2, 3, 4]) and all(h in abs_hours for h in [5, 6, 7])
-
-                if is_morning_halfday or is_afternoon_halfday:
-                    pattern_type = '📋 Half-Day Permission'
-                else:
-                    pat_tags = []
-                    # Continuous Class/Lab Bunk (e.g. EDC LAB Hours 3-4-5)
-                    has_block_bunk = len(abs_sorted) >= 2 and any(abs_sorted[i+1] == abs_sorted[i] + 1 for i in range(len(abs_sorted)-1))
-                    # Stealth Bunk (Present in 3rd or 6th hour to bypass HOD report, but skipping other classes)
-                    is_stealth_bunk = (3 in pres_hours or 6 in pres_hours) and (len(abs_hours) > 0)
-
-                    if has_block_bunk:
-                        pat_tags.append('⚡ Continuous Class/Lab Bunk')
-                    elif ('PAP' in status_str) or ('APA' in status_str):
-                        pat_tags.append('🔄 Alternative Class Bunk')
-                    elif (1 in pres_hours or 2 in pres_hours) and (3 in abs_hours):
-                        pat_tags.append('🎯 3rd Hour Bunk')
-                    elif (3 in pres_hours or 4 in pres_hours or 5 in pres_hours) and (6 in abs_hours or 7 in abs_hours):
-                        pat_tags.append('🎯 6th Hour Bunk')
-                    elif is_stealth_bunk:
-                        pat_tags.append('🛡️ Stealth Bunk (Attended 3rd/6th, Skipped Others)')
-                    else:
-                        pat_tags.append('🕵️ Selective Bunk')
-
-                    pattern_type = " | ".join(pat_tags)
 
                 day_of_week = pd.to_datetime(date).day_name()
                 pattern_instances.append({
@@ -4017,7 +3992,6 @@ def admin_bunk_analysis():
                     'name': stud['name'],
                     'section': sec,
                     'day_of_week': day_of_week,
-                    'pattern': pattern_type,
                     'status_str': status_str,
                     'abs_hours': abs_sorted,
                     'cond_hours': sorted_cond
@@ -4117,7 +4091,6 @@ def admin_bunk_analysis():
                             'Day': row['day_of_week'],
                             'Conducted Periods': str(row['cond_hours']),
                             'Period Status Sequence': row['status_str'],
-                            'Pattern Type': row['pattern'],
                             'Subjects Bunked': ", ".join(subj_missed)
                         })
 
