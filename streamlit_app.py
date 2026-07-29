@@ -3967,35 +3967,46 @@ def admin_bunk_analysis():
 
                 pres_hours = cond_hours - abs_hours
 
-                # 1. Specific Bunk Pattern: present 1 & 2, absent 3 & 4, present 5, absent 6 or 7
-                match_specific = (
-                    1 in pres_hours and 2 in pres_hours and
-                    3 in abs_hours and 4 in abs_hours and
-                    5 in pres_hours and
-                    (6 in abs_hours or 7 in abs_hours)
-                )
+                # EXCLUDE FULL-DAY ABSENTEES (Students absent for all classes on that date are NOT intermittent bunkers)
+                if len(pres_hours) == 0:
+                    continue
 
-                # 2. General Intermittent Bunking: P-A-P-A status string
                 sorted_cond = sorted(list(cond_hours))
                 status_seq = []
                 for h in sorted_cond:
                     status_seq.append('A' if h in abs_hours else 'P')
-
                 status_str = "".join(status_seq)
-                is_intermittent = False
-                first_p = status_str.find('P')
-                if first_p != -1:
-                    next_a = status_str.find('A', first_p)
-                    if next_a != -1:
-                        next_p = status_str.find('P', next_a)
-                        if next_p != -1:
-                            next_a2 = status_str.find('A', next_p)
-                            if next_a2 != -1:
-                                is_intermittent = True
 
-                if match_specific or is_intermittent:
+                # 1. Priority 3rd & 6th Hour Bunks (Main Standards)
+                is_3rd_hr_bunker = (1 in pres_hours or 2 in pres_hours) and (3 in abs_hours)
+                is_6th_hr_bunker = (3 in pres_hours or 4 in pres_hours or 5 in pres_hours) and (6 in abs_hours or 7 in abs_hours)
+
+                # 2. Continuous / Lab Block Bunks (e.g. EDC LAB: Hours 3, 4, 5)
+                abs_sorted = sorted(list(abs_hours))
+                has_block_bunk = len(abs_sorted) >= 2 and any(abs_sorted[i+1] == abs_sorted[i] + 1 for i in range(len(abs_sorted)-1))
+
+                # 3. Alternative / Intermittent Bunk (e.g. P - A - P - A)
+                is_alternative_bunk = ('PAP' in status_str) or ('APA' in status_str)
+
+                # 4. General Selective Bunk (Attends at least 1, misses at least 1)
+                is_selective_bunk = (len(pres_hours) > 0 and len(abs_hours) > 0)
+
+                if is_3rd_hr_bunker or is_6th_hr_bunker or has_block_bunk or is_alternative_bunk or is_selective_bunk:
                     day_of_week = pd.to_datetime(date).day_name()
-                    pattern_type = 'Specific (P-P-A-A-P-A)' if match_specific else 'Intermittent (P-A-P-A)'
+
+                    pat_tags = []
+                    if is_3rd_hr_bunker:
+                        pat_tags.append('🎯 3rd Hour Priority Bunk')
+                    if is_6th_hr_bunker:
+                        pat_tags.append('🎯 6th Hour Priority Bunk')
+                    if has_block_bunk:
+                        pat_tags.append('⚡ Continuous Lab/Block Bunk')
+                    if is_alternative_bunk:
+                        pat_tags.append('🔄 Alternative Class Bunk')
+                    if not pat_tags and is_selective_bunk:
+                        pat_tags.append('🕵️ Selective Intermittent Bunk')
+
+                    pattern_type = " | ".join(pat_tags)
                     pattern_instances.append({
                         'date': date,
                         'roll_no': roll,
@@ -4065,10 +4076,10 @@ def admin_bunk_analysis():
 
                 st.markdown("---")
 
-                # Habitual List Table
+                # Habitual List Table — Sorted strictly by Roll Number (roll_no ASC)
                 st.markdown("#### 🏆 Habitual Smart Bunkers Leaderboard")
                 df_leaderboard = df_pat.groupby(['roll_no', 'name', 'section']).size().reset_index(name='Incidents')
-                df_leaderboard = df_leaderboard.sort_values(by='Incidents', ascending=False)
+                df_leaderboard = df_leaderboard.sort_values(by='roll_no', ascending=True)
                 df_leaderboard.columns = ['Roll No', 'Student Name', 'Section', 'Detected Pattern Incidents']
                 st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
 
@@ -4122,7 +4133,7 @@ def admin_bunk_analysis():
                     FROM students s 
                     JOIN attendance a ON s.roll_no = a.roll_no 
                     WHERE a.semester = ? 
-                    ORDER BY s.section ASC, s.name ASC
+                    ORDER BY s.section ASC, s.roll_no ASC
                 """
                 stu_params = (sem,)
             else:
@@ -4131,7 +4142,7 @@ def admin_bunk_analysis():
                     FROM students s 
                     JOIN attendance a ON s.roll_no = a.roll_no 
                     WHERE a.semester = ? AND s.section = ? 
-                    ORDER BY s.name ASC
+                    ORDER BY s.roll_no ASC
                 """
                 stu_params = (sem, sec_filter)
 
