@@ -3329,11 +3329,7 @@ def admin_bunk_analysis():
                                help="Flag students whose overall attendance is below this %.")
 
     # ── Create Tabs ────────────────────────────────────────────
-    tab_debarment, tab_patterns, tab_student_dive = st.tabs([
-        "📋 Attendance & Debarment Tracker",
-        "🕵️ Intermittent Bunking Patterns",
-        "👤 Student Deep Dive Statistics"
-    ])
+    tab_debarment, tab_patterns = st.tabs(["📋 Attendance & Debarment Tracker", "🕵️ Intermittent Bunking Patterns"])
 
     # ── WHERE helpers ───────────────────────────────────────────
     sec_join  = "JOIN students s ON a.roll_no = s.roll_no" if sec_filter != "All Sections" else ""
@@ -3967,13 +3963,7 @@ def admin_bunk_analysis():
 
                 pres_hours = cond_hours - abs_hours
 
-                sorted_cond = sorted(list(cond_hours))
-                status_seq = []
-                for h in sorted_cond:
-                    status_seq.append('A' if h in abs_hours else 'P')
-                status_str = "".join(status_seq)
-
-                # 1. Legacy Patterns (P-P-A-A-P-A & P-A-P-A)
+                # 1. Specific Bunk Pattern: present 1 & 2, absent 3 & 4, present 5, absent 6 or 7
                 match_specific = (
                     1 in pres_hours and 2 in pres_hours and
                     3 in abs_hours and 4 in abs_hours and
@@ -3981,7 +3971,14 @@ def admin_bunk_analysis():
                     (6 in abs_hours or 7 in abs_hours)
                 )
 
-                is_papa_intermittent = False
+                # 2. General Intermittent Bunking: P-A-P-A status string
+                sorted_cond = sorted(list(cond_hours))
+                status_seq = []
+                for h in sorted_cond:
+                    status_seq.append('A' if h in abs_hours else 'P')
+
+                status_str = "".join(status_seq)
+                is_intermittent = False
                 first_p = status_str.find('P')
                 if first_p != -1:
                     next_a = status_str.find('A', first_p)
@@ -3990,42 +3987,11 @@ def admin_bunk_analysis():
                         if next_p != -1:
                             next_a2 = status_str.find('A', next_p)
                             if next_a2 != -1:
-                                is_papa_intermittent = True
+                                is_intermittent = True
 
-                # 2. Priority 3rd & 6th Hour Bunks (Main Emphasis)
-                is_3rd_hr_bunker = (1 in pres_hours or 2 in pres_hours) and (3 in abs_hours)
-                is_6th_hr_bunker = (3 in pres_hours or 4 in pres_hours or 5 in pres_hours) and (6 in abs_hours or 7 in abs_hours)
-
-                # 3. Continuous / Lab Block Bunks (e.g. EDC Lab: Hours 3, 4, 5)
-                abs_sorted = sorted(list(abs_hours))
-                has_block_bunk = len(abs_sorted) >= 2 and any(abs_sorted[i+1] == abs_sorted[i] + 1 for i in range(len(abs_sorted)-1))
-
-                # 4. Alternative Class Bunk (e.g. P - A - P - A or P1:P, P2:A, P3:P)
-                is_alternative_bunk = ('PAP' in status_str) or ('APA' in status_str)
-
-                # 5. General Selective Bunk (Any day student attends some & misses some)
-                is_selective_bunk = (len(pres_hours) > 0 and len(abs_hours) > 0)
-
-                if is_3rd_hr_bunker or is_6th_hr_bunker or has_block_bunk or is_alternative_bunk or match_specific or is_papa_intermittent or is_selective_bunk:
+                if match_specific or is_intermittent:
                     day_of_week = pd.to_datetime(date).day_name()
-
-                    pat_tags = []
-                    if is_3rd_hr_bunker:
-                        pat_tags.append('🎯 3rd Hour Priority Bunk')
-                    if is_6th_hr_bunker:
-                        pat_tags.append('🎯 6th Hour Priority Bunk')
-                    if has_block_bunk:
-                        pat_tags.append('⚡ Continuous Lab/Block Bunk')
-                    if is_alternative_bunk:
-                        pat_tags.append('🔄 Alternative Class Bunk')
-                    if match_specific:
-                        pat_tags.append('Specific (P-P-A-A-P-A)')
-                    elif is_papa_intermittent:
-                        pat_tags.append('Intermittent (P-A-P-A)')
-                    elif not pat_tags and is_selective_bunk:
-                        pat_tags.append('🕵️ Selective Partial Bunk')
-
-                    pattern_type = " | ".join(pat_tags)
+                    pattern_type = 'Specific (P-P-A-A-P-A)' if match_specific else 'Intermittent (P-A-P-A)'
                     pattern_instances.append({
                         'date': date,
                         'roll_no': roll,
@@ -4139,140 +4105,21 @@ def admin_bunk_analysis():
                     df_det = pd.DataFrame(details)
                     st.dataframe(df_det, use_container_width=True, hide_index=True)
 
-        # ═══════════════════════════════════════════════════════════
-        # TAB 3: STUDENT DEEP DIVE STATISTICS
-        # ═══════════════════════════════════════════════════════════
-        with tab_student_dive:
-            st.markdown("### 👤 Student Deep Dive Statistics")
-            st.caption("Inspect comprehensive student attendance, academic marks, and historical trends by searching roll number, name, or section.")
-
-            if sec_filter == "All Sections":
-                stu_sql = """
-                    SELECT DISTINCT s.roll_no, s.name, s.section, s.branch 
-                    FROM students s 
-                    JOIN attendance a ON s.roll_no = a.roll_no 
-                    WHERE a.semester = ? 
-                    ORDER BY s.section ASC, s.name ASC
-                """
-                stu_params = (sem,)
-            else:
-                stu_sql = """
-                    SELECT DISTINCT s.roll_no, s.name, s.section, s.branch 
-                    FROM students s 
-                    JOIN attendance a ON s.roll_no = a.roll_no 
-                    WHERE a.semester = ? AND s.section = ? 
-                    ORDER BY s.name ASC
-                """
-                stu_params = (sem, sec_filter)
-
-            stu_list = conn.execute(stu_sql, stu_params).fetchall()
-            if not stu_list:
-                st.warning(f"No student attendance records found for {sem} in {sec_filter}.")
-            else:
-                student_options = [f"{r['name']} ({r['roll_no']}) — Sec: {r['section']}" for r in stu_list]
-                selected_student_str = st.selectbox(
-                    "🔍 Select Student to Inspect Statistics",
-                    options=student_options,
-                    key=f"bunk_deep_dive_{sem}_{sec_filter}"
-                )
-
-                if selected_student_str:
-                    selected_roll = selected_student_str.split('(')[1].split(')')[0]
-                    selected_name = selected_student_str.split('(')[0].strip()
-
-                    s_att_rows = conn.execute(
-                        'SELECT subject, hours_attended, hours_conducted FROM attendance WHERE roll_no=? AND semester=?',
-                        (selected_roll, sem)
-                    ).fetchall()
-
-                    s_marks_rows = conn.execute(
-                        'SELECT subject, score, grade_point, exam_type FROM marks WHERE roll_no=? AND semester=?',
-                        (selected_roll, sem)
-                    ).fetchall()
-
-                    if s_att_rows:
-                        s_total_c = sum((r['hours_conducted'] or 0) for r in s_att_rows)
-                        s_total_a = sum((r['hours_attended']  or 0) for r in s_att_rows)
-                        s_overall = round(s_total_a / s_total_c * 100, 1) if s_total_c else 0.0
-                        s_can_miss = can_miss_classes(s_total_a, s_total_c)
-                        s_need = classes_needed(s_total_a, s_total_c)
-
-                        def kpi_card_sm(label, val, sublabel="", color="#f8fafc"):
-                            sub_html = f'<div style="font-size:0.78rem;color:#a78bfa;margin-top:3px;font-weight:500;">{sublabel}</div>' if sublabel else ''
-                            return f'<div style="background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(15,23,42,0.9));border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px 12px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.15);min-height:92px;display:flex;flex-direction:column;justify-content:center;align-items:center;"><div style="font-size:0.72rem;text-transform:uppercase;color:#94a3b8;font-weight:600;letter-spacing:0.07em;">{label}</div><div style="font-size:1.75rem;font-weight:700;color:{color};margin-top:4px;font-family:\'Outfit\';line-height:1.1;">{val}</div>{sub_html}</div>'
-
-                        k1, k2, k3, k4 = st.columns(4)
-                        with k1:
-                            st.markdown(kpi_card_sm("Hours Conducted", f"{s_total_c}", color="#94a3b8"), unsafe_allow_html=True)
-                        with k2:
-                            st.markdown(kpi_card_sm("Hours Attended", f"{s_total_a}", color="#38bdf8"), unsafe_allow_html=True)
-                        with k3:
-                            pct_color = "#10b981" if s_overall >= 75 else ("#f59e0b" if s_overall >= 65 else "#ef4444")
-                            st.markdown(kpi_card_sm("Overall %", f"{s_overall}%", color=pct_color), unsafe_allow_html=True)
-                        with k4:
-                            if s_overall >= 75:
-                                st.markdown(kpi_card_sm("Can Miss", f"{s_can_miss}", "classes remaining", color="#34d399"), unsafe_allow_html=True)
-                            else:
-                                st.markdown(kpi_card_sm("Attend Next", f"{s_need}", "classes to recover", color="#fb7185"), unsafe_allow_html=True)
-
-                        st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
-
-                        c_left, c_right = st.columns([1.5, 1])
-                        with c_left:
-                            st.markdown("#### 📊 Subject Attendance Breakdown")
-                            subj_df_list = []
-                            for r in s_att_rows:
-                                _c = r['hours_conducted'] or 0
-                                _a = r['hours_attended'] or 0
-                                _p = round(_a / _c * 100, 1) if _c else 0.0
-                                cm = can_miss_classes(_a, _c)
-                                nd = classes_needed(_a, _c)
-                                recovery = f"Can miss {cm} classes" if _p >= 75 else f"Attend {nd} for 75%"
-                                subj_df_list.append({
-                                    'Subject': r['subject'],
-                                    'Conducted': _c,
-                                    'Attended': _a,
-                                    'Percentage': f"{_p}%",
-                                    'Recovery Status': recovery
-                                })
-                            st.dataframe(pd.DataFrame(subj_df_list), use_container_width=True, hide_index=True)
-
-                        with c_right:
-                            st.markdown("#### 📈 Attendance Progression Trend")
-                            cur_hist = conn.execute('''
-                                SELECT snapshot_date, 
-                                       ROUND(SUM(running_attended)*100.0/NULLIF(SUM(running_conducted),0),1) as pct
-                                FROM attendance_history
-                                WHERE roll_no = ?
-                                GROUP BY snapshot_date
-                                ORDER BY snapshot_date ASC
-                            ''', (selected_roll,)).fetchall()
-                            if cur_hist:
-                                df_trend = pd.DataFrame([dict(r) for r in cur_hist])
-                                fig_trend = px.line(
-                                    df_trend, x='snapshot_date', y='pct',
-                                    labels={'snapshot_date': 'Date', 'pct': 'Attendance %'},
-                                    markers=True
-                                )
-                                fig_trend.add_hline(y=75, line_dash="dash", line_color="#10B981")
-                                fig_trend.add_hline(y=65, line_dash="dash", line_color="#F59E0B")
-                                fig_trend.update_layout(height=260, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=10,b=10))
-                                apply_premium_plotly_theme(fig_trend)
-                                st.plotly_chart(fig_trend, use_container_width=True)
-                            else:
-                                st.info("No historical snapshot trends available.")
-
-                        if s_marks_rows:
-                            st.markdown("#### 📝 Exam Marks & Performance")
-                            m_df = pd.DataFrame([{
-                                'Subject': r['subject'],
-                                'Exam Type': r['exam_type'],
-                                'Score': r['score'] if r['score'] is not None else 'Ab',
-                                'Grade': gp_to_grade(r['grade_point']) if (r['grade_point'] or 0.0) > 0.0 else ('Ab' if r['score'] is None else 'F')
-                            } for r in s_marks_rows])
-                            st_premium_table(m_df)
-
     conn.close()
+
+# ROUTER
+# ══════════════════════════════════════════════════════════════
+if _DB_FALLBACK:
+    st.warning("⚠️ PostgreSQL connection failed (database connection limit reached). Operating in offline SQLite mode.")
+
+if not st.session_state.get('logged_in'):
+    login_page()
+elif st.session_state.get('needs_dob_setup'):
+    setup_dob_page()
+elif st.session_state.get('role') == 'admin':
+    admin_dashboard()
+else:
+    student_dashboard()
 
 # ROUTER
 # ══════════════════════════════════════════════════════════════
