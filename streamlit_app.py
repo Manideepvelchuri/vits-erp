@@ -1927,7 +1927,7 @@ def show_attendance_page(roll, sem, att_rows):
             conn_cfg = get_db_connection()
             cfg_m = get_config_map(conn_cfg)
             conn_cfg.close()
-            sd_val = cfg_m.get('start_date', '2026-06-01')
+            sd_val = cfg_m.get('start_date', '2026-07-06')
             ist_now_dt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
             ed_val = cfg_m.get('end_date', ist_now_dt.strftime('%Y-%m-%d'))
             ok, msg = harvester.scrape_portal(start_date=sd_val, end_date=ed_val, section=sec, semester=sem, force=True)
@@ -3065,7 +3065,7 @@ def admin_scraper():
 
     st.markdown("### 📆 Date Range")
     c1, c2 = st.columns(2)
-    sd = c1.date_input("From", value=dt.strptime(cfg.get('start_date', '2026-06-01'), '%Y-%m-%d'))
+    sd = c1.date_input("From", value=dt.strptime(cfg.get('start_date', '2026-07-06'), '%Y-%m-%d'))
     ist_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
     ed = c2.date_input("To", value=ist_now.date())
 

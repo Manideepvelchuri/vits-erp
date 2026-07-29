@@ -226,7 +226,7 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     except Exception:
         sem_num = 2
 
-    fdt = start_date or cfg.get('start_date', '2026-01-27')
+    fdt = start_date or cfg.get('start_date', '2026-07-06')
     ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
     tdt = end_date   or ist_now.strftime('%Y-%m-%d')
     sc  = section    or 'ECE_B'
