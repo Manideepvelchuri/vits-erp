@@ -241,7 +241,7 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     # 1. Manual clicks pass force=True -> ALWAYS scrape fresh data.
     # 2. Automated scheduled runs (force=False):
     #    - Evening run (>= 15:30 IST): Only skip if a scrape already succeeded TODAY after 15:30 IST.
-    #    - Morning run (< 15:30 IST): Only skip if a scrape already succeeded TODAY (since 00:00:00 IST today).
+    #    - Morning run (< 15:30 IST): Only skip if a scrape already succeeded in the last 18 hours (e.g. yesterday evening).
     if not force:
         try:
             curr_hour = ist_now.hour
@@ -250,10 +250,12 @@ def scrape_portal(start_date=None, end_date=None, section=None,
 
             if is_evening_slot:
                 cutoff_time = ist_now.strftime('%Y-%m-%d 15:30:00')
-                skip_msg_prefix = "Evening"
+                skip_msg = "Evening attendance already synced today"
             else:
-                cutoff_time = ist_now.strftime('%Y-%m-%d 00:00:00')
-                skip_msg_prefix = "Morning"
+                # Morning run: check if yesterday's evening scrape (within last 18 hours) succeeded
+                cutoff_dt = ist_now - timedelta(hours=18)
+                cutoff_time = cutoff_dt.strftime('%Y-%m-%d %H:%M:%S')
+                skip_msg = "Recent attendance already synced within last 18 hours"
 
             cursor.execute('''
                 SELECT scraped_at FROM scrape_log 
@@ -264,10 +266,10 @@ def scrape_portal(start_date=None, end_date=None, section=None,
             res = cursor.fetchone()
             if res:
                 scraped_time = res[0]
-                logger.info(f'[{sc}] {skip_msg_prefix} attendance already synced today (at {scraped_time}). Skipping redundant run.')
+                logger.info(f'[{sc}] {skip_msg} (at {scraped_time}). Skipping redundant run.')
                 if dynamic_conn is None:
                     conn.close()
-                return True, f'[{sc}] {skip_msg_prefix} attendance already synced today (at {scraped_time}).'
+                return True, f'[{sc}] {skip_msg} (at {scraped_time}).'
         except Exception:
             try:
                 conn.rollback()
@@ -320,7 +322,7 @@ def scrape_portal(start_date=None, end_date=None, section=None,
             valid_df = None
             actual_date = target_date
             ist_today_str = (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d')
-            max_fallback_days = 5 if target_date == ist_today_str else 1
+            max_fallback_days = 2 if target_date == ist_today_str else 1
             
             for offset in range(max_fallback_days):
                 test_date = (datetime.strptime(target_date, '%Y-%m-%d') - timedelta(days=offset)).strftime('%Y-%m-%d')
