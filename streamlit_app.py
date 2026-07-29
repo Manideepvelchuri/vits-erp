@@ -3977,47 +3977,45 @@ def admin_bunk_analysis():
                     status_seq.append('A' if h in abs_hours else 'P')
                 status_str = "".join(status_seq)
 
-                # 1. Priority 3rd & 6th Hour Bunks (Main Standards)
-                is_3rd_hr_bunker = (1 in pres_hours or 2 in pres_hours) and (3 in abs_hours)
-                is_6th_hr_bunker = (3 in pres_hours or 4 in pres_hours or 5 in pres_hours) and (6 in abs_hours or 7 in abs_hours)
-
-                # 2. Continuous / Lab Block Bunks (e.g. EDC LAB: Hours 3, 4, 5)
                 abs_sorted = sorted(list(abs_hours))
+                
+                # Check all smart bunk patterns for students present for >= 1 period
+                pat_tags = []
+                
+                # 1. Continuous Class Bunk (2 or more consecutive classes missed, e.g. EDC LAB Hours 3-4-5)
                 has_block_bunk = len(abs_sorted) >= 2 and any(abs_sorted[i+1] == abs_sorted[i] + 1 for i in range(len(abs_sorted)-1))
-
-                # 3. Alternative / Intermittent Bunk (e.g. P - A - P - A)
+                if has_block_bunk:
+                    pat_tags.append('⚡ Continuous Class Bunk')
+                    
+                # 2. Alternative Class Bunk (Skipping alternate classes e.g. P-A-P-A)
                 is_alternative_bunk = ('PAP' in status_str) or ('APA' in status_str)
+                if is_alternative_bunk:
+                    pat_tags.append('🔄 Alternative Class Bunk')
+                    
+                # 3. 3rd Hour Bunk
+                if (1 in pres_hours or 2 in pres_hours) and (3 in abs_hours):
+                    pat_tags.append('🎯 3rd Hour Bunk')
+                    
+                # 4. 6th Hour Bunk
+                if (3 in pres_hours or 4 in pres_hours or 5 in pres_hours) and (6 in abs_hours or 7 in abs_hours):
+                    pat_tags.append('🎯 6th Hour Bunk')
 
-                # 4. General Selective Bunk (Attends at least 1, misses at least 1)
-                is_selective_bunk = (len(pres_hours) > 0 and len(abs_hours) > 0)
+                if not pat_tags:
+                    pat_tags.append('🕵️ Selective Bunk')
 
-                if is_3rd_hr_bunker or is_6th_hr_bunker or has_block_bunk or is_alternative_bunk or is_selective_bunk:
-                    day_of_week = pd.to_datetime(date).day_name()
-
-                    pat_tags = []
-                    if is_3rd_hr_bunker:
-                        pat_tags.append('🎯 3rd Hour Priority Bunk')
-                    if is_6th_hr_bunker:
-                        pat_tags.append('🎯 6th Hour Priority Bunk')
-                    if has_block_bunk:
-                        pat_tags.append('⚡ Continuous Lab/Block Bunk')
-                    if is_alternative_bunk:
-                        pat_tags.append('🔄 Alternative Class Bunk')
-                    if not pat_tags and is_selective_bunk:
-                        pat_tags.append('🕵️ Selective Intermittent Bunk')
-
-                    pattern_type = " | ".join(pat_tags)
-                    pattern_instances.append({
-                        'date': date,
-                        'roll_no': roll,
-                        'name': stud['name'],
-                        'section': sec,
-                        'day_of_week': day_of_week,
-                        'pattern': pattern_type,
-                        'status_str': status_str,
-                        'abs_hours': sorted(list(abs_hours)),
-                        'cond_hours': sorted_cond
-                    })
+                pattern_type = " | ".join(pat_tags)
+                day_of_week = pd.to_datetime(date).day_name()
+                pattern_instances.append({
+                    'date': date,
+                    'roll_no': roll,
+                    'name': stud['name'],
+                    'section': sec,
+                    'day_of_week': day_of_week,
+                    'pattern': pattern_type,
+                    'status_str': status_str,
+                    'abs_hours': abs_sorted,
+                    'cond_hours': sorted_cond
+                })
 
             if not pattern_instances:
                 st.success("🎉 No intermittent bunking patterns detected in this section!")
