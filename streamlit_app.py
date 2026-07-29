@@ -2594,10 +2594,14 @@ def admin_students():
     cur_sem = cfg.get('active_semester', 'Sem 3')
 
     sql = '''
-        SELECT s.*, 
-               ROUND(SUM(a.hours_attended)*100.0/NULLIF(SUM(a.hours_conducted),0), 1) as att_pct
+        SELECT s.roll_no, s.name, s.section, s.branch, s.dob, att.att_pct
         FROM students s
-        LEFT JOIN attendance a ON s.roll_no = a.roll_no AND a.semester = ?
+        LEFT JOIN (
+            SELECT roll_no, ROUND(SUM(hours_attended)*100.0/NULLIF(SUM(hours_conducted),0), 1) as att_pct
+            FROM attendance
+            WHERE semester = ?
+            GROUP BY roll_no
+        ) att ON s.roll_no = att.roll_no
         WHERE 1=1
     '''
     params = [cur_sem]
@@ -2606,8 +2610,7 @@ def admin_students():
     if search:
         sql += ' AND (UPPER(s.roll_no) LIKE ? OR UPPER(s.name) LIKE ?)'
         s = f'%{search.upper()}%'; params.extend([s, s])
-    sql += ''' GROUP BY s.roll_no, s.name, s.dob, s.email, s.semester, s.department, s.section, s.branch, s.id
-        ORDER BY 
+    sql += ''' ORDER BY 
         CASE WHEN s.dob IS NOT NULL AND s.dob != 'PENDING' AND s.dob != '2007-01-01' AND s.dob != '' THEN 0 ELSE 1 END ASC,
         s.section ASC, 
         s.roll_no ASC 
