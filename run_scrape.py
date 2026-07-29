@@ -43,14 +43,25 @@ def main():
     ist_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
     end_date = ist_now.strftime('%Y-%m-%d')
     
+    # Auto-detect if manual trigger or explicit force requested
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+    force_env = os.environ.get("FORCE", "").lower() in ("true", "1", "yes")
+    force_flag = "--force" in sys.argv or "-f" in sys.argv
+    is_manual = (event_name in ("workflow_dispatch", "repository_dispatch")) or force_flag or force_env or (not is_github_action)
+    
+    # Manual runs / workflow dispatch ALWAYS force scrape fresh data without skipping
+    force_run = False if "--no-force" in sys.argv else True
+    
     print(f"[*] Active Semester : {sem}")
     print(f"[*] Date Range      : {start_date} to {end_date}")
+    print(f"[*] Force Scrape     : {force_run} ({'Manual/Dispatched Run' if force_run else 'Scheduled Cron Run'})")
     print(f"[*] Starting bulk scrape of all sections...")
     
     results = harvester.bulk_scrape_all(
         semester=sem,
         start_date=start_date,
-        end_date=end_date
+        end_date=end_date,
+        force=force_run
     )
     
     print(f"\n[+] Scrape finished! Results summary:")
