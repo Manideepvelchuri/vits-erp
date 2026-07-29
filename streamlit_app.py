@@ -3967,35 +3967,37 @@ def admin_bunk_analysis():
 
                 pres_hours = cond_hours - abs_hours
 
-                # 1. Specific Bunk Pattern: present 1 & 2, absent 3 & 4, present 5, absent 6 or 7
-                match_specific = (
-                    1 in pres_hours and 2 in pres_hours and
-                    3 in abs_hours and 4 in abs_hours and
-                    5 in pres_hours and
-                    (6 in abs_hours or 7 in abs_hours)
-                )
-
-                # 2. General Intermittent Bunking: P-A-P-A status string
                 sorted_cond = sorted(list(cond_hours))
                 status_seq = []
                 for h in sorted_cond:
                     status_seq.append('A' if h in abs_hours else 'P')
-
                 status_str = "".join(status_seq)
-                is_intermittent = False
-                first_p = status_str.find('P')
-                if first_p != -1:
-                    next_a = status_str.find('A', first_p)
-                    if next_a != -1:
-                        next_p = status_str.find('P', next_a)
-                        if next_p != -1:
-                            next_a2 = status_str.find('A', next_p)
-                            if next_a2 != -1:
-                                is_intermittent = True
 
-                if match_specific or is_intermittent:
+                # Official College Portal Standards (Brprint.php):
+                is_3rd_hr_bunker = (1 in pres_hours or 2 in pres_hours) and (3 in abs_hours)
+                is_6th_hr_bunker = (3 in pres_hours or 4 in pres_hours or 5 in pres_hours) and (6 in abs_hours or 7 in abs_hours)
+                
+                # Continuous Block / Lab Bunk (e.g. 2 or 3 hours in a row)
+                abs_sorted = sorted(list(abs_hours))
+                has_block_bunk = len(abs_sorted) >= 2 and any(abs_sorted[i+1] == abs_sorted[i] + 1 for i in range(len(abs_sorted)-1))
+                
+                # Selective / Intermittent Bunk
+                is_intermittent = (len(pres_hours) > 0 and len(abs_hours) > 0)
+
+                if is_3rd_hr_bunker or is_6th_hr_bunker or has_block_bunk or is_intermittent:
                     day_of_week = pd.to_datetime(date).day_name()
-                    pattern_type = 'Specific (P-P-A-A-P-A)' if match_specific else 'Intermittent (P-A-P-A)'
+                    
+                    pat_tags = []
+                    if is_3rd_hr_bunker:
+                        pat_tags.append('🎯 3rd Hour Bunker (College Official)')
+                    if is_6th_hr_bunker:
+                        pat_tags.append('🎯 6th Hour Bunker (College Official)')
+                    if has_block_bunk:
+                        pat_tags.append('⚡ Continuous Lab/Block Bunk')
+                    elif is_intermittent:
+                        pat_tags.append('🕵️ Selective Intermittent Bunk')
+                    
+                    pattern_type = " | ".join(pat_tags)
                     pattern_instances.append({
                         'date': date,
                         'roll_no': roll,
