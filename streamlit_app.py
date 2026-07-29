@@ -1336,6 +1336,129 @@ def student_dashboard():
         show_timetable_page(student['section'])
 
 
+# ── DYNAMIC PREDICTOR & LIVE BAR CHART HELPER ─────────────────────
+def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, subj_data, key_prefix="home", sem="Sem 3"):
+    if total_c <= 0 or not subj_data:
+        return
+
+    st.markdown("### 🔮 Interactive Attendance Skip Predictor")
+    st.caption(f"💡 One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
+
+    col_mode, col_slider = st.columns([1.2, 2.8])
+    with col_mode:
+        mode = st.radio("Predict By", ["📅 Days", "📚 Classes"], horizontal=True, key=f"{key_prefix}_mode_{sem}")
+    
+    with col_slider:
+        if mode == "📅 Days":
+            miss_count = st.slider("If I miss the next ___ days", 0, 15, 0, key=f"{key_prefix}_days_slider_{sem}")
+            miss_classes = int(round(miss_count * avg_classes))
+        else:
+            miss_classes = st.slider("If I miss the next ___ classes", 0, 30, 0, key=f"{key_prefix}_classes_slider_{sem}")
+
+    curr_overall = round(total_a / total_c * 100, 1) if total_c else 0.0
+    proj_overall = round(total_a / (total_c + miss_classes) * 100, 1) if (total_c + miss_classes) else 0.0
+    drop_pct = round(curr_overall - proj_overall, 1)
+
+    proj_subj_data = []
+    danger_count = 0
+    condonation_count = 0
+
+    for s in subj_data:
+        s_att = s['attended']
+        s_cond = s['conducted']
+        prop_miss = (s_cond / total_c) * miss_classes if total_c else 0
+        proj_cond = s_cond + prop_miss
+        proj_pct = round(s_att / proj_cond * 100, 1) if proj_cond > 0 else 0.0
+
+        if proj_pct < 65:
+            status_zone = "Debarred (<65%)"
+            danger_count += 1
+        elif proj_pct < 75:
+            status_zone = "Condonation (65-75%)"
+            condonation_count += 1
+        else:
+            status_zone = "Safe (≥75%)"
+
+        proj_subj_data.append({
+            'subject': s['subject'],
+            'pct': proj_pct,
+            'status': status_zone
+        })
+
+    remaining_classes_buffer = can_miss_classes(total_a, total_c)
+    rem_classes_after = max(0, remaining_classes_buffer - miss_classes)
+    rem_days_after = round(rem_classes_after / avg_classes, 1) if avg_classes > 0 else 0.0
+
+    st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+    m1, m2, m3 = st.columns(3)
+    
+    with m1:
+        drop_html = f"<span style='color:#ef4444;font-size:0.85rem;margin-left:4px;'>↓ {drop_pct}%</span>" if miss_classes > 0 else ""
+        st.markdown(
+            f"<div style='background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(15,23,42,0.9));border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center;'>"
+            f"  <div style='font-size:0.72rem;text-transform:uppercase;color:#94a3b8;font-weight:600;letter-spacing:0.07em;'>Projected Overall</div>"
+            f"  <div style='font-size:1.6rem;font-weight:800;color:#00D8C6;margin-top:2px;font-family:Outfit;'>{proj_overall}% {drop_html}</div>"
+            f"  <div style='font-size:0.75rem;color:#64748b;margin-top:2px;'>Initial: {curr_overall}%</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+    with m2:
+        danger_color = "#ef4444" if danger_count > 0 else ("#f59e0b" if condonation_count > 0 else "#34d399")
+        danger_sublabel = f"{danger_count} Debarred | {condonation_count} Warning" if (danger_count + condonation_count) > 0 else "All Subjects Safe ✅"
+        st.markdown(
+            f"<div style='background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(15,23,42,0.9));border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center;'>"
+            f"  <div style='font-size:0.72rem;text-transform:uppercase;color:#94a3b8;font-weight:600;letter-spacing:0.07em;'>Danger / Warning Subjects</div>"
+            f"  <div style='font-size:1.6rem;font-weight:800;color:{danger_color};margin-top:2px;font-family:Outfit;'>{danger_count + condonation_count} Subjects</div>"
+            f"  <div style='font-size:0.75rem;color:#64748b;margin-top:2px;'>{danger_sublabel}</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+    with m3:
+        buf_color = "#34d399" if rem_classes_after > 0 else "#ef4444"
+        buf_label = f"{rem_classes_after} classes (≈ {rem_days_after} days)" if rem_classes_after > 0 else "Threshold Exhausted!"
+        st.markdown(
+            f"<div style='background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(15,23,42,0.9));border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center;'>"
+            f"  <div style='font-size:0.72rem;text-transform:uppercase;color:#94a3b8;font-weight:600;letter-spacing:0.07em;'>Remaining Safe Buffer</div>"
+            f"  <div style='font-size:1.4rem;font-weight:800;color:{buf_color};margin-top:2px;font-family:Outfit;'>{buf_label}</div>"
+            f"  <div style='font-size:0.75rem;color:#64748b;margin-top:2px;'>To stay above 75% target</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+    st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;
+                letter-spacing:0.12em;font-weight:600;margin-bottom:8px;font-family:'Inter';">
+        Live Projected Subject Attendance Chart
+    </div>""", unsafe_allow_html=True)
+
+    df_bar = pd.DataFrame(proj_subj_data)
+    fig = px.bar(
+        df_bar, x='subject', y='pct',
+        color='status',
+        color_discrete_map={
+            "Safe (≥75%)": "#00D8C6",          # Teal/Green
+            "Condonation (65-75%)": "#F59E0B",    # Yellow/Orange
+            "Debarred (<65%)": "#EF4444"         # Red
+        },
+        range_y=[0, 100],
+        labels={'pct': 'Projected %', 'subject': 'Subject', 'status': 'Status'}
+    )
+    fig.add_hline(y=75, line_dash="dash", line_color="#10B981", annotation_text="75% target")
+    fig.add_hline(y=65, line_dash="dash", line_color="#F59E0B", annotation_text="65% min")
+    fig.update_layout(
+        height=380,
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        margin=dict(t=10, b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    apply_premium_plotly_theme(fig)
+    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
+
+
 # ── HOME / SUMMARY PAGE ───────────────────────────────────────
 def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     # Font Import
@@ -1725,48 +1848,8 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
     st.markdown("<hr style='border:none;border-top:1px solid rgba(255,255,255,0.06);margin:15px 0 25px 0;'>", unsafe_allow_html=True)
     
-    # 1. Skip Predictor (Reverted back to big/full-width)
-    if total_c > 0:
-        st.markdown("### 🔮 Overall Attendance Skip Predictor")
-        st.caption(f"💡 One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
-
-        miss_days = st.slider("If I miss the next ___ days (overall)", 0, 15, 0, key=f"skip_days_home_{sem}")
-        miss_classes = int(round(miss_days * avg_classes))
-        if miss_days > 0:
-            proj_overall = round(total_a / (total_c + miss_classes) * 100, 1)
-            if proj_overall >= 75:
-                st.success(f"Projected Overall Attendance: **{proj_overall}%** (Safe Zone) ✅ (Missing {miss_days} days / {miss_classes} classes)")
-            elif proj_overall >= 65:
-                st.warning(f"Projected Overall Attendance: **{proj_overall}%** (Condonation Zone) ⚠️ (Missing {miss_days} days / {miss_classes} classes)")
-            else:
-                st.error(f"Projected Overall Attendance: **{proj_overall}%** (Debarred Zone) 🚫 (Missing {miss_days} days / {miss_classes} classes)")
-
-    # 2. Plotly Bar Graph (Reverted back)
-    st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-    st.markdown("""
-    <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;
-                letter-spacing:0.12em;font-weight:600;margin-bottom:8px;font-family:'Inter';">
-        Subject Attendance Chart
-    </div>""", unsafe_allow_html=True)
-    if subj_data:
-        df_bar = pd.DataFrame(subj_data)
-        fig = px.bar(df_bar, x='subject', y='pct', color='pct',
-                     color_continuous_scale=[[0, '#EF4444'], [0.65, '#F59E0B'], [0.75, '#00D8C6'], [1, '#00D8C6']],
-                     range_color=[0, 100], labels={'pct': 'Attendance %', 'subject': 'Subject'})
-        fig.add_hline(y=75, line_dash="dash", line_color="#10B981", annotation_text="75% target")
-        fig.add_hline(y=65, line_dash="dash", line_color="#F59E0B", annotation_text="65% min")
-        fig.update_layout(height=380, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-                          margin=dict(t=10, b=10))
-        fig.update_coloraxes(showscale=False)
-        apply_premium_plotly_theme(fig)
-        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
-    else:
-        st.markdown("""
-        <div style="background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.05);
-                    border-radius:12px;padding:30px;text-align:center;color:#64748b;font-size:0.95rem;font-family:'Inter';">
-            No attendance data available to display chart.
-        </div>
-        """, unsafe_allow_html=True)
+    # Interactive Skip Predictor + Dynamic Live Bar Chart
+    render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, subj_data, key_prefix="home", sem=sem)
 
     # ── Bottom Section: Grades Table + Cloud Resources Link ──
     st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
@@ -1903,38 +1986,24 @@ def show_attendance_page(roll, sem, att_rows):
             🔍 No attendance data found for this semester.</div>""", unsafe_allow_html=True)
 
 
-    # Overall attendance skip predictor (new feature)
-    if total_c > 0:
-        st.markdown("### 🔮 Overall Attendance Skip Predictor")
-        st.caption(f"💡 One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
-
-        miss_days = st.slider("If I miss the next ___ days (overall)", 0, 15, 0, key=f"skip_days_att_{sem}")
-        miss_classes = int(round(miss_days * avg_classes))
-        if miss_days > 0:
-            proj_overall = round(total_a / (total_c + miss_classes) * 100, 1)
-            if proj_overall >= 75:
-                st.success(f"Projected Overall Attendance: **{proj_overall}%** (Safe Zone) ✅ (Missing {miss_days} days / {miss_classes} classes)")
-            elif proj_overall >= 65:
-                st.warning(f"Projected Overall Attendance: **{proj_overall}%** (Condonation Zone) ⚠️ (Missing {miss_days} days / {miss_classes} classes)")
-            else:
-                st.error(f"Projected Overall Attendance: **{proj_overall}%** (Debarred Zone) 🚫 (Missing {miss_days} days / {miss_classes} classes)")
+    # Interactive Skip Predictor + Dynamic Live Bar Chart
+    subj_data_att = []
+    for r in att_rows:
+        _c = r['hours_conducted'] or 0
+        _a = r['hours_attended']  or 0
+        _p = round(_a / _c * 100, 1) if _c else 0.0
+        subj_data_att.append({
+            'subject': r['subject'], 'conducted': _c,
+            'attended': _a, 'pct': _p,
+            'absent': _c - _a
+        })
+    render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, subj_data_att, key_prefix="att", sem=sem)
 
     df = pd.DataFrame([{
-        'Subject': r['subject'], 'Conducted': r['hours_conducted'] or 0,
-        'Attended': r['hours_attended'] or 0,
-        'Percentage': round((r['hours_attended'] or 0)/(r['hours_conducted'] or 1)*100, 1),
-    } for r in att_rows])
-    df['Status'] = df['Percentage'].apply(
-        lambda p: 'Safe (≥75%)' if p >= 75 else 'Below 75%')
-
-    fig = px.bar(df, x='Subject', y='Percentage', color='Percentage',
-                 color_continuous_scale=[[0, '#EF4444'], [0.65, '#F59E0B'], [0.75, '#00D8C6'], [1, '#00D8C6']],
-                 range_color=[0, 100])
-    fig.add_hline(y=75, line_dash="dash", line_color="green", annotation_text="75% target")
-    fig.add_hline(y=65, line_dash="dash", line_color="orange", annotation_text="65% min")
-    fig.update_layout(height=400, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', dragmode=False)
-    fig.update_coloraxes(showscale=False)
-    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
+        'Subject': r['subject'], 'Conducted': r['conducted'],
+        'Attended': r['attended'],
+        'Percentage': r['pct'],
+    } for r in subj_data_att])
 
     st.markdown("### 📊 Subject-wise Details + Intelligence")
     for idx, row in df.iterrows():
