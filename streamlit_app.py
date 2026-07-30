@@ -1344,13 +1344,15 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
     st.markdown("### 🔮 Interactive Attendance Predictor")
     st.caption(f"💡 One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
 
-    col_act, col_mode, col_slider = st.columns([1.2, 1.2, 2.6])
+    col_act, col_mode, col_slider = st.columns([1.3, 1.2, 2.5])
     with col_act:
-        action_type = st.radio("Action Type", ["❌ Bunking", "✅ Attending"], horizontal=True, key=f"{key_prefix}_act_{sem}")
+        st.markdown("<div style='font-size:0.82rem;font-weight:600;color:#94a3b8;margin-bottom:6px;'>Simulation Mode</div>", unsafe_allow_html=True)
+        is_attending = st.toggle("✅ Simulate Attending", value=False, key=f"{key_prefix}_act_toggle_{sem}")
+        st.caption("On: Attending | Off: Bunking")
+
     with col_mode:
         mode = st.radio("Predict By", ["📅 Days", "📚 Classes"], horizontal=True, key=f"{key_prefix}_mode_{sem}")
 
-    is_attending = "Attending" in action_type
     verb_str = "attend" if is_attending else "miss"
 
     with col_slider:

@@ -18,9 +18,10 @@ build/
 *.db-wal
 *.db.bak
 
-# Backups (local only)
+# Backups & CSV files (local only)
 backups/
 csv_backups/
+*.csv
 
 # Backup files
 *.bak
