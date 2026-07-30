@@ -565,7 +565,7 @@ def scrape_portal(start_date=None, end_date=None, section=None,
 
 
 def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_callback=None, force=False):
-    """Scrape all sections. Writes live progress to DB config so all sessions can see it."""
+    """Scrape all sections sequentially."""
     total = len(CLASSES)
     results = []
 
