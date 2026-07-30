@@ -1415,14 +1415,24 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
             unsafe_allow_html=True
         )
 
+    needed_to_recover = classes_needed(total_a, total_c + miss_classes)
+    needed_days_to_recover = round(needed_to_recover / avg_classes, 1) if avg_classes > 0 else 0.0
+
     with m3:
-        buf_color = "#34d399" if rem_classes_after > 0 else "#ef4444"
-        buf_label = f"{rem_classes_after} classes (≈ {rem_days_after} days)" if rem_classes_after > 0 else "Threshold Exhausted!"
+        if rem_classes_after > 0:
+            buf_color = "#34d399"
+            buf_label = f"{rem_classes_after} classes (≈ {rem_days_after} days)"
+            buf_subtext = "To stay above 75% target"
+        else:
+            buf_color = "#ef4444"
+            buf_label = "Threshold Exhausted!"
+            buf_subtext = f"Need {needed_to_recover} classes (≈ {needed_days_to_recover} days) to recover 75%"
+
         st.markdown(
             f"<div style='background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(15,23,42,0.9));border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center;'>"
             f"  <div style='font-size:0.72rem;text-transform:uppercase;color:#94a3b8;font-weight:600;letter-spacing:0.07em;'>Remaining Safe Buffer</div>"
             f"  <div style='font-size:1.4rem;font-weight:800;color:{buf_color};margin-top:2px;font-family:Outfit;'>{buf_label}</div>"
-            f"  <div style='font-size:0.75rem;color:#64748b;margin-top:2px;'>To stay above 75% target</div>"
+            f"  <div style='font-size:0.75rem;color:#f87171;margin-top:2px;font-weight:600;'>{buf_subtext}</div>"
             f"</div>",
             unsafe_allow_html=True
         )
