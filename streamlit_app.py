@@ -1371,13 +1371,13 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
         proj_pct = round(s_att / proj_cond * 100, 1) if proj_cond > 0 else 0.0
 
         if proj_pct < 65:
-            status_zone = "Debarred (<65%)"
+            status_zone = "Danger (<65%)"
             danger_count += 1
         elif proj_pct < 75:
-            status_zone = "Condonation (65-75%)"
+            status_zone = "Warning (65-75%)"
             condonation_count += 1
         else:
-            status_zone = "Safe (≥75%)"
+            status_zone = "Good (≥75%)"
 
         proj_subj_data.append({
             'subject': s['subject'],
@@ -1405,7 +1405,7 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
 
     with m2:
         danger_color = "#ef4444" if danger_count > 0 else ("#f59e0b" if condonation_count > 0 else "#34d399")
-        danger_sublabel = f"{danger_count} Debarred | {condonation_count} Warning" if (danger_count + condonation_count) > 0 else "All Subjects Safe ✅"
+        danger_sublabel = f"{danger_count} Danger | {condonation_count} Warning" if (danger_count + condonation_count) > 0 else "All Subjects Good ✅"
         st.markdown(
             f"<div style='background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(15,23,42,0.9));border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center;'>"
             f"  <div style='font-size:0.72rem;text-transform:uppercase;color:#94a3b8;font-weight:600;letter-spacing:0.07em;'>Danger / Warning Subjects</div>"
@@ -1449,9 +1449,9 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
         df_bar, x='subject', y='pct',
         color='status',
         color_discrete_map={
-            "Safe (≥75%)": "#00D8C6",          # Teal/Green
-            "Condonation (65-75%)": "#F59E0B",    # Yellow/Orange
-            "Debarred (<65%)": "#EF4444"         # Red
+            "Good (≥75%)": "#00D8C6",          # Teal/Green
+            "Warning (65-75%)": "#F59E0B",     # Yellow/Orange
+            "Danger (<65%)": "#EF4444"         # Red
         },
         range_y=[0, 100],
         labels={'pct': 'Projected %', 'subject': 'Subject', 'status': 'Status'}
