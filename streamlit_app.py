@@ -1347,8 +1347,10 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
     col_act, col_mode, col_slider = st.columns([1.3, 1.2, 2.5])
     with col_act:
         st.markdown("<div style='font-size:0.82rem;font-weight:600;color:#94a3b8;margin-bottom:6px;'>Simulation Mode</div>", unsafe_allow_html=True)
-        is_attending = st.toggle("✅ Simulate Attending", value=False, key=f"{key_prefix}_act_toggle_{sem}")
-        st.caption("On: Attending | Off: Bunking")
+        t_key = f"{key_prefix}_act_toggle_{sem}"
+        is_attending_val = st.session_state.get(t_key, False)
+        toggle_label = "✅ Attending Mode" if is_attending_val else "❌ Bunking Mode"
+        is_attending = st.toggle(toggle_label, value=False, key=t_key)
 
     with col_mode:
         mode = st.radio("Predict By", ["📅 Days", "📚 Classes"], horizontal=True, key=f"{key_prefix}_mode_{sem}")
