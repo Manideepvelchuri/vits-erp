@@ -4058,7 +4058,7 @@ def admin_bunk_analysis():
                 st.markdown("#### 🏆 Habitual Smart Bunkers Leaderboard")
                 df_leaderboard = df_pat.groupby(['roll_no', 'name', 'section']).size().reset_index(name='Incidents')
                 df_leaderboard = df_leaderboard.sort_values(by='roll_no', ascending=True)
-                df_leaderboard.columns = ['Roll No', 'Student Name', 'Section', 'Detected Pattern Incidents']
+                df_leaderboard.columns = ['Roll No', 'Student Name', 'Section', 'Bunk Incidents']
                 st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
 
                 # Drilldown to individual student patterns
@@ -4086,11 +4086,18 @@ def admin_bunk_analysis():
                             if r_sub:
                                 subj_missed.append(f"P{h}: {r_sub['subject']}")
 
+                        # Compact period formatting for mobile screens (e.g., 'P1-7')
+                        c_hrs = row['cond_hours']
+                        if len(c_hrs) > 1 and c_hrs == list(range(min(c_hrs), max(c_hrs)+1)):
+                            cond_str = f"P{min(c_hrs)}-{max(c_hrs)}"
+                        else:
+                            cond_str = f"P{','.join(map(str, c_hrs))}"
+
                         details.append({
                             'Date': row['date'],
-                            'Day': row['day_of_week'],
-                            'Conducted Periods': str(row['cond_hours']),
-                            'Period Status Sequence': row['status_str'],
+                            'Day': row['day_of_week'][:3],
+                            'Periods': cond_str,
+                            'Sequence': row['status_str'],
                             'Subjects Bunked': ", ".join(subj_missed)
                         })
 
