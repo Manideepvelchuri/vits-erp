@@ -2558,7 +2558,7 @@ def admin_dashboard():
         admin_options = [
             "🏠 Dashboard", "👥 Students", "📝 Marks Editor",
             "📤 CSV Upload", "🔄 Scraper",
-            "📈 Analytics", "🚨 Absence Analysis", "🗓️ Timetable", "💾 Backup", "⚙️ Settings"
+            "📈 Analytics", "🚨 Bunk Analysis", "🗓️ Timetable", "💾 Backup", "⚙️ Settings"
         ]
         default_admin = "🏠 Dashboard"
         current_admin = st.session_state.get('admin_nav_page', default_admin)
@@ -2585,7 +2585,7 @@ def admin_dashboard():
         "📤 CSV Upload": admin_csv_upload,
         "🔄 Scraper": admin_scraper,
         "📈 Analytics": admin_analytics,
-        "🚨 Absence Analysis": admin_absent_analysis,
+        "🚨 Bunk Analysis": admin_bunk_analysis,
         "🗓️ Timetable": admin_timetable,
         "💾 Backup": admin_backup_page,
         "⚙️ Settings": admin_settings,
@@ -3335,8 +3335,8 @@ def admin_settings():
             st.success("Configuration saved.")
 
 
-def admin_absent_analysis():
-    st.markdown("# 🚨 Absent Intelligence Dashboard")
+def admin_bunk_analysis():
+    st.markdown("# 🚨 Bunk Analysis Dashboard")
     st.markdown("<p style='color:#94a3b8;font-size:1.05rem;margin-bottom:20px;'>College-wide absent intelligence — accurate per-student normalised metrics, subject drill-down, debarment recovery tracker & pattern analysis.</p>", unsafe_allow_html=True)
 
     conn = get_db_connection()
@@ -3373,7 +3373,7 @@ def admin_absent_analysis():
     # ── Create Tabs ────────────────────────────────────────────
     tab_debarment, tab_patterns, tab_student_dive = st.tabs([
         "📋 Attendance & Debarment Tracker",
-        "🕵️ Intermittent Missing Classes Patterns",
+        "🕵️ Intermittent Bunking Patterns",
         "👤 Student Deep Dive Statistics"
     ])
 
@@ -3631,7 +3631,7 @@ def admin_absent_analysis():
                         st.info("No data.")
 
             with c2:
-                st.markdown("### 📚 Subject Absence Analysis")
+                st.markdown("### 📚 Subject Bunk Analysis")
                 if use_hour_wise:
                     subj_sql = """
                         SELECT 
@@ -3945,7 +3945,7 @@ def admin_absent_analysis():
         df_cond = pd.DataFrame([dict(r) for r in cond_rows]) if cond_rows else pd.DataFrame(columns=['date', 'section', 'hour'])
 
         if df_abs.empty or df_cond.empty:
-            st.markdown("### 📅 Weekday Attendance & Absence Analysis (Monday – Saturday)")
+            st.markdown("### 📅 Weekday Attendance & Bunk Analysis (Monday – Saturday)")
             st.caption("Daily attendance breakdown by weekday for the selected semester.")
             
             hist_sql = """
@@ -4051,30 +4051,30 @@ def admin_absent_analysis():
                 # Render Pattern KPI Cards
                 st.markdown(f"""
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px;">
-                    {kpi("Intermittent Absence Incidents", f"{total_instances}", "#ef4444")}
+                    {kpi("Intermittent Bunk Incidents", f"{total_instances}", "#ef4444")}
                     {kpi("Identified Smart Absenters", f"{unique_students}", "#f59e0b")}
                     {kpi("Peak Missing Classes Day", f"{peak_day} ({peak_day_pct}%)", "#00D8C6")}
                 </div>""", unsafe_allow_html=True)
 
-                st.markdown("### 🕵️ Missing Classes Habit Analysis")
+                st.markdown("### 🕵️ Intermittent Bunking Habit Analysis")
                 st.caption("Intermittent/selective missing classes pattern corresponds to students attending initial periods, escaping middle hours, and returning/leaving selectively.")
 
                 # charts row
                 c_p1, c_p2 = st.columns(2)
                 with c_p1:
-                    st.markdown("#### 📅 Weekly Pattern: Missing Classes by Day of Week")
+                    st.markdown("#### 📅 Weekly Pattern: Bunks by Day of Week")
                     weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
                     df_day = df_pat['day_of_week'].value_counts().reindex(weekday_order, fill_value=0).reset_index()
                     df_day.columns = ['Day', 'Incidents']
                     fig_day = px.bar(df_day, x='Day', y='Incidents',
                                      color='Day', color_discrete_sequence=['#fbbf24','#fb7185','#818cf8','#34d399','#a78bfa'],
-                                     labels={'Incidents':'Absence Incidents'})
+                                     labels={'Incidents':'Bunk Incidents'})
                     fig_day.update_layout(showlegend=False)
                     apply_premium_plotly_theme(fig_day)
                     st.plotly_chart(fig_day, use_container_width=True)
 
                 with c_p2:
-                    st.markdown("#### 🕒 Hour-wise Missing Classes Heatmap")
+                    st.markdown("#### 🕒 Hour-wise Bunk Heatmap")
                     # Calculate how many times each hour was missed on these intermittent days
                     all_missed_hours = []
                     for inst in pattern_instances:
@@ -4086,7 +4086,7 @@ def admin_absent_analysis():
 
                     fig_hr = px.bar(df_hr, x='Period', y='Count',
                                     color='Count', color_continuous_scale='Burg',
-                                    labels={'Count':'Absences Recorded'})
+                                    labels={'Count':'Bunks Recorded'})
                     fig_hr.update_layout(showlegend=False)
                     apply_premium_plotly_theme(fig_hr)
                     st.plotly_chart(fig_hr, use_container_width=True)
@@ -4094,23 +4094,23 @@ def admin_absent_analysis():
                 st.markdown("---")
 
                 # Habitual List Table — Sorted strictly by Roll Number (roll_no ASC)
-                st.markdown("#### 🏆 Intermittent Absentees Leaderboard")
+                st.markdown("#### 🏆 Habitual Smart Bunkers Leaderboard")
                 df_leaderboard = df_pat.groupby(['roll_no', 'name', 'section']).size().reset_index(name='Incidents')
                 df_leaderboard = df_leaderboard.sort_values(by='roll_no', ascending=True)
                 df_leaderboard.columns = ['Roll No', 'Student Name', 'Section', 'Detected Pattern Incidents']
                 st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
 
                 # Drilldown to individual student patterns
-                st.markdown("#### 🔍 Individual Student Attendance Explorer")
+                st.markdown("#### 🔍 Individual Student Pattern Explorer")
                 selected_student_roll = st.selectbox(
-                    "Select Student to View Detailed Attendance Calendar",
+                    "Select Student to View Detailed Bunk Calendar",
                     options=df_leaderboard['Roll No'].tolist(),
                     format_func=lambda r: f"{df_leaderboard[df_leaderboard['Roll No'] == r]['Student Name'].values[0]} ({r}) - {df_leaderboard[df_leaderboard['Roll No'] == r]['Section'].values[0]}"
                 )
 
                 if selected_student_roll:
                     df_stud_pat = df_pat[df_pat['roll_no'] == selected_student_roll].copy()
-                    st.markdown(f"**Attendance calendar history for `{selected_student_roll}`:**")
+                    st.markdown(f"**Bunk calendar history for `{selected_student_roll}`:**")
 
                     details = []
                     for _, row in df_stud_pat.iterrows():
@@ -4137,7 +4137,7 @@ def admin_absent_analysis():
                             'Day': row['day_of_week'],
                             'Conducted Periods': cond_str,
                             'Period Status Sequence': row['status_str'],
-                            'Subjects Missed': ", ".join(subj_missed)
+                            'Subjects Bunked': ", ".join(subj_missed)
                         })
 
                     df_det = pd.DataFrame(details)
