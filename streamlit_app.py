@@ -1341,23 +1341,36 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
     if total_c <= 0 or not subj_data:
         return
 
-    st.markdown("### 🔮 Interactive Attendance Skip Predictor")
+    st.markdown("### 🔮 Interactive Attendance Predictor")
     st.caption(f"💡 One calendar day corresponds to an average of **{avg_classes:.1f}** classes scheduled for your section.")
 
-    col_mode, col_slider = st.columns([1.2, 2.8])
+    col_act, col_mode, col_slider = st.columns([1.2, 1.2, 2.6])
+    with col_act:
+        action_type = st.radio("Action Type", ["❌ Bunking", "✅ Attending"], horizontal=True, key=f"{key_prefix}_act_{sem}")
     with col_mode:
         mode = st.radio("Predict By", ["📅 Days", "📚 Classes"], horizontal=True, key=f"{key_prefix}_mode_{sem}")
-    
+
+    is_attending = "Attending" in action_type
+    verb_str = "attend" if is_attending else "miss"
+
     with col_slider:
         if mode == "📅 Days":
-            miss_count = st.slider("If I miss the next ___ days", 0, 15, 0, key=f"{key_prefix}_days_slider_{sem}")
-            miss_classes = int(round(miss_count * avg_classes))
+            cnt_val = st.slider(f"If I {verb_str} the next ___ days", 0, 15, 0, key=f"{key_prefix}_days_slider_{sem}")
+            change_classes = int(round(cnt_val * avg_classes))
         else:
-            miss_classes = st.slider("If I miss the next ___ classes", 0, 30, 0, key=f"{key_prefix}_classes_slider_{sem}")
+            change_classes = st.slider(f"If I {verb_str} the next ___ classes", 0, 30, 0, key=f"{key_prefix}_classes_slider_{sem}")
 
     curr_overall = round(total_a / total_c * 100, 1) if total_c else 0.0
-    proj_overall = round(total_a / (total_c + miss_classes) * 100, 1) if (total_c + miss_classes) else 0.0
-    drop_pct = round(curr_overall - proj_overall, 1)
+
+    if is_attending:
+        proj_total_a = total_a + change_classes
+        proj_total_c = total_c + change_classes
+    else:
+        proj_total_a = total_a
+        proj_total_c = total_c + change_classes
+
+    proj_overall = round(proj_total_a / proj_total_c * 100, 1) if proj_total_c else 0.0
+    change_pct = round(abs(proj_overall - curr_overall), 1)
 
     proj_subj_data = []
     danger_count = 0
@@ -1366,9 +1379,16 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
     for s in subj_data:
         s_att = s['attended']
         s_cond = s['conducted']
-        prop_miss = (s_cond / total_c) * miss_classes if total_c else 0
-        proj_cond = s_cond + prop_miss
-        proj_pct = round(s_att / proj_cond * 100, 1) if proj_cond > 0 else 0.0
+        prop_change = (s_cond / total_c) * change_classes if total_c else 0
+        
+        if is_attending:
+            proj_s_att = s_att + prop_change
+            proj_s_cond = s_cond + prop_change
+        else:
+            proj_s_att = s_att
+            proj_s_cond = s_cond + prop_change
+
+        proj_pct = round(proj_s_att / proj_s_cond * 100, 1) if proj_s_cond > 0 else 0.0
 
         if proj_pct < 65:
             status_zone = "Danger (<65%)"
@@ -1385,19 +1405,22 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
             'status': status_zone
         })
 
-    remaining_classes_buffer = can_miss_classes(total_a, total_c)
-    rem_classes_after = max(0, remaining_classes_buffer - miss_classes)
+    rem_classes_after = can_miss_classes(proj_total_a, proj_total_c) if proj_overall >= 75 else 0
     rem_days_after = round(rem_classes_after / avg_classes, 1) if avg_classes > 0 else 0.0
 
     st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
     m1, m2, m3 = st.columns(3)
     
     with m1:
-        drop_html = f"<span style='color:#ef4444;font-size:0.85rem;margin-left:4px;'>↓ {drop_pct}%</span>" if miss_classes > 0 else ""
+        if is_attending:
+            diff_html = f"<span style='color:#34d399;font-size:0.85rem;margin-left:4px;'>↑ +{change_pct}%</span>" if change_classes > 0 else ""
+        else:
+            diff_html = f"<span style='color:#ef4444;font-size:0.85rem;margin-left:4px;'>↓ -{change_pct}%</span>" if change_classes > 0 else ""
+
         st.markdown(
             f"<div style='background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(15,23,42,0.9));border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center;'>"
             f"  <div style='font-size:0.72rem;text-transform:uppercase;color:#94a3b8;font-weight:600;letter-spacing:0.07em;'>Projected Overall</div>"
-            f"  <div style='font-size:1.6rem;font-weight:800;color:#00D8C6;margin-top:2px;font-family:Outfit;'>{proj_overall}% {drop_html}</div>"
+            f"  <div style='font-size:1.6rem;font-weight:800;color:#00D8C6;margin-top:2px;font-family:Outfit;'>{proj_overall}% {diff_html}</div>"
             f"  <div style='font-size:0.75rem;color:#64748b;margin-top:2px;'>Initial: {curr_overall}%</div>"
             f"</div>",
             unsafe_allow_html=True
@@ -1415,24 +1438,26 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
             unsafe_allow_html=True
         )
 
-    needed_to_recover = classes_needed(total_a, total_c + miss_classes)
+    needed_to_recover = classes_needed(proj_total_a, proj_total_c)
     needed_days_to_recover = round(needed_to_recover / avg_classes, 1) if avg_classes > 0 else 0.0
 
     with m3:
-        if rem_classes_after > 0:
+        if proj_overall >= 75:
             buf_color = "#34d399"
             buf_label = f"{rem_classes_after} classes (≈ {rem_days_after} days)"
-            buf_subtext = "To stay above 75% target"
+            buf_subtext = "Safe buffer to stay above 75%"
+            sub_text_color = "#94a3b8"
         else:
             buf_color = "#ef4444"
             buf_label = "Threshold Exhausted!"
             buf_subtext = f"Need {needed_to_recover} classes (≈ {needed_days_to_recover} days) to recover 75%"
+            sub_text_color = "#f87171"
 
         st.markdown(
             f"<div style='background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(15,23,42,0.9));border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center;'>"
             f"  <div style='font-size:0.72rem;text-transform:uppercase;color:#94a3b8;font-weight:600;letter-spacing:0.07em;'>Remaining Safe Buffer</div>"
             f"  <div style='font-size:1.4rem;font-weight:800;color:{buf_color};margin-top:2px;font-family:Outfit;'>{buf_label}</div>"
-            f"  <div style='font-size:0.75rem;color:#f87171;margin-top:2px;font-weight:600;'>{buf_subtext}</div>"
+            f"  <div style='font-size:0.75rem;color:{sub_text_color};margin-top:2px;font-weight:600;'>{buf_subtext}</div>"
             f"</div>",
             unsafe_allow_html=True
         )
