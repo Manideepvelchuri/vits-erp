@@ -4237,6 +4237,61 @@ def admin_bunk_analysis():
                             } for r in s_marks_rows])
                             st_premium_table(m_df)
 
+                        # ═══════════════════════════════════════════════════════════
+                        # WHAT-IF ATTENDANCE SIMULATOR & FUTURE PROJECTION
+                        # ═══════════════════════════════════════════════════════════
+                        st.markdown("---")
+                        st.markdown("### 🔮 Future Attendance Simulator & Goal Predictor")
+                        st.caption("Simulate your projected attendance percentage if you attend or bunk future consecutive days or custom class hours.")
+
+                        sim_col1, sim_col2 = st.columns([1, 1.3])
+                        with sim_col1:
+                            sim_mode = st.radio(
+                                "Select Action",
+                                ["✅ Present Continuously (Attending)", "❌ Absent Continuously (Bunking)"],
+                                key=f"sim_mode_{selected_roll}"
+                            )
+                            sim_type = st.radio(
+                                "Simulation Unit",
+                                ["📅 Days (7 periods/day)", "🕒 Custom Period Hours"],
+                                key=f"sim_type_{selected_roll}"
+                            )
+                            if "Days" in sim_type:
+                                num_days = st.slider("Number of Future Days", min_value=1, max_value=15, value=3, key=f"sim_days_{selected_roll}")
+                                added_hours = num_days * 7
+                                sim_desc = f"{num_days} full days ({added_hours} class hours)"
+                            else:
+                                added_hours = st.number_input("Enter Number of Future Class Hours", min_value=1, max_value=100, value=7, key=f"sim_hrs_{selected_roll}")
+                                sim_desc = f"{added_hours} class hours"
+
+                        with sim_col2:
+                            is_attending = "Present" in sim_mode
+                            new_total_c = s_total_c + added_hours
+                            new_total_a = (s_total_a + added_hours) if is_attending else s_total_a
+                            new_pct = round(new_total_a / new_total_c * 100, 1) if new_total_c else 0.0
+                            diff_pct = round(new_pct - s_overall, 1)
+
+                            sign_str = f"+{diff_pct}%" if diff_pct > 0 else f"{diff_pct}%"
+                            status_badge = "🎉 SAFE (Above 75%)" if new_pct >= 75 else ("⚠️ CONDITIONAL (65% - 75%)" if new_pct >= 65 else "🚨 DEBARMENT DANGER (< 65%)")
+                            badge_color = "#10b981" if new_pct >= 75 else ("#f59e0b" if new_pct >= 65 else "#ef4444")
+                            action_label = "Attending" if is_attending else "Bunking"
+
+                            st.markdown(f"""
+                            <div style="background:linear-gradient(135deg,rgba(15,23,42,0.95),rgba(30,41,59,0.9));border:1px solid {badge_color};border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,0.3);margin-top:10px;">
+                                <div style="font-size:0.82rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Projected Result after {sim_desc}</div>
+                                <div style="display:flex;align-items:baseline;gap:12px;margin-top:8px;">
+                                    <span style="font-size:2.6rem;font-weight:800;color:{badge_color};font-family:'Outfit';">{new_pct}%</span>
+                                    <span style="font-size:1.1rem;font-weight:700;color:{'#34d399' if diff_pct >= 0 else '#fb7185'};">({sign_str})</span>
+                                </div>
+                                <div style="margin-top:10px;font-size:0.92rem;color:#e2e8f0;font-weight:500;">
+                                    Status: <span style="color:{badge_color};font-weight:700;">{status_badge}</span>
+                                </div>
+                                <div style="margin-top:8px;font-size:0.82rem;color:#94a3b8;line-height:1.4;">
+                                    Current: {s_total_a}/{s_total_c} ({s_overall}%) ➔ Simulated: {new_total_a}/{new_total_c} ({new_pct}%) by {action_label} {sim_desc}.
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
     conn.close()
 
 # ROUTER
