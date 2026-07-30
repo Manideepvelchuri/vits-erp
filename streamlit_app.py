@@ -1349,7 +1349,7 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
         st.markdown("<div style='font-size:0.82rem;font-weight:600;color:#94a3b8;margin-bottom:6px;'>Simulation Mode</div>", unsafe_allow_html=True)
         t_key = f"{key_prefix}_act_toggle_{sem}"
         is_attending_val = st.session_state.get(t_key, False)
-        toggle_label = "✅ Attending Mode" if is_attending_val else "❌ Bunking Mode"
+        toggle_label = "✅ Attending Mode" if is_attending_val else "❌ Missing Classes Mode"
         is_attending = st.toggle(toggle_label, value=False, key=t_key)
 
     with col_mode:
@@ -2558,7 +2558,7 @@ def admin_dashboard():
         admin_options = [
             "🏠 Dashboard", "👥 Students", "📝 Marks Editor",
             "📤 CSV Upload", "🔄 Scraper",
-            "📈 Analytics", "🚨 Bunk Analysis", "🗓️ Timetable", "💾 Backup", "⚙️ Settings"
+            "📈 Analytics", "🚨 Absence Analysis", "🗓️ Timetable", "💾 Backup", "⚙️ Settings"
         ]
         default_admin = "🏠 Dashboard"
         current_admin = st.session_state.get('admin_nav_page', default_admin)
@@ -2585,7 +2585,7 @@ def admin_dashboard():
         "📤 CSV Upload": admin_csv_upload,
         "🔄 Scraper": admin_scraper,
         "📈 Analytics": admin_analytics,
-        "🚨 Bunk Analysis": admin_bunk_analysis,
+        "🚨 Absence Analysis": admin_absent_analysis,
         "🗓️ Timetable": admin_timetable,
         "💾 Backup": admin_backup_page,
         "⚙️ Settings": admin_settings,
@@ -3335,9 +3335,9 @@ def admin_settings():
             st.success("Configuration saved.")
 
 
-def admin_bunk_analysis():
-    st.markdown("# 🚨 Bunk Intelligence Dashboard")
-    st.markdown("<p style='color:#94a3b8;font-size:1.05rem;margin-bottom:20px;'>College-wide bunk intelligence — accurate per-student normalised metrics, subject drill-down, debarment recovery tracker & pattern analysis.</p>", unsafe_allow_html=True)
+def admin_absent_analysis():
+    st.markdown("# 🚨 Absent Intelligence Dashboard")
+    st.markdown("<p style='color:#94a3b8;font-size:1.05rem;margin-bottom:20px;'>College-wide absent intelligence — accurate per-student normalised metrics, subject drill-down, debarment recovery tracker & pattern analysis.</p>", unsafe_allow_html=True)
 
     conn = get_db_connection()
     cfg  = get_config_map(conn)
@@ -3373,7 +3373,7 @@ def admin_bunk_analysis():
     # ── Create Tabs ────────────────────────────────────────────
     tab_debarment, tab_patterns, tab_student_dive = st.tabs([
         "📋 Attendance & Debarment Tracker",
-        "🕵️ Intermittent Bunking Patterns",
+        "🕵️ Intermittent Missing Classes Patterns",
         "👤 Student Deep Dive Statistics"
     ])
 
@@ -3517,9 +3517,9 @@ def admin_bunk_analysis():
             avg_attendance      = round(df_stu['pct'].mean(), 1)
             total_missed        = int(df_stu['missed'].sum())
             total_cond          = int(df_stu['cond'].sum())
-            zero_bunk_count     = int((df_stu['missed'] == 0).sum())
+            zero_absent_count     = int((df_stu['missed'] == 0).sum())
             chronic_count       = int((df_stu['pct'] < threshold).sum())
-            bunk_rate           = round(100 - avg_attendance, 2)
+            absent_rate           = round(100 - avg_attendance, 2)
 
             # ── KPI Cards ──────────────────────────────────────────────
             def kpi(label, value, color="#f8fafc"):
@@ -3534,8 +3534,8 @@ def admin_bunk_analysis():
                 {kpi("Total Students",    f"{total_students:,}")}
                 {kpi("Avg Attendance",    f"{avg_attendance}%",   "#00D8C6")}
                 {kpi("Classes Missed",    f"{total_missed:,}",    "#ef4444")}
-                {kpi("Overall Absence Rate", f"{bunk_rate}%",        "#f59e0b")}
-                {kpi("Perfect Attendance",f"{zero_bunk_count}",   "#10b981")}
+                {kpi("Overall Absence Rate", f"{absent_rate}%",        "#f59e0b")}
+                {kpi("Perfect Attendance",f"{zero_absent_count}",   "#10b981")}
                 {kpi("Debarment Risk",    f"{chronic_count}",     "#f43f5e")}
             </div>""", unsafe_allow_html=True)
 
@@ -3554,13 +3554,13 @@ def admin_bunk_analysis():
                             students=('roll_no', 'count')
                         ).reset_index()
                         df_cls['avg_att'] = df_cls['avg_att'].round(1)
-                        df_cls['avg_bunk_rate'] = (100 - df_cls['avg_att']).round(1)
-                        df_cls = df_cls.sort_values(by='avg_bunk_rate', ascending=False)
+                        df_cls['avg_absent_rate'] = (100 - df_cls['avg_att']).round(1)
+                        df_cls = df_cls.sort_values(by='avg_absent_rate', ascending=False)
                     else:
                         cls_sql = """
                             SELECT s.section,
                                    ROUND(AVG(stu.pct), 1)             AS avg_att,
-                                   ROUND(100 - AVG(stu.pct), 1)       AS avg_bunk_rate,
+                                   ROUND(100 - AVG(stu.pct), 1)       AS avg_absent_rate,
                                    SUM(stu.missed)                     AS total_missed,
                                    COUNT(DISTINCT a.roll_no)           AS students
                             FROM attendance a
@@ -3575,7 +3575,7 @@ def admin_bunk_analysis():
                             ) stu ON stu.roll_no = a.roll_no
                             WHERE a.semester = ?
                             GROUP BY s.section
-                            ORDER BY avg_bunk_rate DESC
+                            ORDER BY avg_absent_rate DESC
                         """
                         cls_rows = conn.execute(cls_sql, (sem, sem)).fetchall()
                         df_cls = pd.DataFrame([dict(r) for r in cls_rows]) if cls_rows else pd.DataFrame()
@@ -3583,10 +3583,10 @@ def admin_bunk_analysis():
                     if not df_cls.empty:
                         fig_cls = px.bar(
                             df_cls, x='section', y='total_missed',
-                            color='avg_bunk_rate',
+                            color='avg_absent_rate',
                             color_continuous_scale=[[0,'#4ade80'],[0.5,'#f59e0b'],[1,'#ef4444']],
-                            custom_data=['avg_att', 'avg_bunk_rate', 'students'],
-                            labels={'section':'Section','total_missed':'Total Missed Classes','avg_bunk_rate':'Avg Absence Rate (%)'}
+                            custom_data=['avg_att', 'avg_absent_rate', 'students'],
+                            labels={'section':'Section','total_missed':'Total Missed Classes','avg_absent_rate':'Avg Absence Rate (%)'}
                         )
                         fig_cls.update_traces(
                             hovertemplate="<b>%{x}</b><br>Missed: %{y}<br>Avg Attendance: %{customdata[0]}%<br>Avg Absence Rate: %{customdata[1]}%<br>Students: %{customdata[2]}<extra></extra>"
@@ -3639,7 +3639,7 @@ def admin_bunk_analysis():
                             COUNT(DISTINCT abs_t.roll_no) as students,
                             SUM(h.total_cond) as total_cond,
                             SUM(h.total_missed) as total_missed,
-                            ROUND(SUM(h.total_missed)*100.0/NULLIF(SUM(h.total_cond),0),1) as bunk_rate
+                            ROUND(SUM(h.total_missed)*100.0/NULLIF(SUM(h.total_cond),0),1) as absent_rate
                         FROM (
                             SELECT date, section, hour, subject, 
                                    (MAX(total_present) + MAX(total_absent)) AS total_cond,
@@ -3656,7 +3656,7 @@ def admin_bunk_analysis():
                         JOIN students s ON abs_t.roll_no = s.roll_no
                         WHERE s.semester = ? AND abs_t.date >= ? AND abs_t.date <= ?
                         GROUP BY h.subject
-                        ORDER BY bunk_rate DESC
+                        ORDER BY absent_rate DESC
                     """
                     subj_params = (start_dt, end_dt, sem_num, start_dt, end_dt)
                 else:
@@ -3667,14 +3667,14 @@ def admin_bunk_analysis():
                                SUM(a.hours_attended)                                                    AS total_att,
                                SUM(a.hours_conducted - a.hours_attended)                                AS total_missed,
                                ROUND(SUM(a.hours_conducted - a.hours_attended)*100.0
-                                     / NULLIF(SUM(a.hours_conducted),0), 1)                             AS bunk_rate
+                                     / NULLIF(SUM(a.hours_conducted),0), 1)                             AS absent_rate
                         FROM attendance a
                         {sec_join}
                         WHERE a.semester = ? {sec_where}
                           AND a.hours_conducted > 0
                         GROUP BY a.subject
                         HAVING SUM(a.hours_conducted) >= 5
-                        ORDER BY bunk_rate DESC
+                        ORDER BY absent_rate DESC
                         LIMIT 15
                     """
                     subj_params = params_s
@@ -3683,11 +3683,11 @@ def admin_bunk_analysis():
                 if subj_rows:
                     df_sub = pd.DataFrame([dict(r) for r in subj_rows])
                     fig_sub = px.bar(
-                        df_sub, x='bunk_rate', y='subject', orientation='h',
-                        color='bunk_rate',
+                        df_sub, x='absent_rate', y='subject', orientation='h',
+                        color='absent_rate',
                         color_continuous_scale=[[0,'#4ade80'],[0.5,'#f59e0b'],[1,'#ef4444']],
                         custom_data=['students','total_missed','total_cond'],
-                        labels={'bunk_rate':'Absence Rate (%)','subject':'Subject'}
+                        labels={'absent_rate':'Absence Rate (%)','subject':'Subject'}
                     )
                     fig_sub.update_traces(
                         hovertemplate="<b>%{y}</b><br>Absence Rate: %{x}%<br>Missed: %{customdata[1]} / %{customdata[2]}<br>Students: %{customdata[0]}<extra></extra>"
@@ -3771,7 +3771,7 @@ def admin_bunk_analysis():
                 st.download_button("⬇️ Download Debarment List (CSV)", csv,
                                    file_name=f"debarment_{sem.replace(' ','_')}_{sec_filter.replace(' ','_')}.csv",
                                    mime='text/csv')
-                st.caption(f"**'Classes Needed to Recover'** = consecutive classes this student must attend (without bunking) to reach {threshold}% attendance.")
+                st.caption(f"**'Classes Needed to Recover'** = consecutive classes this student must attend (without missing classes) to reach {threshold}% attendance.")
             else:
                 st.success(f"All students are above {threshold}% attendance!")
 
@@ -4037,7 +4037,7 @@ def admin_bunk_analysis():
                 })
 
             if not pattern_instances:
-                st.success("🎉 No intermittent bunking patterns detected in this section!")
+                st.success("🎉 No intermittent missing classes patterns detected in this section!")
             else:
                 df_pat = pd.DataFrame(pattern_instances)
                 unique_students = df_pat['roll_no'].nunique()
@@ -4051,42 +4051,42 @@ def admin_bunk_analysis():
                 # Render Pattern KPI Cards
                 st.markdown(f"""
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px;">
-                    {kpi("Intermittent Bunk Incidents", f"{total_instances}", "#ef4444")}
-                    {kpi("Identified Smart Bunkers", f"{unique_students}", "#f59e0b")}
-                    {kpi("Peak Bunking Day", f"{peak_day} ({peak_day_pct}%)", "#00D8C6")}
+                    {kpi("Intermittent Absence Incidents", f"{total_instances}", "#ef4444")}
+                    {kpi("Identified Smart Absenters", f"{unique_students}", "#f59e0b")}
+                    {kpi("Peak Missing Classes Day", f"{peak_day} ({peak_day_pct}%)", "#00D8C6")}
                 </div>""", unsafe_allow_html=True)
 
-                st.markdown("### 🕵️ Bunking Habit Analysis")
-                st.caption("Intermittent/selective bunking pattern corresponds to students attending initial periods, escaping middle hours, and returning/leaving selectively.")
+                st.markdown("### 🕵️ Missing Classes Habit Analysis")
+                st.caption("Intermittent/selective missing classes pattern corresponds to students attending initial periods, escaping middle hours, and returning/leaving selectively.")
 
                 # charts row
                 c_p1, c_p2 = st.columns(2)
                 with c_p1:
-                    st.markdown("#### 📅 Weekly Pattern: Bunking by Day of Week")
+                    st.markdown("#### 📅 Weekly Pattern: Missing Classes by Day of Week")
                     weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
                     df_day = df_pat['day_of_week'].value_counts().reindex(weekday_order, fill_value=0).reset_index()
                     df_day.columns = ['Day', 'Incidents']
                     fig_day = px.bar(df_day, x='Day', y='Incidents',
                                      color='Day', color_discrete_sequence=['#fbbf24','#fb7185','#818cf8','#34d399','#a78bfa'],
-                                     labels={'Incidents':'Bunk Incidents'})
+                                     labels={'Incidents':'Absence Incidents'})
                     fig_day.update_layout(showlegend=False)
                     apply_premium_plotly_theme(fig_day)
                     st.plotly_chart(fig_day, use_container_width=True)
 
                 with c_p2:
-                    st.markdown("#### 🕒 Hour-wise Bunking Heatmap")
-                    # Calculate how many times each hour was bunked on these intermittent days
-                    all_bunked_hours = []
+                    st.markdown("#### 🕒 Hour-wise Missing Classes Heatmap")
+                    # Calculate how many times each hour was missed on these intermittent days
+                    all_missed_hours = []
                     for inst in pattern_instances:
-                        all_bunked_hours.extend(inst['abs_hours'])
+                        all_missed_hours.extend(inst['abs_hours'])
 
-                    df_hr = pd.Series(all_bunked_hours).value_counts().reindex(range(1, 8), fill_value=0).reset_index()
+                    df_hr = pd.Series(all_missed_hours).value_counts().reindex(range(1, 8), fill_value=0).reset_index()
                     df_hr.columns = ['Period', 'Count']
                     df_hr['Period'] = 'P' + df_hr['Period'].astype(str)
 
                     fig_hr = px.bar(df_hr, x='Period', y='Count',
                                     color='Count', color_continuous_scale='Burg',
-                                    labels={'Count':'Bunks Recorded'})
+                                    labels={'Count':'Absences Recorded'})
                     fig_hr.update_layout(showlegend=False)
                     apply_premium_plotly_theme(fig_hr)
                     st.plotly_chart(fig_hr, use_container_width=True)
@@ -4094,23 +4094,23 @@ def admin_bunk_analysis():
                 st.markdown("---")
 
                 # Habitual List Table — Sorted strictly by Roll Number (roll_no ASC)
-                st.markdown("#### 🏆 Habitual Smart Bunkers Leaderboard")
+                st.markdown("#### 🏆 Intermittent Absentees Leaderboard")
                 df_leaderboard = df_pat.groupby(['roll_no', 'name', 'section']).size().reset_index(name='Incidents')
                 df_leaderboard = df_leaderboard.sort_values(by='roll_no', ascending=True)
                 df_leaderboard.columns = ['Roll No', 'Student Name', 'Section', 'Detected Pattern Incidents']
                 st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
 
                 # Drilldown to individual student patterns
-                st.markdown("#### 🔍 Individual Student Pattern Explorer")
+                st.markdown("#### 🔍 Individual Student Attendance Explorer")
                 selected_student_roll = st.selectbox(
-                    "Select Student to View Detailed Bunk Calendar",
+                    "Select Student to View Detailed Attendance Calendar",
                     options=df_leaderboard['Roll No'].tolist(),
                     format_func=lambda r: f"{df_leaderboard[df_leaderboard['Roll No'] == r]['Student Name'].values[0]} ({r}) - {df_leaderboard[df_leaderboard['Roll No'] == r]['Section'].values[0]}"
                 )
 
                 if selected_student_roll:
                     df_stud_pat = df_pat[df_pat['roll_no'] == selected_student_roll].copy()
-                    st.markdown(f"**Bunk calendar history for `{selected_student_roll}`:**")
+                    st.markdown(f"**Attendance calendar history for `{selected_student_roll}`:**")
 
                     details = []
                     for _, row in df_stud_pat.iterrows():
@@ -4137,7 +4137,7 @@ def admin_bunk_analysis():
                             'Day': row['day_of_week'],
                             'Conducted Periods': cond_str,
                             'Period Status Sequence': row['status_str'],
-                            'Subjects Bunked': ", ".join(subj_missed)
+                            'Subjects Missed': ", ".join(subj_missed)
                         })
 
                     df_det = pd.DataFrame(details)
@@ -4177,7 +4177,7 @@ def admin_bunk_analysis():
                 selected_student_str = st.selectbox(
                     "🔍 Select Student to Inspect Statistics",
                     options=student_options,
-                    key=f"bunk_deep_dive_{sem}_{sec_filter}"
+                    key=f"absence_deep_dive_{sem}_{sec_filter}"
                 )
 
                 if selected_student_str:
@@ -4281,13 +4281,13 @@ def admin_bunk_analysis():
                         # ═══════════════════════════════════════════════════════════
                         st.markdown("---")
                         st.markdown("### 🔮 Future Attendance Simulator & Goal Predictor")
-                        st.caption("Simulate your projected attendance percentage if you attend or bunk future consecutive days or custom class hours.")
+                        st.caption("Simulate your projected attendance percentage if you attend or absent future consecutive days or custom class hours.")
 
                         sim_col1, sim_col2 = st.columns([1, 1.3])
                         with sim_col1:
                             sim_mode = st.radio(
                                 "Select Action",
-                                ["✅ Present Continuously (Attending)", "❌ Absent Continuously (Bunking)"],
+                                ["✅ Present Continuously (Attending)", "❌ Absent Continuously (Missing Classes)"],
                                 key=f"sim_mode_{selected_roll}"
                             )
                             sim_type = st.radio(
@@ -4313,7 +4313,7 @@ def admin_bunk_analysis():
                             sign_str = f"+{diff_pct}%" if diff_pct > 0 else f"{diff_pct}%"
                             status_badge = "🎉 SAFE (Above 75%)" if new_pct >= 75 else ("⚠️ CONDITIONAL (65% - 75%)" if new_pct >= 65 else "🚨 DEBARMENT DANGER (< 65%)")
                             badge_color = "#10b981" if new_pct >= 75 else ("#f59e0b" if new_pct >= 65 else "#ef4444")
-                            action_label = "Attending" if is_attending else "Bunking"
+                            action_label = "Attending" if is_attending else "Missing Classes"
 
                             st.markdown(f"""
                             <div style="background:linear-gradient(135deg,rgba(15,23,42,0.95),rgba(30,41,59,0.9));border:1px solid {badge_color};border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,0.3);margin-top:10px;">
