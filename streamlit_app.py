@@ -4015,7 +4015,8 @@ def admin_bunk_analysis():
                     continue
 
                 # 3. Exclude simple 1st hour late arrivals (students who ONLY missed 1st hour)
-                if len(abs_hours - {1}) == 0:
+                effective_abs = abs_hours - {1}
+                if len(effective_abs) == 0:
                     continue
 
                 sorted_cond = sorted(list(cond_hours))
@@ -4025,14 +4026,21 @@ def admin_bunk_analysis():
                 status_str = "".join(status_seq)
                 abs_sorted = sorted(list(abs_hours))
                 pres_sorted = sorted(list(pres_hours))
+                eff_abs_sorted = sorted(list(effective_abs))
 
-                # Precise Smart Bunker Categorization
-                if (3 in pres_sorted or 6 in pres_sorted) and len(abs_hours) > 0:
-                    bunk_kind = "Key Hour Escape (P3/P6 Present)"
-                elif any(h in abs_sorted for h in [2, 3, 4, 5]) and any(h in pres_sorted for h in [1, 6, 7]):
-                    bunk_kind = "Middle Hour Bunk"
-                elif min(abs_sorted) > min(pres_sorted) and max(abs_sorted) == max(sorted_cond):
+                # Precise Smart Bunker Categorization (P3/P6 Key Hour Escape: e.g. AAPAAPA, PAAPAAP, PPAAPAA)
+                has_key_hour_escape = False
+                if (3 in pres_sorted or 6 in pres_sorted):
+                    # Check if there are alternating P-A-P patterns (attending key hours P3/P6 while skipping around them)
+                    if status_str.count('A') >= 2 and ('PA' in status_str and 'AP' in status_str):
+                        has_key_hour_escape = True
+
+                if has_key_hour_escape:
+                    bunk_kind = "Smart Bunker (P3/P6 Present)"
+                elif eff_abs_sorted and min(eff_abs_sorted) > min(pres_sorted) and max(eff_abs_sorted) == max(sorted_cond):
                     bunk_kind = "Early Departure Bunk"
+                elif any(h in eff_abs_sorted for h in [2, 3, 4, 5]) and any(h in pres_sorted for h in [6, 7]):
+                    bunk_kind = "Middle Hour Bunk"
                 else:
                     bunk_kind = "Selective Period Bunk"
 
