@@ -4135,11 +4135,35 @@ def admin_bunk_analysis():
 
                 if selected_date_label:
                     sel_date = date_map[selected_date_label]
-                    df_date_bunkers = df_pat[df_pat['date'] == sel_date].sort_values(by='roll_no', ascending=True).copy()
+                    df_date_bunkers_all = df_pat[df_pat['date'] == sel_date].sort_values(by='roll_no', ascending=True).copy()
                     
+                    # Available pattern types & status sequences on this date
+                    avail_types = ["All Patterns"] + sorted(list(df_date_bunkers_all['bunk_type'].unique()))
+                    avail_seqs = ["All Sequences"] + sorted(list(df_date_bunkers_all['status_str'].unique()))
+
+                    f_col1, f_col2 = st.columns([1, 1])
+                    with f_col1:
+                        filter_type = st.selectbox(
+                            "🎯 Filter Table by Bunk Pattern",
+                            options=avail_types,
+                            key=f"bunk_type_filter_{sel_date}"
+                        )
+                    with f_col2:
+                        filter_seq = st.selectbox(
+                            "🔢 Filter Table by Period Sequence (e.g. PPAAAPP)",
+                            options=avail_seqs,
+                            key=f"bunk_seq_filter_{sel_date}"
+                        )
+
+                    df_date_bunkers = df_date_bunkers_all.copy()
+                    if filter_type != "All Patterns":
+                        df_date_bunkers = df_date_bunkers[df_date_bunkers['bunk_type'] == filter_type]
+                    if filter_seq != "All Sequences":
+                        df_date_bunkers = df_date_bunkers[df_date_bunkers['status_str'] == filter_seq]
+
                     is_mb = sel_date in mass_bunk_dates
-                    mb_badge = f"<span style='color:#ef4444;font-weight:700;'>🚨 MASS BUNK DETECTED ({len(df_date_bunkers)} Students)</span>" if is_mb else f"<span style='color:#38bdf8;font-weight:600;'>{len(df_date_bunkers)} Students Bunked</span>"
-                    st.markdown(f"**Bunk list for `{sel_date}` ({df_date_bunkers['day_of_week'].iloc[0]}) — {mb_badge}:**", unsafe_allow_html=True)
+                    mb_badge = f"<span style='color:#ef4444;font-weight:700;'>🚨 MASS BUNK DETECTED</span>" if is_mb else f"<span style='color:#38bdf8;font-weight:600;'>Selective Bunks</span>"
+                    st.markdown(f"**Showing `{len(df_date_bunkers)}` of `{len(df_date_bunkers_all)}` students for `{sel_date}` ({df_date_bunkers_all['day_of_week'].iloc[0]}) — {mb_badge}:**", unsafe_allow_html=True)
 
                     date_details = []
                     for _, row in df_date_bunkers.iterrows():
