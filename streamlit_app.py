@@ -4035,9 +4035,10 @@ def admin_bunk_analysis():
                     if status_str.count('A') >= 2 and ('PA' in status_str and 'AP' in status_str):
                         has_key_hour_escape = True
 
+                max_h = max(sorted_cond)
                 if has_key_hour_escape:
                     bunk_kind = "Smart Bunker (P3/P6 Present)"
-                elif eff_abs_sorted and min(eff_abs_sorted) > min(pres_sorted) and max(eff_abs_sorted) == max(sorted_cond):
+                elif effective_abs == {max_h}:
                     bunk_kind = "Last Hr Bunkers"
                 else:
                     bunk_kind = "Normal Bunk"
