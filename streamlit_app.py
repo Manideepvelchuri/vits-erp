@@ -4004,8 +4004,7 @@ def admin_bunk_analysis():
                     continue
                 sec = stud['section']
                 cond_hours = cond_map.get((date, sec), set())
-                if not cond_hours:
-                    continue
+                pres_hours = cond_hours - abs_hours
 
                 # 1. Full-day absentees are NOT bunkers (Must be present for at least 1 class)
                 if len(pres_hours) == 0:
