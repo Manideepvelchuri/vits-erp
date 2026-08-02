@@ -4038,11 +4038,9 @@ def admin_bunk_analysis():
                 if has_key_hour_escape:
                     bunk_kind = "Smart Bunker (P3/P6 Present)"
                 elif eff_abs_sorted and min(eff_abs_sorted) > min(pres_sorted) and max(eff_abs_sorted) == max(sorted_cond):
-                    bunk_kind = "Early Departure Bunk"
-                elif any(h in eff_abs_sorted for h in [2, 3, 4, 5]) and any(h in pres_sorted for h in [6, 7]):
-                    bunk_kind = "Middle Hour Bunk"
+                    bunk_kind = "Last Hr Bunkers"
                 else:
-                    bunk_kind = "Selective Period Bunk"
+                    bunk_kind = "Normal Bunk"
 
                 day_of_week = pd.to_datetime(date).day_name()
                 pattern_instances.append({
