@@ -4009,12 +4009,12 @@ def admin_bunk_analysis():
 
                 pres_hours = cond_hours - abs_hours
 
-                # 1. Exclude full-day absentees
-                if len(pres_hours) == 0:
-                    continue
+                # 1. Allow full-day bunks / mass bunks as well
+                # pres_hours = cond_hours - abs_hours
 
                 # 2. Ignore 1st hour late arrivals (students who ONLY missed 1st hour)
-                if len(abs_hours - {1}) == 0:
+                pres_hours = cond_hours - abs_hours
+                if len(abs_hours - {1}) == 0 and len(pres_hours) > 0:
                     continue
 
                 sorted_cond = sorted(list(cond_hours))
@@ -4025,6 +4025,7 @@ def admin_bunk_analysis():
                 abs_sorted = sorted(list(abs_hours))
 
                 day_of_week = pd.to_datetime(date).day_name()
+                bunk_kind = "Full Day / Mass Bunk" if len(pres_hours) == 0 else "Selective Period Bunk"
                 pattern_instances.append({
                     'date': date,
                     'roll_no': roll,
@@ -4033,15 +4034,21 @@ def admin_bunk_analysis():
                     'day_of_week': day_of_week,
                     'status_str': status_str,
                     'abs_hours': abs_sorted,
-                    'cond_hours': sorted_cond
+                    'cond_hours': sorted_cond,
+                    'bunk_type': bunk_kind
                 })
 
             if not pattern_instances:
-                st.success("🎉 No intermittent missing classes patterns detected in this section!")
+                st.success("🎉 No missing classes or bunk patterns detected in this section!")
             else:
                 df_pat = pd.DataFrame(pattern_instances)
                 unique_students = df_pat['roll_no'].nunique()
                 total_instances = len(df_pat)
+
+                # Mass Bunk Event Detection (>= 5 students bunked/absent on same date)
+                date_counts = df_pat.groupby('date').size().reset_index(name='cnt')
+                mass_bunk_dates = set(date_counts[date_counts['cnt'] >= 5]['date'])
+                mass_bunk_events_count = len(mass_bunk_dates)
 
                 # Peak day calculation
                 day_counts = df_pat['day_of_week'].value_counts()
@@ -4050,24 +4057,25 @@ def admin_bunk_analysis():
 
                 # Render Pattern KPI Cards
                 st.markdown(f"""
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px;">
-                    {kpi("Intermittent Bunk Incidents", f"{total_instances}", "#ef4444")}
-                    {kpi("Identified Smart Absenters", f"{unique_students}", "#f59e0b")}
-                    {kpi("Peak Missing Classes Day", f"{peak_day} ({peak_day_pct}%)", "#00D8C6")}
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px;">
+                    {kpi("Total Bunk Incidents", f"{total_instances}", "#ef4444")}
+                    {kpi("Mass Bunk Events Detected", f"{mass_bunk_events_count} Days", "#f59e0b" if mass_bunk_events_count > 0 else "#34d399")}
+                    {kpi("Identified Bunkers", f"{unique_students}", "#38bdf8")}
+                    {kpi("Peak Bunk Day", f"{peak_day} ({peak_day_pct}%)", "#00D8C6")}
                 </div>""", unsafe_allow_html=True)
 
-                st.markdown("### 🕵️ Intermittent Bunking Habit Analysis")
-                st.caption("Intermittent/selective missing classes pattern corresponds to students attending initial periods, escaping middle hours, and returning/leaving selectively.")
+                st.markdown("### 🕵️ Intermittent Bunking Habit & Mass Bunk Analysis")
+                st.caption("Intermittent/selective bunking pattern corresponds to students attending initial periods, escaping middle hours, returning/leaving selectively, or full-day mass bunks.")
 
-                # charts row
+                # charts row (Includes Saturday support!)
                 c_p1, c_p2 = st.columns(2)
                 with c_p1:
                     st.markdown("#### 📅 Weekly Pattern: Bunks by Day of Week")
-                    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+                    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
                     df_day = df_pat['day_of_week'].value_counts().reindex(weekday_order, fill_value=0).reset_index()
                     df_day.columns = ['Day', 'Incidents']
                     fig_day = px.bar(df_day, x='Day', y='Incidents',
-                                     color='Day', color_discrete_sequence=['#fbbf24','#fb7185','#818cf8','#34d399','#a78bfa'],
+                                     color='Day', color_discrete_sequence=['#fbbf24','#fb7185','#818cf8','#34d399','#a78bfa','#38bdf8'],
                                      labels={'Incidents':'Bunk Incidents'})
                     fig_day.update_layout(showlegend=False)
                     apply_premium_plotly_theme(fig_day)
@@ -4075,7 +4083,7 @@ def admin_bunk_analysis():
 
                 with c_p2:
                     st.markdown("#### 🕒 Hour-wise Bunk Heatmap")
-                    # Calculate how many times each hour was missed on these intermittent days
+                    # Calculate how many times each hour was missed on these intermittent/mass bunk days
                     all_missed_hours = []
                     for inst in pattern_instances:
                         all_missed_hours.extend(inst['abs_hours'])
@@ -4090,6 +4098,66 @@ def admin_bunk_analysis():
                     fig_hr.update_layout(showlegend=False)
                     apply_premium_plotly_theme(fig_hr)
                     st.plotly_chart(fig_hr, use_container_width=True)
+
+                st.markdown("---")
+
+                # NEW FEATURE: Date-wise Bunk & Mass Bunk Explorer
+                st.markdown("#### 📅 Date-wise Bunk & Mass Bunk Explorer")
+                st.caption("Select any specific date to view the complete list of all students who bunked/missed classes on that day.")
+
+                date_bunk_counts = df_pat.groupby(['date', 'day_of_week']).size().reset_index(name='count')
+                date_bunk_counts = date_bunk_counts.sort_values(by='date', ascending=False)
+
+                date_options = []
+                date_map = {}
+                for _, r in date_bunk_counts.iterrows():
+                    d_str = r['date']
+                    day_str = r['day_of_week']
+                    cnt = r['count']
+                    is_mass = d_str in mass_bunk_dates
+                    label = f"{d_str} ({day_str[:3]}) — {cnt} Students Bunked {'🚨 [MASS BUNK]' if is_mass else ''}"
+                    date_options.append(label)
+                    date_map[label] = d_str
+
+                selected_date_label = st.selectbox("Select Bunk Date to View Student List", options=date_options, key="select_bunk_date_explorer")
+
+                if selected_date_label:
+                    sel_date = date_map[selected_date_label]
+                    df_date_bunkers = df_pat[df_pat['date'] == sel_date].sort_values(by='roll_no', ascending=True).copy()
+                    
+                    is_mb = sel_date in mass_bunk_dates
+                    mb_badge = f"<span style='color:#ef4444;font-weight:700;'>🚨 MASS BUNK DETECTED ({len(df_date_bunkers)} Students)</span>" if is_mb else f"<span style='color:#38bdf8;font-weight:600;'>{len(df_date_bunkers)} Students Bunked</span>"
+                    st.markdown(f"**Bunk list for `{sel_date}` ({df_date_bunkers['day_of_week'].iloc[0]}) — {mb_badge}:**", unsafe_allow_html=True)
+
+                    date_details = []
+                    for _, row in df_date_bunkers.iterrows():
+                        abs_hrs = row['abs_hours']
+                        subj_missed = []
+                        for h in abs_hrs:
+                            r_sub = conn.execute("""
+                                SELECT subject FROM hour_wise_attendance 
+                                WHERE date = ? AND roll_no = ? AND hour = ?
+                            """, (sel_date, row['roll_no'], h)).fetchone()
+                            if r_sub:
+                                subj_missed.append(f"P{h}: {r_sub['subject']}")
+
+                        a_hrs = row['abs_hours']
+                        if len(a_hrs) > 1 and a_hrs == list(range(min(a_hrs), max(a_hrs)+1)):
+                            abs_str = f"P{min(a_hrs)}-{max(a_hrs)}"
+                        else:
+                            abs_str = f"P{','.join(map(str, a_hrs))}"
+
+                        date_details.append({
+                            'Roll No': row['roll_no'],
+                            'Student Name': row['name'],
+                            'Section': row['section'],
+                            'Periods Bunked': abs_str,
+                            'Sequence': row['status_str'],
+                            'Bunk Type': row['bunk_type'],
+                            'Subjects Bunked': ", ".join(subj_missed)
+                        })
+
+                    st.dataframe(pd.DataFrame(date_details), use_container_width=True, hide_index=True)
 
                 st.markdown("---")
 
