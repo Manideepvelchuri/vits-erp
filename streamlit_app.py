@@ -4007,14 +4007,16 @@ def admin_bunk_analysis():
                 if not cond_hours:
                     continue
 
-                pres_hours = cond_hours - abs_hours
+                # 1. Full-day absentees are NOT bunkers (Must be present for at least 1 class)
+                if len(pres_hours) == 0:
+                    continue
 
-                # 1. Allow full-day bunks / mass bunks as well
-                # pres_hours = cond_hours - abs_hours
+                # 2. Must be absent for at least 1 class
+                if len(abs_hours) == 0:
+                    continue
 
-                # 2. Ignore 1st hour late arrivals (students who ONLY missed 1st hour)
-                pres_hours = cond_hours - abs_hours
-                if len(abs_hours - {1}) == 0 and len(pres_hours) > 0:
+                # 3. Exclude simple 1st hour late arrivals (students who ONLY missed 1st hour)
+                if len(abs_hours - {1}) == 0:
                     continue
 
                 sorted_cond = sorted(list(cond_hours))
@@ -4023,9 +4025,19 @@ def admin_bunk_analysis():
                     status_seq.append('A' if h in abs_hours else 'P')
                 status_str = "".join(status_seq)
                 abs_sorted = sorted(list(abs_hours))
+                pres_sorted = sorted(list(pres_hours))
+
+                # Precise Smart Bunker Categorization
+                if (3 in pres_sorted or 6 in pres_sorted) and len(abs_hours) > 0:
+                    bunk_kind = "Key Hour Escape (P3/P6 Present)"
+                elif any(h in abs_sorted for h in [2, 3, 4, 5]) and any(h in pres_sorted for h in [1, 6, 7]):
+                    bunk_kind = "Middle Hour Bunk"
+                elif min(abs_sorted) > min(pres_sorted) and max(abs_sorted) == max(sorted_cond):
+                    bunk_kind = "Early Departure Bunk"
+                else:
+                    bunk_kind = "Selective Period Bunk"
 
                 day_of_week = pd.to_datetime(date).day_name()
-                bunk_kind = "Full Day / Mass Bunk" if len(pres_hours) == 0 else "Selective Period Bunk"
                 pattern_instances.append({
                     'date': date,
                     'roll_no': roll,
@@ -4039,13 +4051,13 @@ def admin_bunk_analysis():
                 })
 
             if not pattern_instances:
-                st.success("🎉 No missing classes or bunk patterns detected in this section!")
+                st.success("🎉 No selective smart bunking patterns detected in this section!")
             else:
                 df_pat = pd.DataFrame(pattern_instances)
                 unique_students = df_pat['roll_no'].nunique()
                 total_instances = len(df_pat)
 
-                # Mass Bunk Event Detection (>= 5 students bunked/absent on same date)
+                # Mass Bunk / High Bunk Event Detection (>= 5 students selectively bunked on same date)
                 date_counts = df_pat.groupby('date').size().reset_index(name='cnt')
                 mass_bunk_dates = set(date_counts[date_counts['cnt'] >= 5]['date'])
                 mass_bunk_events_count = len(mass_bunk_dates)
@@ -4058,14 +4070,14 @@ def admin_bunk_analysis():
                 # Render Pattern KPI Cards
                 st.markdown(f"""
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px;">
-                    {kpi("Total Bunk Incidents", f"{total_instances}", "#ef4444")}
-                    {kpi("Mass Bunk Events Detected", f"{mass_bunk_events_count} Days", "#f59e0b" if mass_bunk_events_count > 0 else "#34d399")}
-                    {kpi("Identified Bunkers", f"{unique_students}", "#38bdf8")}
+                    {kpi("Selective Bunk Incidents", f"{total_instances}", "#ef4444")}
+                    {kpi("Mass Bunk Days Detected", f"{mass_bunk_events_count} Days", "#f59e0b" if mass_bunk_events_count > 0 else "#34d399")}
+                    {kpi("Identified Smart Bunkers", f"{unique_students}", "#38bdf8")}
                     {kpi("Peak Bunk Day", f"{peak_day} ({peak_day_pct}%)", "#00D8C6")}
                 </div>""", unsafe_allow_html=True)
 
-                st.markdown("### 🕵️ Intermittent Bunking Habit & Mass Bunk Analysis")
-                st.caption("Intermittent/selective bunking pattern corresponds to students attending initial periods, escaping middle hours, returning/leaving selectively, or full-day mass bunks.")
+                st.markdown("### 🕵️ Intermittent Smart Bunking & Pattern Analysis")
+                st.caption("Smart Bunking corresponds to students attending initial/key periods (like 3rd or 6th hour), escaping middle hours, returning/leaving selectively. Full-day absentees are excluded.")
 
                 # charts row (Includes Saturday support!)
                 c_p1, c_p2 = st.columns(2)
