@@ -1383,6 +1383,15 @@ def render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, s
     for s in subj_data:
         s_att = s['attended']
         s_cond = s['conducted']
+
+        if s_cond <= 0:
+            proj_subj_data.append({
+                'subject': s['subject'],
+                'pct': 100.0,
+                'status': "Good (≥75%)"
+            })
+            continue
+
         prop_change = (s_cond / total_c) * change_classes if total_c else 0
         
         if is_attending:
@@ -1581,20 +1590,18 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     for r in att_rows:
         _c = r['hours_conducted'] or 0
         _a = r['hours_attended'] or 0
-        _p = round(_a / _c * 100, 1) if _c else 0.0
+        _p = round(_a / _c * 100, 1) if _c > 0 else 100.0
         subj_data.append({
             'subject': r['subject'], 'conducted': _c,
             'attended': _a, 'pct': _p,
-            'absent': _c - _a,
-            'can_miss': can_miss_classes(_a, _c),
-            'need': classes_needed(_a, _c)
+            'absent': max(0, _c - _a),
+            'can_miss': can_miss_classes(_a, _c) if _c > 0 else 0,
+            'need': classes_needed(_a, _c) if _c > 0 else 0
         })
 
-    best_subj = None
-    worst_subj = None
-    if subj_data:
-        best_subj = max(subj_data, key=lambda x: x['pct'])
-        worst_subj = min(subj_data, key=lambda x: x['pct'])
+    active_subjs = [s for s in subj_data if s['conducted'] > 0]
+    best_subj = max(active_subjs, key=lambda x: x['pct']) if active_subjs else None
+    worst_subj = min(active_subjs, key=lambda x: x['pct']) if active_subjs else None
 
     # Welcome Header (IST timezone UTC+5:30)
     ist_now = datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
@@ -1888,7 +1895,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     st.markdown("<hr style='border:none;border-top:1px solid rgba(255,255,255,0.06);margin:15px 0 25px 0;'>", unsafe_allow_html=True)
     
     # Interactive Skip Predictor + Dynamic Live Bar Chart
-    render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, subj_data, key_prefix="home", sem=sem)
+    render_interactive_skip_predictor_and_chart(total_a, total_c, avg_classes, subj_data, key_prefix="att_page", sem=sem)
 
     # ── Bottom Section: Grades Table + Cloud Resources Link ──
     st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
@@ -4338,15 +4345,18 @@ def admin_bunk_analysis():
                             for r in s_att_rows:
                                 _c = r['hours_conducted'] or 0
                                 _a = r['hours_attended'] or 0
-                                _p = round(_a / _c * 100, 1) if _c else 0.0
-                                cm = can_miss_classes(_a, _c)
-                                nd = classes_needed(_a, _c)
-                                recovery = f"Can miss {cm} classes" if _p >= 75 else f"Attend {nd} for 75%"
+                                _p = round(_a / _c * 100, 1) if _c > 0 else 100.0
+                                cm = can_miss_classes(_a, _c) if _c > 0 else 0
+                                nd = classes_needed(_a, _c) if _c > 0 else 0
+                                if _c == 0:
+                                    recovery = "Pending (0/0)"
+                                else:
+                                    recovery = f"Can miss {cm} classes" if _p >= 75 else f"Attend {nd} for 75%"
                                 subj_df_list.append({
                                     'Subject': r['subject'],
                                     'Conducted': _c,
                                     'Attended': _a,
-                                    'Percentage': f"{_p}%",
+                                    'Percentage': f"{_p}%" if _c > 0 else "0/0 (Pending)",
                                     'Recovery Status': recovery
                                 })
                             st.dataframe(pd.DataFrame(subj_df_list), use_container_width=True, hide_index=True)
