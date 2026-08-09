@@ -115,7 +115,18 @@ def get_concise_subject_code(sub_name):
 def get_student_photo_b64(roll_no):
     if not roll_no:
         return ""
-    p_path = os.path.join(r'd:\claude demo\results\response_sheets_ECE\response_sheets', str(roll_no).strip().upper(), 'photo.jpg')
+    r_upper = str(roll_no).strip().upper()
+    try:
+        conn = get_db_connection()
+        row = conn.execute("SELECT photo_b64 FROM students WHERE roll_no=?", (r_upper,)).fetchone()
+        conn.close()
+        if row:
+            p_val = row['photo_b64'] if hasattr(row, 'keys') else row[0]
+            if p_val and str(p_val).strip():
+                return str(p_val).strip()
+    except Exception:
+        pass
+    p_path = os.path.join(r'd:\claude demo\results\response_sheets_ECE\response_sheets', r_upper, 'photo.jpg')
     if os.path.exists(p_path) and os.path.getsize(p_path) > 0:
         import base64
         with open(p_path, 'rb') as f:
