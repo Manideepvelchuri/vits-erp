@@ -64,7 +64,29 @@ SECTION_SUBJECTS = {
 }
 
 SUBJECT_CREDITS = {
-    # ── Sem 1 (Common) ──────────────────────────────────────
+    # ── Full Course Names (Sem 1 & Sem 2 JNTUH R25) ─────────────
+    'ELECTRICAL ENGINEERING LAB': 1.0,
+    'ENGINEERING WORKSHOP': 1.0,
+    'NETWORK ANALYSIS AND SYNTHESIS': 3.0,
+    'DATA STRUCTURES': 3.0,
+    'DATA STRUCTURES LAB': 1.0,
+    'PYTHON PROGRAMMING': 3.0,
+    'APPLIED PYTHON PROGRAMMING LAB': 1.0,
+    'ENGINEERING CHEMISTRY': 3.0,
+    'ENGINEERING CHEMISTRY LAB': 1.0,
+    'ORDINARY DIFFERENTIAL EQUATIONS AND VECTOR CALCULUS': 3.0,
+    'INTRODUCTION TO ELECTRICAL ENGINEERING': 2.0,
+    'ENGINEERING DRAWING AND COMPUTER AIDED DRAFTING': 3.0,
+    'ENGINEERING DRAWING AND COMPUTER AIDED \nDRAFTING': 3.0,
+    'PROGRAMMING FOR PROBLEM SOLVING': 3.0,
+    'PROGRAMMING FOR PROBLEM SOLVING LAB': 1.0,
+    'ENGLISH FOR SKILL ENHANCEMENT': 3.0,
+    'ENGLISH LANGUAGE AND COMMUNICATION SKILLS LAB': 1.0,
+    'MATRICES AND CALCULUS': 4.0,
+    'ADVANCED ENGINEERING PHYSICS': 3.0,
+    'ADVANCED ENGINEERING PHYSICS LAB': 1.0,
+
+    # ── Sem 1 (Common Short Codes) ──────────────────────────────
     'IEE': 4.0, 'ED': 4.0, 'PPS': 4.0, 'ENG': 3.0, 'M&C': 4.0, 'AEP': 3.0,
 
     # ── Sem 2 Theory ────────────────────────────────────────
@@ -216,6 +238,8 @@ class _RowWrapper:
         return key in self._d
     def keys(self):
         return self._d.keys()
+    def get(self, key, default=None):
+        return self._d.get(key, default)
     def get(self, key, default=None):
         return self._d.get(key, default)
 
@@ -938,9 +962,6 @@ def sync_sgpa_records(roll_no, conn):
             'SELECT id, sgpa, failed FROM sgpa_records WHERE roll_no=%s AND semester=%s',
             (roll_no, sem)
         ).fetchone()
-
-        if sem == 'Sem 1' and existing:
-            continue
 
         final_marks = conn.execute(
             'SELECT subject, score, grade_point FROM marks WHERE roll_no=%s AND semester=%s AND exam_type=%s',

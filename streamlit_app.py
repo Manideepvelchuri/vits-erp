@@ -76,6 +76,42 @@ def get_subject_credits(sub):
     return 3.0
 
 
+def get_concise_subject_code(sub_name):
+    if not sub_name:
+        return ""
+    clean = str(sub_name).strip().upper()
+    mapping = {
+        'ADVANCED ENGINEERING PHYSICS': 'AEP',
+        'ADVANCED ENGINEERING PHYSICS LAB': 'AEP LAB',
+        'ENGINEERING DRAWING AND COMPUTER AIDED DRAFTING': 'ED&CAD',
+        'ENGINEERING DRAWING AND COMPUTER AIDED \nDRAFTING': 'ED&CAD',
+        'INTRODUCTION TO ELECTRICAL ENGINEERING': 'IEE',
+        'MATRICES AND CALCULUS': 'M&C',
+        'PROGRAMMING FOR PROBLEM SOLVING': 'PPS',
+        'PROGRAMMING FOR PROBLEM SOLVING LAB': 'PPS LAB',
+        'ENGLISH FOR SKILL ENHANCEMENT': 'ENG',
+        'ENGLISH LANGUAGE AND COMMUNICATION SKILLS LAB': 'ELCS LAB',
+        'DATA STRUCTURES': 'DS',
+        'DATA STRUCTURES LAB': 'DS LAB',
+        'NETWORK ANALYSIS AND SYNTHESIS': 'NAS',
+        'PYTHON PROGRAMMING': 'PYTHON',
+        'APPLIED PYTHON PROGRAMMING LAB': 'APP LAB',
+        'ENGINEERING CHEMISTRY': 'EC',
+        'ENGINEERING CHEMISTRY LAB': 'EC LAB',
+        'ORDINARY DIFFERENTIAL EQUATIONS AND VECTOR CALCULUS': 'ODEVC',
+        'ELECTRICAL ENGINEERING LAB': 'EE LAB',
+        'ENGINEERING WORKSHOP': 'EWS',
+        'BASIC ELECTRICAL ENGINEERING': 'BEE',
+        'BASIC ELECTRICAL ENGINEERING LAB': 'BEE LAB',
+    }
+    if clean in mapping:
+        return mapping[clean]
+    words = clean.split()
+    if len(words) > 1:
+        return "".join(w[0] for w in words if w not in ['AND', '&', 'FOR', 'LAB'])
+    return clean[:8]
+
+
 def get_image_base64(path):
     import base64
     if os.path.exists(path):
@@ -949,16 +985,26 @@ def render_college_header(role="student", student_data=None, active_page=None):
     
     right_html = ""
     if role == "student" and student_data:
-        name_part = student_data['name'].title()
+        raw_name = (student_data.get('name') or '').strip()
+        if not raw_name or raw_name.lower() in ('student', 'unknown', ''):
+            try:
+                conn = get_db_connection()
+                row = conn.execute('SELECT name FROM students WHERE roll_no=?', (student_data['roll_no'],)).fetchone()
+                conn.close()
+                if row and row['name']:
+                    raw_name = row['name'].strip()
+            except Exception:
+                pass
+        name_part = raw_name.title() if raw_name else student_data['roll_no']
         right_html = (
             f'<div class="header-student-details">'
             f'<span class="detail-item"><strong class="detail-label">HTNo:</strong> {student_data["roll_no"]}</span>'
             f'<span class="detail-divider">|</span>'
             f'<span class="detail-item"><strong class="detail-label">Name:</strong> {name_part}</span>'
             f'<span class="detail-divider">|</span>'
-            f'<span class="detail-item"><strong class="detail-label">Branch:</strong> {student_data["branch"]}</span>'
+            f'<span class="detail-item"><strong class="detail-label">Branch:</strong> {student_data.get("branch", "ECE")}</span>'
             f'<span class="detail-divider">|</span>'
-            f'<span class="detail-item"><strong class="detail-label">Sem:</strong> {student_data["semester"] if "semester" in student_data else "II"}</span>'
+            f'<span class="detail-item"><strong class="detail-label">Sem:</strong> {student_data.get("semester", "3")}</span>'
             f'</div>'
         )
     elif role == "admin":
@@ -1544,17 +1590,23 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         except ValueError: pass
     gpa_display_val = f"{gpa_scale_10:.2f}" if gpa_scale_10 > 0 else cgpa_display
 
-    # Calculate backlogs
+    # Calculate backlogs by semester with concise subject codes
     backlogs_count = 0
-    failed_subjects = []
+    sem1_codes = []
+    sem2_codes = []
     for m in all_final_marks:
         sub = m['subject']
         score = m['score']
+        m_sem = m['semester']
         gp_val = m['grade_point'] or 0.0
         grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if score is None else 'F')
         if grade in ['F', 'Ab']:
             backlogs_count += 1
-            failed_subjects.append(sub)
+            code = get_concise_subject_code(sub)
+            if m_sem == 'Sem 1':
+                sem1_codes.append(code)
+            elif m_sem == 'Sem 2':
+                sem2_codes.append(code)
 
     # Skip Predictor / Status calculations
     can_miss = can_miss_classes(total_a, total_c)
@@ -1646,22 +1698,20 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     credits_display = f"{completed_credits:.0f}" if completed_credits.is_integer() else f"{completed_credits:.1f}"
 
     if backlogs_count > 0:
-        short_subs = [s[:12] + ".." if len(s) > 12 else s for s in failed_subjects]
-        display_subs = short_subs[:3]
-        sub_stack_html = "<div style='display:flex; flex-direction:column; gap:3px; margin:4px 0;'>"
-        for s in display_subs:
-            sub_stack_html += f"  <div style='font-size:1.0rem; font-weight:800; color:#EF4444; line-height:1.2;'>• {s.upper()}</div>"
-        if len(short_subs) > 3:
-            sub_stack_html += f"  <div style='color:#64748b; font-size:0.75rem; font-weight:600;'>+ {len(short_subs) - 3} more</div>"
-        else:
-            sub_stack_html += f"  <div style='font-size:0.8rem; color:#64748b; font-weight:500;'>{backlogs_count} backlog(s)</div>"
-        sub_stack_html += "</div>"
+        sem_stack_html = "<div style='display:flex; flex-direction:column; gap:4px; margin-top:5px; font-family:Inter; text-align:left;'>"
+        if sem1_codes:
+            sem1_str = ", ".join(sem1_codes)
+            sem_stack_html += f"  <div style='font-size:0.78rem; font-weight:600; color:#EF4444; line-height:1.3;'>• <strong style='color:#f8fafc;'>Sem 1:</strong> {sem1_str}</div>"
+        if sem2_codes:
+            sem2_str = ", ".join(sem2_codes)
+            sem_stack_html += f"  <div style='font-size:0.78rem; font-weight:600; color:#F59E0B; line-height:1.3;'>• <strong style='color:#f8fafc;'>Sem 2:</strong> {sem2_str}</div>"
+        sem_stack_html += "</div>"
 
         backlog_card_html = (
             f'<div class="kpi-card kpi-card-backlog">'
             f'  <div class="kpi-card-content">'
-            f'    <div class="kpi-card-title text-red">BACKLOGS</div>'
-            f'    {sub_stack_html}'
+            f'    <div class="kpi-card-title text-red">BACKLOGS ({backlogs_count})</div>'
+            f'    {sem_stack_html}'
             f'  </div>'
             f'  <div class="kpi-card-icon text-red">⚠️</div>'
             f'</div>'
@@ -2083,7 +2133,39 @@ def show_attendance_page(roll, sem, att_rows):
 def show_marks_page(sem, marks_rows):
     conn = get_db_connection()
     cfg = get_config_map(conn)
+    
+    # ── Active Backlogs Section (Cross-Semester Summary) ────────
+    all_final_marks = conn.execute('''
+        SELECT semester, subject, score, grade_point FROM marks
+        WHERE roll_no=? AND exam_type LIKE '%Final Examinations'
+        ORDER BY semester, subject
+    ''', (st.session_state.user_id,)).fetchall()
     conn.close()
+
+    active_backlogs = []
+    for m in all_final_marks:
+        gp_val = m['grade_point'] or 0.0
+        score = m['score']
+        grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if score is None else 'F')
+        if grade in ['F', 'Ab']:
+            active_backlogs.append({
+                'Semester': m['semester'],
+                'Subject': m['subject'],
+                'Score': m['score'] if m['score'] is not None else 'Ab',
+                'Grade': grade,
+                'Status': 'Pending Clearance'
+            })
+
+    if active_backlogs:
+        st.markdown("### 🚨 Active Backlogs")
+        st.markdown(f"""<div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);
+            border-radius:12px;padding:12px 18px;margin-bottom:15px;font-family:'Inter';">
+            <span style="color:#ef4444;font-weight:700;">⚠️ Notice:</span> 
+            <span style="color:#cbd5e1;font-size:0.9rem;">You have <strong>{len(active_backlogs)}</strong> active backlog(s) across semesters. Prepare for upcoming supplementary examinations.</span>
+            </div>""", unsafe_allow_html=True)
+        st_premium_table(pd.DataFrame(active_backlogs))
+        st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
+
     active_sem = cfg.get('active_semester', 'Sem 2')
     try:
         active_num = int(active_sem.replace("Sem ", "").strip())
