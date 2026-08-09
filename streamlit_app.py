@@ -1007,8 +1007,6 @@ def render_college_header(role="student", student_data=None, active_page=None):
             except Exception:
                 pass
         name_part = raw_name.title() if raw_name else student_data['roll_no']
-        st_email = (student_data.get('email') or '').strip()
-        email_html = f'<span class="detail-divider">|</span><span class="detail-item"><strong class="detail-label">Email:</strong> {st_email}</span>' if st_email else ''
         right_html = (
             f'<div class="header-student-details">'
             f'<span class="detail-item"><strong class="detail-label">HTNo:</strong> {student_data["roll_no"]}</span>'
@@ -1018,7 +1016,6 @@ def render_college_header(role="student", student_data=None, active_page=None):
             f'<span class="detail-item"><strong class="detail-label">Branch:</strong> {student_data.get("branch", "ECE")}</span>'
             f'<span class="detail-divider">|</span>'
             f'<span class="detail-item"><strong class="detail-label">Sem:</strong> {student_data.get("semester", "3")}</span>'
-            f'{email_html}'
             f'</div>'
         )
     elif role == "admin":
@@ -1290,27 +1287,39 @@ def student_dashboard():
 
     photo_b64 = get_student_photo_b64(roll)
     if photo_b64:
-        avatar_html = f'<img src="data:image/jpeg;base64,{photo_b64}" style="width:72px; height:72px; border-radius:50%; object-fit:cover; border:2px solid #00D8C6; box-shadow:0 0 15px rgba(0,216,198,0.3); margin-bottom:8px; display:inline-block;" />'
+        avatar_html = (
+            f'<div style="position:relative; display:inline-block; margin-bottom:12px;">'
+            f'  <img src="data:image/jpeg;base64,{photo_b64}" style="'
+            f'    width:88px; height:88px; border-radius:20px; object-fit:cover; '
+            f'    border:2px solid rgba(0, 216, 198, 0.4); '
+            f'    box-shadow:0 8px 25px rgba(0, 216, 198, 0.25); '
+            f'    display:block; margin:0 auto;" />'
+            f'</div>'
+        )
     else:
-        avatar_html = '<div style="font-size: 2.5rem; margin-bottom: 8px;">🎓</div>'
+        avatar_html = '<div style="font-size: 3.0rem; margin-bottom: 8px;">🎓</div>'
 
     st_email = student['email'] if 'email' in student and student['email'] else ""
-    email_card_html = f'<div style="font-size: 0.75rem; color: #a78bfa; margin-top: 5px; word-break: break-all; font-family: Inter; font-weight:500;">✉️ {st_email}</div>' if st_email else ""
+    email_card_html = (
+        f'<div style="font-size: 0.76rem; color: #a78bfa; margin-top: 6px; word-break: break-all; font-family: Inter; font-weight:500; display:flex; align-items:center; justify-content:center; gap:5px;">'
+        f'  <span>✉️</span> <span>{st_email}</span>'
+        f'</div>'
+    ) if st_email else ""
 
     with st.sidebar:
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, rgba(0,216,198,0.08) 0%, rgba(139,92,246,0.08) 100%);
-                    border: 1px solid rgba(0,216,198,0.15); border-radius: 16px;
-                    padding: 18px; margin-bottom: 20px; text-align: center;">
+                    border: 1px solid rgba(0,216,198,0.15); border-radius: 18px;
+                    padding: 20px 16px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
             {avatar_html}
-            <h4 style="margin: 0; color: #ffffff; font-family: 'Outfit', sans-serif;">{student['name']}</h4>
-            <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #00D8C6; font-family: 'JetBrains Mono', monospace; font-weight: 600;">{student['roll_no']}</p>
+            <h4 style="margin: 0; color: #ffffff; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.1rem; letter-spacing: -0.3px;">{student['name']}</h4>
+            <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #00D8C6; font-family: 'JetBrains Mono', monospace; font-weight: 700;">{student['roll_no']}</p>
             {email_card_html}
-            <div style="display: flex; justify-content: space-around; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;">
-                <div><div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Section</div>
-                     <div style="font-weight: 600; color: #ffffff; font-size: 0.85rem;">{student['section']}</div></div>
-                <div><div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Branch</div>
-                     <div style="font-weight: 600; color: #ffffff; font-size: 0.85rem;">{student['branch']}</div></div>
+            <div style="display: flex; justify-content: space-around; margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
+                <div><div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; font-weight: 600;">Section</div>
+                     <div style="font-weight: 700; color: #ffffff; font-size: 0.88rem;">{student['section']}</div></div>
+                <div><div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; font-weight: 600;">Branch</div>
+                     <div style="font-weight: 700; color: #ffffff; font-size: 0.88rem;">{student['branch']}</div></div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -2777,8 +2786,12 @@ def admin_students():
         df['DOB'] = pd.to_datetime(df['dob'], errors='coerce').dt.date
         df['Attendance %'] = df['att_pct'].apply(lambda p: f"{p:.1f}%" if pd.notna(p) else "-")
         df['Reset'] = False
-        display_df = df[['roll_no', 'name', 'section', 'branch', 'Attendance %', 'DOB Set', 'DOB', 'Reset']].rename(columns={
-            'roll_no': 'Roll Number', 'name': 'Name',
+        df['name_display'] = df.apply(
+            lambda r: r['name'].strip() if (pd.notna(r['name']) and str(r['name']).strip() not in ('', 'STUDENT', 'PENDING')) else f"Student ({r['roll_no']})",
+            axis=1
+        )
+        display_df = df[['roll_no', 'name_display', 'section', 'branch', 'Attendance %', 'DOB Set', 'DOB', 'Reset']].rename(columns={
+            'roll_no': 'Roll Number', 'name_display': 'Name',
             'section': 'Section', 'branch': 'Branch', 'DOB Set': 'Status', 'DOB': 'DOB', 'Reset': 'Reset'
         })
 
