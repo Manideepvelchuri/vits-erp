@@ -112,6 +112,17 @@ def get_concise_subject_code(sub_name):
     return clean[:8]
 
 
+def get_student_photo_b64(roll_no):
+    if not roll_no:
+        return ""
+    p_path = os.path.join(r'd:\claude demo\results\response_sheets_ECE\response_sheets', str(roll_no).strip().upper(), 'photo.jpg')
+    if os.path.exists(p_path) and os.path.getsize(p_path) > 0:
+        import base64
+        with open(p_path, 'rb') as f:
+            return base64.b64encode(f.read()).decode('utf-8')
+    return ""
+
+
 def get_image_base64(path):
     import base64
     if os.path.exists(path):
@@ -996,6 +1007,8 @@ def render_college_header(role="student", student_data=None, active_page=None):
             except Exception:
                 pass
         name_part = raw_name.title() if raw_name else student_data['roll_no']
+        st_email = (student_data.get('email') or '').strip()
+        email_html = f'<span class="detail-divider">|</span><span class="detail-item"><strong class="detail-label">Email:</strong> {st_email}</span>' if st_email else ''
         right_html = (
             f'<div class="header-student-details">'
             f'<span class="detail-item"><strong class="detail-label">HTNo:</strong> {student_data["roll_no"]}</span>'
@@ -1005,6 +1018,7 @@ def render_college_header(role="student", student_data=None, active_page=None):
             f'<span class="detail-item"><strong class="detail-label">Branch:</strong> {student_data.get("branch", "ECE")}</span>'
             f'<span class="detail-divider">|</span>'
             f'<span class="detail-item"><strong class="detail-label">Sem:</strong> {student_data.get("semester", "3")}</span>'
+            f'{email_html}'
             f'</div>'
         )
     elif role == "admin":
@@ -1274,15 +1288,25 @@ def student_dashboard():
     ).fetchone()[0] > 0
     cgpa_display = "Pending" if has_failed_sem else (f"{cgpa:.2f}" if cgpa > 0 else "-")
 
+    photo_b64 = get_student_photo_b64(roll)
+    if photo_b64:
+        avatar_html = f'<img src="data:image/jpeg;base64,{photo_b64}" style="width:72px; height:72px; border-radius:50%; object-fit:cover; border:2px solid #00D8C6; box-shadow:0 0 15px rgba(0,216,198,0.3); margin-bottom:8px; display:inline-block;" />'
+    else:
+        avatar_html = '<div style="font-size: 2.5rem; margin-bottom: 8px;">🎓</div>'
+
+    st_email = student['email'] if 'email' in student and student['email'] else ""
+    email_card_html = f'<div style="font-size: 0.75rem; color: #a78bfa; margin-top: 5px; word-break: break-all; font-family: Inter; font-weight:500;">✉️ {st_email}</div>' if st_email else ""
+
     with st.sidebar:
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, rgba(0,216,198,0.08) 0%, rgba(139,92,246,0.08) 100%);
                     border: 1px solid rgba(0,216,198,0.15); border-radius: 16px;
                     padding: 18px; margin-bottom: 20px; text-align: center;">
-            <div style="font-size: 2.5rem; margin-bottom: 8px;">🎓</div>
+            {avatar_html}
             <h4 style="margin: 0; color: #ffffff; font-family: 'Outfit', sans-serif;">{student['name']}</h4>
             <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #00D8C6; font-family: 'JetBrains Mono', monospace; font-weight: 600;">{student['roll_no']}</p>
-            <div style="display: flex; justify-content: space-around; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;">
+            {email_card_html}
+            <div style="display: flex; justify-content: space-around; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;">
                 <div><div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Section</div>
                      <div style="font-weight: 600; color: #ffffff; font-size: 0.85rem;">{student['section']}</div></div>
                 <div><div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Branch</div>

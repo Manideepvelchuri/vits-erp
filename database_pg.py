@@ -1007,6 +1007,16 @@ def compute_cgpa(roll_no, conn=None):
         conn = get_db_connection()
         close_after = True
     try:
+        # 1. Check official stored CGPA in students table
+        st_row = conn.execute('SELECT cgpa FROM students WHERE roll_no=%s', (roll_no,)).fetchone()
+        if st_row and st_row['cgpa'] is not None and float(st_row['cgpa']) > 0:
+            has_failed_sem = conn.execute(
+                'SELECT COUNT(*) FROM sgpa_records WHERE roll_no=%s AND failed=1', (roll_no,)
+            ).fetchone()[0] > 0
+            if not has_failed_sem:
+                return float(st_row['cgpa'])
+
+        # 2. Fallback to calculation
         sync_sgpa_records(roll_no, conn)
         rows = conn.execute(
             'SELECT sgpa FROM sgpa_records WHERE roll_no=%s AND sgpa>0 AND failed=0',
