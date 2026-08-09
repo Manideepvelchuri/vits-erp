@@ -1568,7 +1568,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     # 2. Calculate Credits Earned
     conn = get_db_connection()
     all_final_marks = conn.execute('''
-        SELECT subject, score, grade_point FROM marks
+        SELECT semester, subject, score, grade_point FROM marks
         WHERE roll_no=? AND exam_type LIKE '%Final Examinations'
     ''', (student['roll_no'],)).fetchall()
     conn.close()
@@ -1597,7 +1597,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
     for m in all_final_marks:
         sub = m['subject']
         score = m['score']
-        m_sem = m['semester']
+        m_sem = m.get('semester') if 'semester' in m else 'Sem 1'
         gp_val = m['grade_point'] or 0.0
         grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if score is None else 'F')
         if grade in ['F', 'Ab']:
