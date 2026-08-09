@@ -367,14 +367,17 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                     continue
 
                 try:
-                    cursor.execute('SELECT COUNT(*) FROM students WHERE roll_no=?', (roll_no,))
-                    if not cursor.fetchone()[0]:
+                    cursor.execute('SELECT name FROM students WHERE roll_no=?', (roll_no,))
+                    existing_row = cursor.fetchone()
+                    if not existing_row:
                         cursor.execute('''
                             INSERT INTO students(roll_no,name,dob,email,semester,department,section,branch)
                             VALUES(?,?,?,?,?,?,?,?)
                         ''', (roll_no, name, 'PENDING',
                               f'{roll_no.lower()}@vits.edu', sem_num, branch, sc, branch))
                         student_count += 1
+                    elif name and name.strip() and (not existing_row[0] or existing_row[0].strip() != name.strip()):
+                        cursor.execute('UPDATE students SET name=? WHERE roll_no=?', (name.strip(), roll_no))
                 except Exception:
                     try:
                         conn.rollback()
