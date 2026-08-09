@@ -361,23 +361,25 @@ def scrape_portal(start_date=None, end_date=None, section=None,
             for idx in range(1, len(df)):
                 row     = df.iloc[idx]
                 roll_no = str(row.get('H.T No.', '')).strip().upper()
-                name    = str(row.get('Student Name', '')).strip()
-
-                if not roll_no or roll_no.lower() in ('nan', 'none', ''):
+                if not roll_no or roll_no.lower() in ('nan', 'none', '', 'h.t no.', 'student name'):
                     continue
+
+                raw_name = str(row.get('Student Name', '')).strip()
+                clean_name = raw_name if raw_name.lower() not in ('nan', 'none', '', 'null', 'student name', 'h.t no.') else ''
 
                 try:
                     cursor.execute('SELECT name FROM students WHERE roll_no=?', (roll_no,))
                     existing_row = cursor.fetchone()
                     if not existing_row:
+                        ins_name = clean_name if clean_name else f"Student ({roll_no})"
                         cursor.execute('''
                             INSERT INTO students(roll_no,name,dob,email,semester,department,section,branch)
                             VALUES(?,?,?,?,?,?,?,?)
-                        ''', (roll_no, name, 'PENDING',
+                        ''', (roll_no, ins_name, 'PENDING',
                               f'{roll_no.lower()}@vits.edu', sem_num, branch, sc, branch))
                         student_count += 1
-                    elif name and name.strip() and (not existing_row[0] or existing_row[0].strip() != name.strip()):
-                        cursor.execute('UPDATE students SET name=? WHERE roll_no=?', (name.strip(), roll_no))
+                    elif clean_name and (not existing_row[0] or existing_row[0].strip() != clean_name):
+                        cursor.execute('UPDATE students SET name=? WHERE roll_no=?', (clean_name, roll_no))
                 except Exception:
                     try:
                         conn.rollback()
