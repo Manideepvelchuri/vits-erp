@@ -97,6 +97,19 @@ def _login(session):
                  timeout=15)
 
 
+def is_valid_real_name(name):
+    if not name or not isinstance(name, str):
+        return False
+    s = name.strip().lower()
+    if not s or s in ('nan', 'none', 'null', 'student name', 'h.t no.', 'student', 'undefined', 'pending', '-'):
+        return False
+    if s.startswith('student') or s.startswith('student (') or s.startswith('student('):
+        return False
+    if s.startswith('24891') or s.startswith('25891') or s.startswith('26895'):
+        return False
+    return True
+
+
 def _fetch_df(session, sc, semester, fdt, tdt, max_retries=3):
     """Fetch attendance DataFrame from portal."""
     yr, br = get_portal_yr_br(sc, semester)
@@ -360,16 +373,20 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                 try:
                     cursor.execute('SELECT name FROM students WHERE roll_no=?', (roll_no,))
                     existing_row = cursor.fetchone()
+                    existing_name = existing_row[0] if existing_row else None
+
                     if not existing_row:
-                        ins_name = clean_name if clean_name else f"Student ({roll_no})"
+                        ins_name = clean_name if is_valid_real_name(clean_name) else f"Student ({roll_no})"
                         cursor.execute('''
                             INSERT INTO students(roll_no,name,dob,email,semester,department,section,branch)
                             VALUES(?,?,?,?,?,?,?,?)
                         ''', (roll_no, ins_name, 'PENDING',
                               f'{roll_no.lower()}@vits.edu', sem_num, branch, sc, branch))
                         student_count += 1
-                    elif clean_name and (not existing_row[0] or existing_row[0].strip() != clean_name):
-                        cursor.execute('UPDATE students SET name=? WHERE roll_no=?', (clean_name, roll_no))
+                    else:
+                        # Existing student row found. NEVER overwrite a valid real full name!
+                        if is_valid_real_name(clean_name) and not is_valid_real_name(existing_name):
+                            cursor.execute('UPDATE students SET name=? WHERE roll_no=?', (clean_name, roll_no))
                 except Exception:
                     try:
                         conn.rollback()
