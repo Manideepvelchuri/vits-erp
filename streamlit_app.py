@@ -1314,25 +1314,33 @@ def student_dashboard():
 
     with st.sidebar:
         st.markdown(f"""
-        <div style="background: linear-gradient(135deg, rgba(0,216,198,0.08) 0%, rgba(139,92,246,0.08) 100%);
-                    border: 1px solid rgba(0,216,198,0.15); border-radius: 18px;
-                    padding: 20px 16px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+        <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #c084fc 100%);
+                    border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 20px;
+                    padding: 22px 16px; margin-bottom: 16px; text-align: center;
+                    box-shadow: 0 10px 30px rgba(124, 58, 237, 0.35); position: relative; overflow: hidden;">
+            <div style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+                        background: radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 60%); pointer-events: none;"></div>
             {avatar_html}
-            <h4 style="margin: 0; color: #ffffff; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.1rem; letter-spacing: -0.3px;">{student['name']}</h4>
-            <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #00D8C6; font-family: 'JetBrains Mono', monospace; font-weight: 700;">{student['roll_no']}</p>
-            {email_card_html}
-            <div style="display: flex; justify-content: space-around; margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
-                <div><div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; font-weight: 600;">Section</div>
-                     <div style="font-weight: 700; color: #ffffff; font-size: 0.88rem;">{student['section']}</div></div>
-                <div><div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; font-weight: 600;">Branch</div>
-                     <div style="font-weight: 700; color: #ffffff; font-size: 0.88rem;">{student['branch']}</div></div>
+            <h3 style="margin: 10px 0 3px 0; color: #ffffff; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;">{student['name']}</h3>
+            <div style="display: inline-block; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px);
+                        border: 1px solid rgba(255,255,255,0.3); border-radius: 20px; padding: 2px 12px; margin-top: 3px;">
+                <span style="font-size: 0.8rem; color: #ffffff; font-family: 'JetBrains Mono', monospace; font-weight: 700;">{student['roll_no']}</span>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown(f"""
-        <div style="background: rgba(10, 14, 26, 0.45); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px; margin-bottom: 12px; text-align: center; font-family: 'Outfit';">
-            <div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">CGPA</div>
-            <div style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin-top: 2px;">{cgpa_display}</div>
+            <div style="margin-top: 8px; font-size: 0.82rem; color: #e9d5ff; font-family: 'Inter', sans-serif; font-weight: 600; letter-spacing: 0.3px;">
+                {student['branch']} • SECTION {student['section']}
+            </div>
+            {email_card_html}
+            <div style="height: 1px; background: rgba(255,255,255,0.22); margin: 14px 0 12px 0;"></div>
+            <div style="display: flex; gap: 10px;">
+                <div style="flex: 1; background: rgba(255,255,255,0.18); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.28); border-radius: 12px; padding: 8px 6px; text-align: center;">
+                    <div style="font-size: 1.3rem; font-weight: 800; color: #ffffff; font-family: 'Outfit'; line-height: 1.1;">{cgpa_display}</div>
+                    <div style="font-size: 0.65rem; color: #f3e8ff; text-transform: uppercase; font-weight: 700; letter-spacing: 0.8px; margin-top: 2px;">CGPA</div>
+                </div>
+                <div style="flex: 1; background: rgba(255,255,255,0.18); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.28); border-radius: 12px; padding: 8px 6px; text-align: center;">
+                    <div style="font-size: 1.3rem; font-weight: 800; color: #ffffff; font-family: 'Outfit'; line-height: 1.1;">{active_sem.upper()}</div>
+                    <div style="font-size: 0.65rem; color: #f3e8ff; text-transform: uppercase; font-weight: 700; letter-spacing: 0.8px; margin-top: 2px;">CURRENT</div>
+                </div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -2177,14 +2185,14 @@ def show_attendance_page(roll, sem, att_rows):
 def show_marks_page(sem, marks_rows):
     conn = get_db_connection()
     cfg = get_config_map(conn)
+    roll = st.session_state.user_id
     
     # ── Active Backlogs Section (Cross-Semester Summary) ────────
     all_final_marks = conn.execute('''
         SELECT semester, subject, score, grade_point FROM marks
-        WHERE roll_no=? AND exam_type LIKE '%Final Examinations'
+        WHERE roll_no=? AND (exam_type LIKE '%Final Examinations' OR exam_type LIKE '%Regular%' OR exam_type LIKE '%Supply%')
         ORDER BY semester, subject
-    ''', (st.session_state.user_id,)).fetchall()
-    conn.close()
+    ''', (roll,)).fetchall()
 
     active_backlogs = []
     for m in all_final_marks:
@@ -2210,19 +2218,33 @@ def show_marks_page(sem, marks_rows):
         st_premium_table(pd.DataFrame(active_backlogs))
         st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
 
-    active_sem = cfg.get('active_semester', 'Sem 2')
+    # ── Default Semester Selection (Default to latest completed exam semester with results, e.g. Sem 2) ──
+    raw_sgpa_rows = conn.execute('SELECT semester, sgpa, failed FROM sgpa_records WHERE roll_no=? ORDER BY semester', (roll,)).fetchall()
+    
+    sems_with_results = []
+    for r in raw_sgpa_rows:
+        s_val = str(r['semester']).replace('Sem', '').strip()
+        if s_val.isdigit():
+            sems_with_results.append(f"Sem {s_val}")
+
+    active_sem = cfg.get('active_semester', 'Sem 3')
     try:
         active_num = int(active_sem.replace("Sem ", "").strip())
     except Exception:
         active_num = 2
+        
     _sem_options = [f"Sem {i}" for i in range(1, active_num + 1)]
-    _cur_sem = st.session_state.get('selected_sem', active_sem)
-    col_title, col_sem = st.columns([3.5, 1.5])
+    
+    # If user hasn't explicitly picked a sem yet for results, default to latest sem with results (e.g. Sem 2)
+    _default_sem = sems_with_results[-1] if sems_with_results else (f"Sem {active_num - 1}" if active_num > 1 else active_sem)
+    _cur_sem = st.session_state.get('selected_sem', _default_sem)
+
+    col_title, col_sem = st.columns([3.2, 1.8])
     with col_title:
         st.markdown("## 📊 Academic Results")
     with col_sem:
         st.selectbox(
-            "Semester",
+            "Viewing Semester",
             _sem_options,
             index=_sem_options.index(_cur_sem) if _cur_sem in _sem_options else len(_sem_options) - 1,
             key="result_sem_select",
@@ -2232,7 +2254,7 @@ def show_marks_page(sem, marks_rows):
 
     st.markdown("""
     <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25);
-                border-radius: 12px; padding: 10px 16px; margin-top: 10px; margin-bottom: 20px; font-family: 'Inter', sans-serif;">
+                border-radius: 12px; padding: 10px 16px; margin-top: 5px; margin-bottom: 20px; font-family: 'Inter', sans-serif;">
         <span style="color: #fbbf24; font-weight: 700; font-size: 0.85rem;">⚠️ Disclaimer:</span>
         <span style="color: #cbd5e1; font-size: 0.84rem; line-height: 1.4;">
             Academic results and CGPA statistics are extracted automatically and may not be 100% accurate. 
@@ -2240,10 +2262,95 @@ def show_marks_page(sem, marks_rows):
         </span>
     </div>
     """, unsafe_allow_html=True)
+
+    # ── Semester Summary Cards (SGPA, Total Credits, Earned Credits, Passed/Failed) ──
+    sem_num_val = int(sem.replace("Sem ", "").strip()) if "Sem" in sem else 2
+    cur_sgpa_row = conn.execute('SELECT sgpa, failed FROM sgpa_records WHERE roll_no=? AND (semester=? OR semester=?)', 
+                                (roll, sem, sem_num_val)).fetchone()
+    
+    cur_sgpa_display = "-"
+    failed_flag = 0
+    if cur_sgpa_row:
+        failed_flag = cur_sgpa_row['failed']
+        if failed_flag:
+            cur_sgpa_display = "Pending"
+        elif cur_sgpa_row['sgpa'] and cur_sgpa_row['sgpa'] > 0:
+            cur_sgpa_display = f"{cur_sgpa_row['sgpa']:.2f}"
+
+    # Calculate credits & pass/fail count for current sem
+    tot_credits = 0.0
+    earned_credits = 0.0
+    passed_sub_cnt = 0
+    failed_sub_cnt = 0
+    
+    if marks_rows:
+        seen_subjects = set()
+        for r in marks_rows:
+            sub = r['subject']
+            if sub in seen_subjects:
+                continue
+            seen_subjects.add(sub)
+            c_val = get_subject_credits(sub)
+            tot_credits += c_val
+            gp_val = r['grade_point'] or 0.0
+            grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if r['score'] is None else 'F')
+            if grade not in ['F', 'Ab']:
+                earned_credits += c_val
+                passed_sub_cnt += 1
+            else:
+                failed_sub_cnt += 1
+
+    if failed_sub_cnt > 0:
+        status_label = f"{failed_sub_cnt} Supplementary"
+        status_color = "#ef4444"
+    elif cur_sgpa_display != "-" and cur_sgpa_display != "Pending":
+        try:
+            sg_val_f = float(cur_sgpa_display)
+            if sg_val_f >= 8.0:
+                status_label = "Passed (Distinction)"
+                status_color = "#34d399"
+            else:
+                status_label = "Passed (Regular)"
+                status_color = "#00D8C6"
+        except Exception:
+            status_label = "Passed"
+            status_color = "#34d399"
+    else:
+        status_label = "Pending Results"
+        status_color = "#f59e0b"
+
+    tot_cred_str = f"{tot_credits:.0f}" if tot_credits.is_integer() else f"{tot_credits:.1f}"
+    earned_cred_str = f"{earned_credits:.0f}" if earned_credits.is_integer() else f"{earned_credits:.1f}"
+
+    st.markdown(f"""
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:25px;">
+        <div style="background:linear-gradient(135deg, rgba(30,41,59,0.8), rgba(15,23,42,0.9)); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:16px; text-align:center;">
+            <div style="font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; letter-spacing:0.07em;">SEMESTER SGPA</div>
+            <div style="font-size:1.8rem; font-weight:800; color:#00D8C6; margin-top:2px; font-family:'Outfit';">{cur_sgpa_display}</div>
+            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">{sem} Official JNTUH</div>
+        </div>
+        <div style="background:linear-gradient(135deg, rgba(30,41,59,0.8), rgba(15,23,42,0.9)); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:16px; text-align:center;">
+            <div style="font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; letter-spacing:0.07em;">TOTAL CREDITS</div>
+            <div style="font-size:1.8rem; font-weight:800; color:#38bdf8; margin-top:2px; font-family:'Outfit';">{tot_cred_str}</div>
+            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">Attempted Credits</div>
+        </div>
+        <div style="background:linear-gradient(135deg, rgba(30,41,59,0.8), rgba(15,23,42,0.9)); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:16px; text-align:center;">
+            <div style="font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; letter-spacing:0.07em;">CREDITS EARNED</div>
+            <div style="font-size:1.8rem; font-weight:800; color:#34d399; margin-top:2px; font-family:'Outfit';">{earned_cred_str} / {tot_cred_str}</div>
+            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">Successfully Cleared</div>
+        </div>
+        <div style="background:linear-gradient(135deg, rgba(30,41,59,0.8), rgba(15,23,42,0.9)); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:16px; text-align:center;">
+            <div style="font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; letter-spacing:0.07em;">EXAM STATUS</div>
+            <div style="font-size:1.4rem; font-weight:800; color:{status_color}; margin-top:6px; font-family:'Outfit';">{status_label}</div>
+            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">{passed_sub_cnt} Passed | {failed_sub_cnt} Failed</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     by_exam = {}
     if marks_rows:
         for r in marks_rows:
-            is_final = "Final" in r['exam_type']
+            is_final = "Final" in r['exam_type'] or "Regular" in r['exam_type'] or "Supply" in r['exam_type']
             if is_final:
                 gp_val = r['grade_point'] or 0.0
                 grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if r['score'] is None else 'F')
@@ -2256,13 +2363,83 @@ def show_marks_page(sem, marks_rows):
                 'Credits': get_subject_credits(r['subject'])
             })
 
+    # ── All Semesters Comprehensive Performance Progression ────────
+    st.markdown("### 📈 Academic Progression & Historical Performance")
+    
+    # Query all semesters SGPA records
+    all_sgpa_data = conn.execute('''
+        SELECT semester, sgpa, failed FROM sgpa_records
+        WHERE roll_no=?
+        ORDER BY semester
+    ''', (roll,)).fetchall()
+    
+    if all_sgpa_data:
+        chart_rows = []
+        summary_rows = []
+        for r in all_sgpa_data:
+            s_name = f"Sem {r['semester']}" if isinstance(r['semester'], int) else str(r['semester'])
+            sg_val = float(r['sgpa']) if (r['sgpa'] and r['sgpa'] > 0 and not r['failed']) else None
+            
+            # Fetch marks for this semester to calculate credits & pass/fail
+            s_num = int(s_name.replace("Sem ", "").strip()) if "Sem" in s_name else 1
+            sem_m = conn.execute('''
+                SELECT subject, score, grade_point FROM marks
+                WHERE roll_no=? AND (semester=? OR semester=?)
+            ''', (roll, s_name, s_num)).fetchall()
+            
+            t_cred = 0.0
+            e_cred = 0.0
+            p_cnt = 0
+            f_cnt = 0
+            seen = set()
+            for m in sem_m:
+                sub = m['subject']
+                if sub in seen: continue
+                seen.add(sub)
+                c_val = get_subject_credits(sub)
+                t_cred += c_val
+                gp_val = m['grade_point'] or 0.0
+                grade = gp_to_grade(gp_val) if gp_val > 0.0 else ('Ab' if m['score'] is None else 'F')
+                if grade not in ['F', 'Ab']:
+                    e_cred += c_val
+                    p_cnt += 1
+                else:
+                    f_cnt += 1
+
+            stat = "Passed" if f_cnt == 0 and sg_val else ("Failed/Pending" if f_cnt > 0 else "Result Awaited")
+            
+            if sg_val is not None:
+                chart_rows.append({'Semester': s_name, 'SGPA': sg_val})
+                
+            summary_rows.append({
+                'Semester': s_name,
+                'SGPA': f"{sg_val:.2f}" if sg_val else "-",
+                'Total Credits': f"{t_cred:.0f}",
+                'Credits Earned': f"{e_cred:.0f}",
+                'Passed': p_cnt,
+                'Failed': f_cnt,
+                'Status': stat
+            })
+
+        if chart_rows:
+            fig_sgpa = px.line(pd.DataFrame(chart_rows), x='Semester', y='SGPA', markers=True, text='SGPA',
+                               title="Semester-wise SGPA Progression")
+            fig_sgpa.update_traces(line_color='#00D8C6', line_width=4, marker_size=10, textposition="top center")
+            fig_sgpa.update_layout(yaxis_range=[0, 10])
+            apply_premium_plotly_theme(fig_sgpa)
+            st.plotly_chart(fig_sgpa, use_container_width=True)
+
+        if summary_rows:
+            st.markdown("#### 📋 All Semesters Summary Table")
+            st_premium_table(pd.DataFrame(summary_rows))
+
     trend_data = []
     for et in ['Mid 1', 'Mid 2', f"{sem} Final Examinations"]:
         for r in by_exam.get(et, []):
             if isinstance(r['Score'], (int, float)):
                 trend_data.append({'Exam': et, 'Subject': r['Subject'], 'Score': r['Score']})
     if trend_data:
-        st.markdown("### 📈 Marks Progression (Mid 1 → Mid 2 → Finals)")
+        st.markdown("#### 📊 Current Semester Marks Progression")
         fig = px.line(pd.DataFrame(trend_data), x='Exam', y='Score', color='Subject', markers=True, render_mode='svg')
         fig.update_traces(line_shape='spline', line=dict(width=3))
         apply_premium_plotly_theme(fig)
@@ -2278,20 +2455,7 @@ def show_marks_page(sem, marks_rows):
                 🔍 No data found for this examination.</div>""", unsafe_allow_html=True)
         else:
             st_premium_table(pd.DataFrame(rows))
-            if et == f"{sem} Final Examinations":
-                conn = get_db_connection()
-                sgpa_row = conn.execute(
-                    'SELECT sgpa, failed FROM sgpa_records WHERE roll_no=? AND semester=?',
-                    (st.session_state.user_id, sem)).fetchone()
-                conn.close()
-                if sgpa_row:
-                    sgpa_text = "Pending" if sgpa_row['failed'] else (
-                        f"{sgpa_row['sgpa']:.2f}" if sgpa_row['sgpa'] > 0 else "-")
-                    st.markdown(f"""<div style="background:rgba(0,216,198,0.05);border:1px solid rgba(0,216,198,0.15);
-                        border-radius:12px;padding:10px 20px;margin-top:12px;margin-bottom:20px;display:inline-block;">
-                        <span style="color:#94a3b8;font-size:0.85rem;font-weight:500;font-family:'Inter';text-transform:uppercase;letter-spacing:0.5px;">Semester SGPA:</span>
-                        <span style="color:#00D8C6;font-size:1.1rem;font-weight:700;font-family:'Outfit';margin-left:8px;">{sgpa_text}</span>
-                        </div>""", unsafe_allow_html=True)
+    conn.close()
 
 
 def show_sgpa_page(sem, marks_rows):
