@@ -4414,35 +4414,33 @@ def admin_bunk_analysis():
             student_info = df_abs[['roll_no', 'name', 'section']].drop_duplicates().set_index('roll_no').to_dict('index')
 
             pattern_instances = []
-            for (date, roll), abs_hours in abs_map.items():
+            for (date, roll), raw_abs_hours in abs_map.items():
                 stud = student_info.get(roll)
                 if not stud:
                     continue
                 sec = stud['section']
                 cond_hours = cond_map.get((date, sec), set())
-                pres_hours = cond_hours - abs_hours
+                pres_hours = cond_hours - raw_abs_hours
 
                 # 1. Full-day absentees are NOT bunkers (Must be present for at least 1 class)
                 if len(pres_hours) == 0:
                     continue
 
-                # 2. Must be absent for at least 1 class
-                if len(abs_hours) == 0:
-                    continue
+                # 2. Morning 1st hour (hour = 1) is a college arrival exception — NEVER counted as a bunk!
+                abs_hours = raw_abs_hours - {1}
 
-                # 3. Exclude simple 1st hour late arrivals (students who ONLY missed 1st hour)
-                effective_abs = abs_hours - {1}
-                if len(effective_abs) == 0:
+                # If student only missed 1st hour (or no non-exception hours), exclude completely from bunk calculations
+                if len(abs_hours) == 0:
                     continue
 
                 sorted_cond = sorted(list(cond_hours))
                 status_seq = []
                 for h in sorted_cond:
+                    # 1st hour exception is treated as non-bunk ('P')
                     status_seq.append('A' if h in abs_hours else 'P')
                 status_str = "".join(status_seq)
                 abs_sorted = sorted(list(abs_hours))
                 pres_sorted = sorted(list(pres_hours))
-                eff_abs_sorted = sorted(list(effective_abs))
 
                 # Precise Smart Bunker Categorization (P3/P6 Key Hour Escape: e.g. AAPAAPA, PAAPAAP, PPAAPAA)
                 has_key_hour_escape = False
@@ -4454,7 +4452,7 @@ def admin_bunk_analysis():
                 max_h = max(sorted_cond)
                 if has_key_hour_escape:
                     bunk_kind = "Smart Bunker (P3/P6 Present)"
-                elif effective_abs == {max_h}:
+                elif abs_hours == {max_h}:
                     bunk_kind = "Last Hr Bunkers"
                 else:
                     bunk_kind = "Normal Bunk"
