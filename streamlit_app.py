@@ -1314,31 +1314,31 @@ def student_dashboard():
 
     with st.sidebar:
         st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #c084fc 100%);
-                    border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 20px;
+        <div style="background: linear-gradient(135deg, rgba(30,41,59,0.95) 0%, rgba(15,23,42,0.98) 100%);
+                    border: 1px solid rgba(0, 216, 198, 0.25); border-radius: 20px;
                     padding: 22px 16px; margin-bottom: 16px; text-align: center;
-                    box-shadow: 0 10px 30px rgba(124, 58, 237, 0.35); position: relative; overflow: hidden;">
+                    box-shadow: 0 8px 30px rgba(0, 216, 198, 0.12); position: relative; overflow: hidden;">
             <div style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-                        background: radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 60%); pointer-events: none;"></div>
+                        background: radial-gradient(circle, rgba(0,216,198,0.08) 0%, transparent 60%); pointer-events: none;"></div>
             {avatar_html}
             <h3 style="margin: 10px 0 3px 0; color: #ffffff; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;">{student['name']}</h3>
-            <div style="display: inline-block; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px);
-                        border: 1px solid rgba(255,255,255,0.3); border-radius: 20px; padding: 2px 12px; margin-top: 3px;">
-                <span style="font-size: 0.8rem; color: #ffffff; font-family: 'JetBrains Mono', monospace; font-weight: 700;">{student['roll_no']}</span>
+            <div style="display: inline-block; background: rgba(0, 216, 198, 0.12); backdrop-filter: blur(10px);
+                        border: 1px solid rgba(0, 216, 198, 0.3); border-radius: 20px; padding: 2px 12px; margin-top: 3px;">
+                <span style="font-size: 0.8rem; color: #00D8C6; font-family: 'JetBrains Mono', monospace; font-weight: 700;">{student['roll_no']}</span>
             </div>
-            <div style="margin-top: 8px; font-size: 0.82rem; color: #e9d5ff; font-family: 'Inter', sans-serif; font-weight: 600; letter-spacing: 0.3px;">
+            <div style="margin-top: 8px; font-size: 0.82rem; color: #94a3b8; font-family: 'Inter', sans-serif; font-weight: 600; letter-spacing: 0.3px;">
                 {student['branch']} • SECTION {student['section']}
             </div>
             {email_card_html}
-            <div style="height: 1px; background: rgba(255,255,255,0.22); margin: 14px 0 12px 0;"></div>
+            <div style="height: 1px; background: rgba(255,255,255,0.08); margin: 14px 0 12px 0;"></div>
             <div style="display: flex; gap: 10px;">
-                <div style="flex: 1; background: rgba(255,255,255,0.18); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.28); border-radius: 12px; padding: 8px 6px; text-align: center;">
-                    <div style="font-size: 1.3rem; font-weight: 800; color: #ffffff; font-family: 'Outfit'; line-height: 1.1;">{cgpa_display}</div>
-                    <div style="font-size: 0.65rem; color: #f3e8ff; text-transform: uppercase; font-weight: 700; letter-spacing: 0.8px; margin-top: 2px;">CGPA</div>
+                <div style="flex: 1; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(0, 216, 198, 0.2); border-radius: 12px; padding: 8px 6px; text-align: center;">
+                    <div style="font-size: 1.3rem; font-weight: 800; color: #00D8C6; font-family: 'Outfit'; line-height: 1.1;">{cgpa_display}</div>
+                    <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.8px; margin-top: 2px;">CGPA</div>
                 </div>
-                <div style="flex: 1; background: rgba(255,255,255,0.18); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.28); border-radius: 12px; padding: 8px 6px; text-align: center;">
+                <div style="flex: 1; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(0, 216, 198, 0.2); border-radius: 12px; padding: 8px 6px; text-align: center;">
                     <div style="font-size: 1.3rem; font-weight: 800; color: #ffffff; font-family: 'Outfit'; line-height: 1.1;">{active_sem.upper()}</div>
-                    <div style="font-size: 0.65rem; color: #f3e8ff; text-transform: uppercase; font-weight: 700; letter-spacing: 0.8px; margin-top: 2px;">CURRENT</div>
+                    <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.8px; margin-top: 2px;">CURRENT</div>
                 </div>
             </div>
         </div>
