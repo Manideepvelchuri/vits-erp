@@ -1349,62 +1349,95 @@ def student_dashboard():
     photo_b64 = get_student_photo_b64(roll)
     st_email = student['email'] if 'email' in student and student['email'] else ""
 
-    with st.sidebar:
-        if photo_b64:
-            st.markdown(
-                f'<div style="text-align:center;padding:6px 0 2px 0;">' +
-                f'<img src="data:image/jpeg;base64,{photo_b64}" ' +
-                f'style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid #00D8C6;"/>' +
-                f'</div>', unsafe_allow_html=True)
+    raw_sems = conn.execute(
+        'SELECT DISTINCT semester FROM sgpa_records WHERE roll_no=?', (roll,)
+    ).fetchall()
+    sem_set = set()
+    for r in raw_sems:
+        val_str = str(r[0] if isinstance(r, (list, tuple)) else r['semester']).replace('Sem', '').strip()
+        if val_str.isdigit():
+            sem_set.add(int(val_str))
+    cgpa_note = ""
+    if sem_set:
+        sorted_nums = sorted(list(sem_set))
+        sem_names = [f"Sem {n}" for n in sorted_nums]
+        if len(sem_names) == 1:
+            cgpa_note = f"{sem_names[0]} Results"
         else:
-            st.markdown('<div style="text-align:center;font-size:2.2rem;padding:6px 0;">\U0001f393</div>',
-                        unsafe_allow_html=True)
+            cgpa_note = f"{' & '.join(sem_names)} Results"
 
-        st.markdown(
-            f'<div style="text-align:center;font-weight:700;font-size:0.98rem;color:#fff;margin:3px 0;">' +
-            f'{student["name"].upper()}</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div style="text-align:center;font-size:0.78rem;color:#00D8C6;font-weight:600;margin-bottom:1px;">' +
-            f'{student["roll_no"]}</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div style="text-align:center;font-size:0.73rem;color:#94a3b8;">' +
-            f'{student["branch"]} \u00b7 {student["section"]}</div>', unsafe_allow_html=True)
-        if st_email:
-            st.markdown(
-                f'<div style="text-align:center;font-size:0.7rem;color:#a78bfa;margin-top:2px;">' +
-                f'\u2709 {st_email}</div>', unsafe_allow_html=True)
+    cgpa_color = "#F59E0B" if cgpa_display in ["Pending", "-"] else "#00D8C6"
 
-        st.markdown("---")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("CGPA", cgpa_display)
-        with col2:
-            st.metric("Semester", active_sem.replace("Sem ", "S"))
-        st.markdown("---")
+    if photo_b64:
+        avatar_html = (
+            f'<div style="width:100px; height:100px; border-radius:50%; margin:0 auto 14px auto; '
+            f'padding:3px; background: linear-gradient(135deg, #00D8C6 0%, #3B82F6 50%, #E056FD 100%); '
+            f'box-shadow: 0 0 25px rgba(0, 216, 198, 0.45);">'
+            f'<img src="data:image/jpeg;base64,{photo_b64}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;" />'
+            f'</div>'
+        )
+    else:
+        avatar_html = (
+            '<div style="width:92px; height:92px; border-radius:50%; margin:0 auto 14px auto; '
+            'background: linear-gradient(135deg, rgba(0,216,198,0.2) 0%, rgba(124,58,237,0.2) 100%); '
+            'border:2px solid rgba(0,216,198,0.6); box-shadow: 0 0 25px rgba(0,216,198,0.35); '
+            'display:flex; align-items:center; justify-content:center; font-size:2.6rem;">'
+            '🎓</div>'
+        )
 
+    email_card_html = (
+        f'<div style="font-size: 0.74rem; color: #a78bfa; margin-top: 6px; text-align: center; '
+        f'font-family: Inter, sans-serif; font-weight: 500; display:flex; align-items:center; justify-content:center; gap:6px;">'
+        f'<span style="font-size:0.85rem;">✉</span>'
+        f'<span>{st_email}</span>'
+        f'</div>'
+    ) if st_email else ""
 
-        raw_sems = conn.execute(
-            'SELECT DISTINCT semester FROM sgpa_records WHERE roll_no=?', (roll,)
-        ).fetchall()
-        sem_set = set()
-        for r in raw_sems:
-            val_str = str(r[0] if isinstance(r, (list, tuple)) else r['semester']).replace('Sem', '').strip()
-            if val_str.isdigit():
-                sem_set.add(int(val_str))
-        cgpa_note = ""
-        if sem_set:
-            sorted_nums = sorted(list(sem_set))
-            sem_names = [f"Sem {n}" for n in sorted_nums]
-            if len(sem_names) == 1:
-                cgpa_note = f"{sem_names[0]} Results"
-            else:
-                cgpa_note = f"{' & '.join(sem_names)} Results"
-        if cgpa_note:
-            st.markdown(f"""<div style="text-align:center;margin-top:-12px;margin-bottom:12px;">
-                <span style="background:rgba(0,216,198,0.08);color:#00D8C6;border:1px solid rgba(0,216,198,0.2);
-                padding:4px 10px;border-radius:20px;font-size:0.72rem;font-weight:600;
-                font-family:'Inter',sans-serif;letter-spacing:0.5px;display:inline-block;">💡 {cgpa_note}</span>
-                </div>""", unsafe_allow_html=True)
+    results_pill_html = (
+        f'<div style="background: rgba(0, 216, 198, 0.05); border: 1px solid rgba(0, 216, 198, 0.35); '
+        f'border-radius: 30px; padding: 9px 16px; margin-top: 14px; display: flex; align-items: center; '
+        f'justify-content: space-between; font-size: 0.82rem; font-weight: 600; color: #00D8C6; font-family: Inter, sans-serif;">'
+        f'<span style="display:flex; align-items:center; gap:8px;">💡 View {cgpa_note}</span>'
+        f'<span style="font-weight:700;">&rarr;</span>'
+        f'</div>'
+    ) if cgpa_note else ""
+
+    card_html = f"""<div style="background: linear-gradient(165deg, #090E1A 0%, #0F172A 100%); border: 1px solid rgba(0, 216, 198, 0.25); border-radius: 24px; padding: 22px 16px 18px 16px; margin-bottom: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 216, 198, 0.05); position: relative; overflow: hidden;">
+<div style="position:absolute; top:-30px; right:-30px; width:120px; height:120px; background: radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%); border-radius:50%; pointer-events:none;"></div>
+<div style="position:absolute; bottom:-20px; left:-20px; width:100px; height:100px; background: radial-gradient(circle, rgba(0,216,198,0.12) 0%, transparent 70%); border-radius:50%; pointer-events:none;"></div>
+{avatar_html}
+<div style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.15rem; color: #FFFFFF; text-align: center; letter-spacing: 0.6px; margin-bottom: 8px; text-transform: uppercase;">
+{student['name'].upper()}
+</div>
+<div style="display: flex; align-items: center; justify-content: center; width: fit-content; margin: 0 auto 8px auto; background: rgba(0, 216, 198, 0.08); border: 1px solid rgba(0, 216, 198, 0.35); border-radius: 25px; padding: 4px 14px; gap: 6px;">
+<span style="font-size: 0.8rem;">🪪</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 0.88rem; color: #00D8C6; letter-spacing: 0.5px;">{student['roll_no']}</span>
+</div>
+<div style="font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.78rem; color: #94a3b8; text-align: center; margin-bottom: 4px; letter-spacing: 0.5px;">
+{student['branch']} &bull; SECTION {student['section']}
+</div>
+{email_card_html}
+<div style="position: relative; height: 1px; background: linear-gradient(90deg, transparent 0%, rgba(0, 216, 198, 0.35) 50%, transparent 100%); margin: 16px 0; display: flex; align-items: center; justify-content: center;">
+<div style="width: 5px; height: 5px; border-radius: 50%; background: #00D8C6; box-shadow: 0 0 8px #00D8C6;"></div>
+</div>
+<div style="display: flex; gap: 10px; margin-bottom: 4px;">
+<div style="flex: 1; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 16px; padding: 12px 10px; position: relative; text-align: left;">
+<div style="font-size: 0.62rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px;">CGPA</div>
+<div style="font-size: 1.35rem; font-weight: 800; color: {cgpa_color}; font-family: 'Outfit', sans-serif; line-height: 1.1;">{cgpa_display}</div>
+<div style="position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">🎓</div>
+</div>
+<div style="flex: 1; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 16px; padding: 12px 10px; position: relative; text-align: left;">
+<div style="font-size: 0.62rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px;">SEMESTER</div>
+<div style="font-size: 1.35rem; font-weight: 800; color: #FFFFFF; font-family: 'Outfit', sans-serif; line-height: 1.1;">{active_sem.upper()}</div>
+<div style="font-size: 0.58rem; color: #818cf8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 3px;">CURRENT</div>
+<div style="position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">📅</div>
+</div>
+</div>
+{results_pill_html}
+</div>"""
+
+    with st.sidebar:
+        st.markdown(card_html, unsafe_allow_html=True)
 
         st.markdown("---")
         try:
