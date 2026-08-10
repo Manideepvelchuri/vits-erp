@@ -395,8 +395,6 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                     cursor.execute('SELECT name FROM students WHERE roll_no=?', (roll_no,))
                     existing_row = cursor.fetchone()
                     if not existing_row:
-                        if not clean_name:
-                            clean_name = _fetch_student_name_from_srprint(session, roll_no)
                         ins_name = clean_name if clean_name else f"Student ({roll_no})"
                         cursor.execute('''
                             INSERT INTO students(roll_no,name,dob,email,semester,department,section,branch)
@@ -406,10 +404,6 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                         student_count += 1
                     elif clean_name and (not existing_row[0] or existing_row[0].strip() != clean_name):
                         cursor.execute('UPDATE students SET name=? WHERE roll_no=?', (clean_name, roll_no))
-                    elif not existing_row[0] or existing_row[0].strip().startswith('Student'):
-                        fetched_nm = _fetch_student_name_from_srprint(session, roll_no)
-                        if fetched_nm:
-                            cursor.execute('UPDATE students SET name=? WHERE roll_no=?', (fetched_nm, roll_no))
                 except Exception:
                     try:
                         conn.rollback()
