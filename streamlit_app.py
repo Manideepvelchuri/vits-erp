@@ -1347,104 +1347,41 @@ def student_dashboard():
     cgpa_display = "Pending" if has_failed_sem else (f"{cgpa:.2f}" if cgpa > 0 else "-")
 
     photo_b64 = get_student_photo_b64(roll)
-    if photo_b64:
-        avatar_html = (
-            f'<div style="position:relative; display:inline-block; margin-bottom:12px; margin-top:4px;">'
-            f'  <div style="width:100px; height:100px; border-radius:50%; padding:3px;'
-            f'    background: linear-gradient(135deg, #00D8C6 0%, #7C3AED 50%, #3B82F6 100%);'
-            f'    box-shadow: 0 0 30px rgba(0,216,198,0.5), 0 0 60px rgba(124,58,237,0.2);'
-            f'    display:block; margin:0 auto;">'
-            f'    <img src="data:image/jpeg;base64,{photo_b64}" style="'
-            f'      width:100%; height:100%; border-radius:50%; object-fit:cover;'
-            f'      border:2px solid #0F172A;" />'
-            f'  </div>'
-            f'</div>'
-        )
-    else:
-        avatar_html = (
-            '<div style="width:90px; height:90px; border-radius:50%; margin:8px auto 12px auto;'
-            '  background: linear-gradient(135deg, rgba(0,216,198,0.2) 0%, rgba(124,58,237,0.2) 100%);'
-            '  border:2px solid rgba(0,216,198,0.5);'
-            '  box-shadow: 0 0 25px rgba(0,216,198,0.3);'
-            '  display:flex; align-items:center; justify-content:center; font-size:2.5rem;">'
-            '🎓</div>'
-        )
-
     st_email = student['email'] if 'email' in student and student['email'] else ""
-    email_card_html = (
-        f'<div style="font-size: 0.72rem; color: #a78bfa; margin-top: 5px; word-break: break-all;'
-        f'  font-family: Inter; font-weight:500; display:flex; align-items:center; justify-content:center; gap:4px;">'
-        f'  <span style="font-size:0.8rem;">✉</span>'
-        f'  <span>{st_email}</span>'
-        f'</div>'
-    ) if st_email else ""
-
-    # CGPA color
-    cgpa_color = "#F59E0B" if cgpa_display in ["Pending", "-"] else "#00D8C6"
 
     with st.sidebar:
-        st.markdown(f"""
-        <div style="background: linear-gradient(160deg, #0F172A 0%, #1E293B 50%, #0F172A 100%);
-                    border: 1px solid rgba(0,216,198,0.2); border-radius: 24px;
-                    padding: 20px 14px 16px 14px; margin-bottom: 10px; text-align: center;
-                    box-shadow: 0 0 40px rgba(0,216,198,0.08), 0 20px 60px rgba(0,0,0,0.4);
-                    position: relative; overflow: hidden;">
-            <!-- Background glow orbs -->
-            <div style="position:absolute; top:-30px; right:-30px; width:120px; height:120px;
-                        background: radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%);
-                        border-radius:50%; pointer-events:none;"></div>
-            <div style="position:absolute; bottom:-20px; left:-20px; width:100px; height:100px;
-                        background: radial-gradient(circle, rgba(0,216,198,0.12) 0%, transparent 70%);
-                        border-radius:50%; pointer-events:none;"></div>
+        if photo_b64:
+            st.markdown(
+                f'<div style="text-align:center;padding:6px 0 2px 0;">' +
+                f'<img src="data:image/jpeg;base64,{photo_b64}" ' +
+                f'style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid #00D8C6;"/>' +
+                f'</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div style="text-align:center;font-size:2.2rem;padding:6px 0;">\U0001f393</div>',
+                        unsafe_allow_html=True)
 
-            {avatar_html}
+        st.markdown(
+            f'<div style="text-align:center;font-weight:700;font-size:0.98rem;color:#fff;margin:3px 0;">' +
+            f'{student["name"].upper()}</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="text-align:center;font-size:0.78rem;color:#00D8C6;font-weight:600;margin-bottom:1px;">' +
+            f'{student["roll_no"]}</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="text-align:center;font-size:0.73rem;color:#94a3b8;">' +
+            f'{student["branch"]} \u00b7 {student["section"]}</div>', unsafe_allow_html=True)
+        if st_email:
+            st.markdown(
+                f'<div style="text-align:center;font-size:0.7rem;color:#a78bfa;margin-top:2px;">' +
+                f'\u2709 {st_email}</div>', unsafe_allow_html=True)
 
-            <div style="font-family:'Outfit',sans-serif; font-weight:800; font-size:1.1rem;
-                        color:#FFFFFF; letter-spacing:0.5px; margin-bottom:6px;
-                        text-shadow: 0 0 20px rgba(0,216,198,0.3);">
-                {student['name'].upper()}
-            </div>
+        st.markdown("---")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("CGPA", cgpa_display)
+        with col2:
+            st.metric("Semester", active_sem.replace("Sem ", "S"))
+        st.markdown("---")
 
-            <div style="display:inline-flex; align-items:center; gap:6px;
-                        background: rgba(0,216,198,0.08); border:1px solid rgba(0,216,198,0.3);
-                        border-radius:20px; padding:3px 12px; margin-bottom:6px;">
-                <span style="font-size:0.75rem; color:#64748b;">🪪</span>
-                <span style="font-size:0.82rem; color:#00D8C6; font-family:'JetBrains Mono',monospace; font-weight:700; letter-spacing:0.5px;">
-                    {student['roll_no']}
-                </span>
-            </div>
-
-            <div style="font-size:0.78rem; color:#64748b; font-family:'Inter',sans-serif;
-                        font-weight:600; letter-spacing:0.5px; margin-bottom:4px;">
-                {student['branch']} &bull; SECTION {student['section']}
-            </div>
-
-            {email_card_html}
-
-            <div style="height:1px; background:linear-gradient(90deg, transparent, rgba(0,216,198,0.3), transparent);
-                        margin:12px 0;"></div>
-
-            <div style="display:flex; gap:8px; margin-bottom:0;">
-                <div style="flex:1; background:rgba(15,23,42,0.8); border:1px solid rgba(245,158,11,0.3);
-                            border-radius:14px; padding:10px 6px; text-align:left; position:relative;">
-                    <div style="font-size:0.6rem; text-transform:uppercase; color:#94a3b8;
-                                font-weight:700; letter-spacing:0.8px; margin-bottom:4px;">CGPA</div>
-                    <div style="font-size:1.4rem; font-weight:800; color:{cgpa_color};
-                                font-family:'Outfit'; line-height:1;">{cgpa_display}</div>
-                    <div style="position:absolute; top:8px; right:8px; font-size:1rem; opacity:0.6;">🎓</div>
-                </div>
-                <div style="flex:1; background:rgba(15,23,42,0.8); border:1px solid rgba(99,102,241,0.35);
-                            border-radius:14px; padding:10px 6px; text-align:left; position:relative;">
-                    <div style="font-size:0.6rem; text-transform:uppercase; color:#94a3b8;
-                                font-weight:700; letter-spacing:0.8px; margin-bottom:4px;">SEMESTER</div>
-                    <div style="font-size:1.4rem; font-weight:800; color:#FFFFFF;
-                                font-family:'Outfit'; line-height:1;">{active_sem.upper()}</div>
-                    <div style="font-size:0.55rem; color:#6366f1; font-weight:700; letter-spacing:0.8px; margin-top:2px;">CURRENT</div>
-                    <div style="position:absolute; top:8px; right:8px; font-size:1rem; opacity:0.6;">📅</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
         raw_sems = conn.execute(
             'SELECT DISTINCT semester FROM sgpa_records WHERE roll_no=?', (roll,)
