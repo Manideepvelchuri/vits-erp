@@ -300,24 +300,8 @@ def scrape_portal(start_date=None, end_date=None, section=None,
             except Exception:
                 pass
 
-    # By default, only scrape target date (today) to complete in 3-5 minutes total.
+    # ALWAYS target today's date only [tdt] for lightning-fast 3-minute scrapes!
     target_dates = [tdt]
-    if force and start_date and start_date != tdt:
-        try:
-            base  = datetime.strptime(tdt, '%Y-%m-%d').date()
-            start = datetime.strptime(start_date, '%Y-%m-%d').date()
-            target_dates = []
-            for offset in [28, 21, 14, 7, 0]:
-                d = base - timedelta(days=offset)
-                if d >= start:
-                    target_dates.append(d.strftime('%Y-%m-%d'))
-            if tdt not in target_dates:
-                target_dates.append(tdt)
-        except Exception:
-            target_dates = [tdt]
-
-    if tdt not in target_dates:
-        target_dates.append(tdt)
     success_dates = []
     student_count = 0
     last_df       = None

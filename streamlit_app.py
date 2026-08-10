@@ -1336,17 +1336,22 @@ def student_dashboard():
         </div>
         """, unsafe_allow_html=True)
 
-        sems_in_db = [r['semester'] for r in conn.execute(
+        raw_sems = conn.execute(
             'SELECT DISTINCT semester FROM sgpa_records WHERE roll_no=?', (roll,)
-        ).fetchall()]
+        ).fetchall()
+        sem_set = set()
+        for r in raw_sems:
+            val_str = str(r[0] if isinstance(r, (list, tuple)) else r['semester']).replace('Sem', '').strip()
+            if val_str.isdigit():
+                sem_set.add(int(val_str))
         cgpa_note = ""
-        if sems_in_db:
-            try:
-                sems_sorted = sorted(sems_in_db, key=lambda s: int(s.replace("Sem ", "").strip()))
-            except Exception:
-                sems_sorted = sorted(sems_in_db)
-            cgpa_note = (f"{sems_sorted[0]} Results" if len(sems_sorted) == 1
-                         else " & ".join(sems_sorted) + " Results")
+        if sem_set:
+            sorted_nums = sorted(list(sem_set))
+            sem_names = [f"Sem {n}" for n in sorted_nums]
+            if len(sem_names) == 1:
+                cgpa_note = f"{sem_names[0]} Results"
+            else:
+                cgpa_note = f"{' & '.join(sem_names)} Results"
         if cgpa_note:
             st.markdown(f"""<div style="text-align:center;margin-top:-12px;margin-bottom:12px;">
                 <span style="background:rgba(0,216,198,0.08);color:#00D8C6;border:1px solid rgba(0,216,198,0.2);
