@@ -274,6 +274,42 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     conn          = dynamic_conn if dynamic_conn is not None else get_db_connection()
     cursor        = conn.cursor()
 
+    # 1. Evening Scrape (after 16:00 IST / 4:00 PM IST) OR Manual force=True:
+    #    -> 100% MANDATORY DAILY SCRAPE. NEVER SKIPS!
+    # 2. Morning Scrape (before 16:00 IST / 4:00 PM IST):
+    #    -> Precautionary check. Skip ONLY if yesterday's mandatory evening scrape (after 4:00 PM IST)
+    #       already succeeded within the last 18 hours.
+    if not force:
+        try:
+            curr_hour = ist_now.hour
+            is_evening_slot = (curr_hour >= 16)
+
+            if not is_evening_slot:
+                # Precautionary Morning Slot (< 16:00 IST):
+                # Check if an evening scrape succeeded within the last 18 hours
+                cutoff_dt = ist_now - timedelta(hours=18)
+                cutoff_time = cutoff_dt.strftime('%Y-%m-%d %H:%M:%S')
+                skip_msg = "Recent evening attendance already synced within last 18 hours"
+
+                cursor.execute('''
+                    SELECT scraped_at FROM scrape_log 
+                    WHERE section = ? AND status = 'success' AND scraped_at >= ?
+                    ORDER BY id DESC LIMIT 1
+                ''', (sc, cutoff_time))
+
+                res = cursor.fetchone()
+                if res:
+                    scraped_time = res[0]
+                    logger.info(f'[{sc}] {skip_msg} (at {scraped_time}). Skipping precautionary morning run.')
+                    if dynamic_conn is None:
+                        conn.close()
+                    return True, f'[{sc}] {skip_msg} (at {scraped_time}).'
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
     # Target today's date [tdt] (with last 3 days fallback) for fast 3-minute scrape!
     target_dates = [tdt]
     success_dates = []

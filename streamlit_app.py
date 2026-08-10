@@ -425,25 +425,34 @@ div[data-baseweb="input"]:focus-within, div[data-baseweb="select"]:focus-within 
     border-color: #00D8C6 !important;
     box-shadow: 0 0 10px rgba(0, 216, 198, 0.2) !important;
 }
+[data-testid="stSidebar"] div[data-testid="stRadio"] {
+    background: rgba(15, 23, 42, 0.65) !important;
+    backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(0, 216, 198, 0.18) !important;
+    border-radius: 20px !important;
+    padding: 14px 12px !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3) !important;
+    margin-bottom: 15px !important;
+}
 [data-testid="stSidebar"] div[role="radiogroup"] {
     display: flex !important; flex-direction: column !important;
-    gap: 8px !important; margin-top: 15px !important;
+    gap: 6px !important; margin-top: 5px !important;
 }
 [data-testid="stSidebar"] div[role="radiogroup"] label {
-    background: rgba(255, 255, 255, 0.02) !important;
-    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
     border-radius: 12px !important;
     padding: 10px 16px !important;
     margin: 0 !important;
     color: #cbd5e1 !important;
-    font-weight: 500 !important;
+    font-weight: 600 !important;
     font-family: 'Inter', sans-serif !important;
     transition: all 0.2s ease !important;
     cursor: pointer !important;
 }
 [data-testid="stSidebar"] div[role="radiogroup"] label:hover {
-    background: rgba(0, 216, 198, 0.08) !important;
-    border-color: rgba(0, 216, 198, 0.25) !important;
+    background: rgba(0, 216, 198, 0.12) !important;
+    border-color: rgba(0, 216, 198, 0.3) !important;
     color: #ffffff !important;
 }
 [data-testid="stSidebar"] div[role="radiogroup"] [data-baseweb="radio"] > div:first-child {
@@ -2265,8 +2274,8 @@ def show_marks_page(sem, marks_rows):
 
     # ── Semester Summary Cards (SGPA, Total Credits, Earned Credits, Passed/Failed) ──
     sem_num_val = int(sem.replace("Sem ", "").strip()) if "Sem" in sem else 2
-    cur_sgpa_row = conn.execute('SELECT sgpa, failed FROM sgpa_records WHERE roll_no=? AND (semester=? OR semester=?)', 
-                                (roll, sem, sem_num_val)).fetchone()
+    cur_sgpa_row = conn.execute('SELECT sgpa, failed FROM sgpa_records WHERE roll_no=? AND (semester=? OR semester=? OR semester=?)', 
+                                (roll, str(sem), str(sem_num_val), f"Sem {sem_num_val}")).fetchone()
     
     cur_sgpa_display = "-"
     failed_flag = 0
@@ -2384,8 +2393,8 @@ def show_marks_page(sem, marks_rows):
             s_num = int(s_name.replace("Sem ", "").strip()) if "Sem" in s_name else 1
             sem_m = conn.execute('''
                 SELECT subject, score, grade_point FROM marks
-                WHERE roll_no=? AND (semester=? OR semester=?)
-            ''', (roll, s_name, s_num)).fetchall()
+                WHERE roll_no=? AND (semester=? OR semester=? OR semester=?)
+            ''', (roll, str(s_name), str(s_num), f"Sem {s_num}")).fetchall()
             
             t_cred = 0.0
             e_cred = 0.0

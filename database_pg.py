@@ -335,6 +335,10 @@ class _PGConn:
                         return _CachedCursor(cached_rows)
 
         adapted_sql = self._adapt_sql(sql)
+        if params:
+            sql_low = sql.lower()
+            if 'semester' in sql_low or 'sgpa_records' in sql_low or 'marks' in sql_low or 'students' in sql_low:
+                params = tuple(str(p) if isinstance(p, (int, float)) else p for p in params)
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(adapted_sql, params)
         wrapper = _CursorWrapper(cur)
