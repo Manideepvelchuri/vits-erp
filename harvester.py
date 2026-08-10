@@ -325,20 +325,25 @@ def scrape_portal(start_date=None, end_date=None, section=None,
             valid_df = None
             actual_date = target_date
             ist_today_str = (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d')
-            max_fallback_days = 2 if target_date == ist_today_str else 1
+            max_fallback_days = 4 if target_date == ist_today_str else 1
             
             for offset in range(max_fallback_days):
                 test_date = (datetime.strptime(target_date, '%Y-%m-%d') - timedelta(days=offset)).strftime('%Y-%m-%d')
                 if test_date < fdt:
                     break
                 try:
-                    valid_df = _fetch_df(session, sc, semester, fdt, test_date, max_retries)
-                    actual_date = test_date
-                    break
+                    res_df = _fetch_df(session, sc, semester, fdt, test_date, max_retries)
+                    if res_df is not None and len(res_df) > 1:
+                        valid_df = res_df
+                        actual_date = test_date
+                        break
                 except Exception as e:
-                    if offset == max_fallback_days - 1:
-                        raise ValueError(f"All fallback dates failed: {e}")
+                    if offset == max_fallback_days - 1 and valid_df is None:
+                        raise ValueError(f"All fallback dates failed for section {sc}: {e}")
                         
+            if valid_df is None or len(valid_df) <= 1:
+                raise ValueError(f"No valid attendance data found for {sc} in last {max_fallback_days} days.")
+
             df = valid_df
             target_date = actual_date
             student_count = max(student_count, len(df) - 1)
