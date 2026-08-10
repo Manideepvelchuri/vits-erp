@@ -274,46 +274,7 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     conn          = dynamic_conn if dynamic_conn is not None else get_db_connection()
     cursor        = conn.cursor()
 
-    # Smart Skip Logic:
-    # 1. Manual clicks with explicit force=True -> ALWAYS scrape fresh data.
-    # 2. Daily automated or routine runs (force=False):
-    #    - Evening Cutoff: 16:00 IST (4:00 PM IST).
-    #    - If run is after 16:00 IST: Skip if a scrape already succeeded TODAY after 16:00:00 IST.
-    #    - If run is before 16:00 IST: Skip if a scrape succeeded within last 18 hours (e.g. yesterday evening after 4 PM).
-    if not force:
-        try:
-            curr_hour = ist_now.hour
-            is_evening_slot = (curr_hour >= 16)
-
-            if is_evening_slot:
-                cutoff_time = ist_now.strftime('%Y-%m-%d 16:00:00')
-                skip_msg = "Evening attendance already synced today (after 4:00 PM IST)"
-            else:
-                # Morning run: check if yesterday's evening scrape (within last 18 hours) succeeded
-                cutoff_dt = ist_now - timedelta(hours=18)
-                cutoff_time = cutoff_dt.strftime('%Y-%m-%d %H:%M:%S')
-                skip_msg = "Recent attendance already synced within last 18 hours"
-
-            cursor.execute('''
-                SELECT scraped_at FROM scrape_log 
-                WHERE section = ? AND status = 'success' AND scraped_at >= ?
-                ORDER BY id DESC LIMIT 1
-            ''', (sc, cutoff_time))
-
-            res = cursor.fetchone()
-            if res:
-                scraped_time = res[0]
-                logger.info(f'[{sc}] {skip_msg} (at {scraped_time}). Skipping redundant run.')
-                if dynamic_conn is None:
-                    conn.close()
-                return True, f'[{sc}] {skip_msg} (at {scraped_time}).'
-        except Exception:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-
-    # ALWAYS target today's date only [tdt] for lightning-fast 3-minute scrapes!
+    # Target today's date [tdt] (with last 3 days fallback) for fast 3-minute scrape!
     target_dates = [tdt]
     success_dates = []
     student_count = 0
