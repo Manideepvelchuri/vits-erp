@@ -2524,10 +2524,30 @@ def show_marks_page(sem, marks_rows):
         apply_premium_plotly_theme(fig)
         st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": False, "doubleClick": "reset+autosize", "displayModeBar": True})
 
-    # Render examination tables only if data exists for that exam type
-    for et, rows in by_exam.items():
-        if rows:
-            st.markdown(f"### 📋 {et}")
+    # Always render exam sections in fixed order — show "No Records" if data is missing
+    exam_order = [f"{selected_view_sem} Final Examinations", 'Mid 1', 'Mid 2', 'Lab Internals']
+    exam_icons = {
+        f"{selected_view_sem} Final Examinations": "🎓",
+        'Mid 1': "📝",
+        'Mid 2': "📝",
+        'Lab Internals': "🔬"
+    }
+
+    for et in exam_order:
+        rows = by_exam.get(et, [])
+        icon = exam_icons.get(et, "📋")
+        st.markdown(f"### {icon} {et}")
+        if not rows:
+            st.markdown(f"""<div style="background: rgba(148,163,184,0.05); border: 1px dashed rgba(148,163,184,0.25);
+                border-radius: 14px; padding: 18px 20px; text-align: center; margin: 8px 0 18px 0;
+                font-family: 'Inter', sans-serif;">
+                <span style="font-size: 1.4rem;">📭</span><br>
+                <span style="color: #94a3b8; font-size: 0.92rem; font-weight: 500; margin-top: 6px; display: block;">
+                    No records available for <strong style="color:#cbd5e1;">{et}</strong> in {selected_view_sem}.
+                </span>
+                <span style="color: #64748b; font-size: 0.8rem;">Data will appear once marks are published by the institution.</span>
+            </div>""", unsafe_allow_html=True)
+        else:
             # Deduplicate by Subject
             dedup_dict = {}
             for row in rows:
