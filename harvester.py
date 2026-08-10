@@ -300,37 +300,19 @@ def scrape_portal(start_date=None, end_date=None, section=None,
             except Exception:
                 pass
 
-    # Check if section has history. If it does, only scrape today's date to keep it 5x faster.
-    has_history = False
-    try:
-        cursor.execute('''
-            SELECT EXISTS(
-                SELECT 1 FROM attendance_history ah
-                JOIN students s ON s.roll_no = ah.roll_no
-                WHERE s.section = ?
-            )
-        ''', (sc,))
-        res = cursor.fetchone()
-        has_history = res[0] if res else False
-    except Exception:
-        # Query may have timed out on large tables — rollback to clear aborted state
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-
-    target_dates = []
-    if has_history:
-        target_dates = [tdt]
-    else:
+    # By default, only scrape target date (today) to complete in 3-5 minutes total.
+    target_dates = [tdt]
+    if force and start_date and start_date != tdt:
         try:
             base  = datetime.strptime(tdt, '%Y-%m-%d').date()
-            start = datetime.strptime(fdt, '%Y-%m-%d').date()
-            # Fetch weekly snapshots to build initial history
+            start = datetime.strptime(start_date, '%Y-%m-%d').date()
+            target_dates = []
             for offset in [28, 21, 14, 7, 0]:
                 d = base - timedelta(days=offset)
                 if d >= start:
                     target_dates.append(d.strftime('%Y-%m-%d'))
+            if tdt not in target_dates:
+                target_dates.append(tdt)
         except Exception:
             target_dates = [tdt]
 
