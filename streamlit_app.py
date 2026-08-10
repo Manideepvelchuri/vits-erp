@@ -2224,6 +2224,17 @@ def show_marks_page(sem, marks_rows):
             label_visibility="collapsed",
             on_change=on_result_sem_change
         )
+
+    st.markdown("""
+    <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25);
+                border-radius: 12px; padding: 10px 16px; margin-top: 10px; margin-bottom: 20px; font-family: 'Inter', sans-serif;">
+        <span style="color: #fbbf24; font-weight: 700; font-size: 0.85rem;">⚠️ Disclaimer:</span>
+        <span style="color: #cbd5e1; font-size: 0.84rem; line-height: 1.4;">
+            Academic results and CGPA statistics are extracted automatically and may not be 100% accurate. 
+            If you find any discrepancy or mistake, please contact the administrator.
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
     by_exam = {}
     if marks_rows:
         for r in marks_rows:
