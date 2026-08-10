@@ -275,19 +275,19 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     cursor        = conn.cursor()
 
     # Smart Skip Logic:
-    # 1. Manual clicks pass force=True -> ALWAYS scrape fresh data.
-    # 2. Automated scheduled runs (force=False):
-    #    - Evening run (>= 15:30 IST): Only skip if a scrape already succeeded TODAY after 15:30 IST.
-    #    - Morning run (< 15:30 IST): Only skip if a scrape already succeeded in the last 18 hours (e.g. yesterday evening).
+    # 1. Manual clicks with explicit force=True -> ALWAYS scrape fresh data.
+    # 2. Daily automated or routine runs (force=False):
+    #    - Evening Cutoff: 16:00 IST (4:00 PM IST).
+    #    - If run is after 16:00 IST: Skip if a scrape already succeeded TODAY after 16:00:00 IST.
+    #    - If run is before 16:00 IST: Skip if a scrape succeeded within last 18 hours (e.g. yesterday evening after 4 PM).
     if not force:
         try:
             curr_hour = ist_now.hour
-            curr_min  = ist_now.minute
-            is_evening_slot = (curr_hour > 15) or (curr_hour == 15 and curr_min >= 30)
+            is_evening_slot = (curr_hour >= 16)
 
             if is_evening_slot:
-                cutoff_time = ist_now.strftime('%Y-%m-%d 15:30:00')
-                skip_msg = "Evening attendance already synced today"
+                cutoff_time = ist_now.strftime('%Y-%m-%d 16:00:00')
+                skip_msg = "Evening attendance already synced today (after 4:00 PM IST)"
             else:
                 # Morning run: check if yesterday's evening scrape (within last 18 hours) succeeded
                 cutoff_dt = ist_now - timedelta(hours=18)
