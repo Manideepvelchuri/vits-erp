@@ -67,6 +67,30 @@ def _make_session():
     return s
 
 
+def _fetch_student_name_from_srprint(session, roll_no):
+    """Fetch official student name from Srprint.php if missing in class report."""
+    try:
+        url = 'http://103.52.36.11/Attendance/Srprint.php'
+        payload = {'rno': roll_no, 'fdt': '2026-07-06', 'tdt': '2026-08-10', 'Submit': 'Submit'}
+        resp = session.post(url, data=payload, timeout=8)
+        if resp.status_code == 200 and 'Name' in resp.text:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            for t in soup.find_all('table'):
+                txt = t.get_text(separator=' ', strip=True)
+                if 'Roll No.' in txt and 'Name' in txt:
+                    trs = t.find_all('tr')
+                    if len(trs) >= 2:
+                        cols = [c.get_text(strip=True) for c in trs[1].find_all(['td', 'th'])]
+                        if len(cols) >= 2 and cols[0].strip().upper() == str(roll_no).strip().upper():
+                            nm = cols[1].strip()
+                            if nm and nm.lower() not in ('name', 'nan', 'none', ''):
+                                return nm
+    except Exception:
+        pass
+    return ""
+
+
 def _login(session):
     session.post(PORTAL_LOGIN,
                  data={'uname': PORTAL_USER, 'pass': PORTAL_PASS},
@@ -371,6 +395,8 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                     cursor.execute('SELECT name FROM students WHERE roll_no=?', (roll_no,))
                     existing_row = cursor.fetchone()
                     if not existing_row:
+                        if not clean_name:
+                            clean_name = _fetch_student_name_from_srprint(session, roll_no)
                         ins_name = clean_name if clean_name else f"Student ({roll_no})"
                         cursor.execute('''
                             INSERT INTO students(roll_no,name,dob,email,semester,department,section,branch)
@@ -380,6 +406,10 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                         student_count += 1
                     elif clean_name and (not existing_row[0] or existing_row[0].strip() != clean_name):
                         cursor.execute('UPDATE students SET name=? WHERE roll_no=?', (clean_name, roll_no))
+                    elif not existing_row[0] or existing_row[0].strip().startswith('Student'):
+                        fetched_nm = _fetch_student_name_from_srprint(session, roll_no)
+                        if fetched_nm:
+                            cursor.execute('UPDATE students SET name=? WHERE roll_no=?', (fetched_nm, roll_no))
                 except Exception:
                     try:
                         conn.rollback()
