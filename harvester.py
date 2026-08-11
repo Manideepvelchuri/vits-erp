@@ -454,12 +454,18 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                 if not roll_no or roll_no.lower() in ('nan', 'none', ''):
                     continue
 
-                # Update student details from latest data
+                # Update student details from latest data (NEVER overwrite valid real names with placeholders)
                 try:
-                    cursor.execute('''
-                        UPDATE students SET name=?,section=?,department=?,branch=?
-                        WHERE roll_no=?
-                    ''', (name, sc, branch, branch, roll_no))
+                    if is_valid_real_name(name):
+                        cursor.execute('''
+                            UPDATE students SET name=?,section=?,department=?,branch=?
+                            WHERE roll_no=?
+                        ''', (name, sc, branch, branch, roll_no))
+                    else:
+                        cursor.execute('''
+                            UPDATE students SET section=?,department=?,branch=?
+                            WHERE roll_no=?
+                        ''', (sc, branch, branch, roll_no))
                 except Exception:
                     try:
                         conn.rollback()
