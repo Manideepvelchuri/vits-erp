@@ -44,6 +44,9 @@ def main():
     end_date = ist_now.strftime('%Y-%m-%d')
     
     # Manual runs / workflow dispatch set force_run=True, scheduled cron runs set force_run=False to apply Smart Skip logic
+    force_flag = "--force" in sys.argv or "-f" in sys.argv
+    force_env = os.environ.get("FORCE_SCRAPE", "").lower() in ("true", "1", "yes")
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
     force_run = force_flag or force_env or (event_name == "workflow_dispatch")
     if "--no-force" in sys.argv:
         force_run = False
