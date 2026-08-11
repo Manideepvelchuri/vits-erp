@@ -166,14 +166,8 @@ def get_student_photo_b64(roll_no):
     if os.path.exists(repo_img) and os.path.getsize(repo_img) > 0:
         import base64
         with open(repo_img, 'rb') as f:
-            return base64.b64encode(f.read()).decode('utf-8')
-    p_path = os.path.join(r'd:\claude demo\results\response_sheets_ECE\response_sheets', r_upper, 'photo.jpg')
-    if os.path.exists(p_path) and os.path.getsize(p_path) > 0:
-        import base64
-        with open(p_path, 'rb') as f:
-            return base64.b64encode(f.read()).decode('utf-8')
-    return ""
-
+            return base64.b64encode(f.read()).decode('utf-8').replace('\n', '').replace('\r', '')
+    return "" 
 
 def get_image_base64(path):
     import base64
