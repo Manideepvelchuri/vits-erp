@@ -618,6 +618,10 @@ def init_db():
 
 
     # Migration: Update existing unconfigured default passwords to PENDING
+    try:
+        conn.execute('ALTER TABLE students ADD COLUMN photo_url TEXT')
+    except Exception:
+        pass
     conn.execute("UPDATE students SET dob = 'PENDING' WHERE dob = '2007-01-01'")
     conn.commit()
 

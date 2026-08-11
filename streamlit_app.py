@@ -1366,7 +1366,16 @@ def student_dashboard():
         else:
             cgpa_note = f"{' & '.join(sem_names)} Results"
 
-    if photo_b64:
+    st_photo_url = student.get('photo_url') if isinstance(student, dict) else None
+    if st_photo_url:
+        avatar_html = (
+            f'<div style="width:90px; height:90px; border-radius:50%; margin:0 auto 12px auto; '
+            f'padding:2px; background: linear-gradient(135deg, #00D8C6 0%, #3B82F6 50%, #E056FD 100%); '
+            f'box-shadow: 0 0 20px rgba(0, 216, 198, 0.45); display:flex; align-items:center; justify-content:center;">'
+            f'<img src="{st_photo_url}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;" />'
+            f'</div>'
+        )
+    elif photo_b64:
         avatar_html = (
             f'<div style="width:90px; height:90px; border-radius:50%; margin:0 auto 12px auto; '
             f'padding:2px; background: linear-gradient(135deg, #00D8C6 0%, #3B82F6 50%, #E056FD 100%); '

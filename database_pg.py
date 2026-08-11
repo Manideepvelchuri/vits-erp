@@ -652,7 +652,8 @@ CREATE TABLE IF NOT EXISTS students (
     phone        TEXT,
     parent_phone TEXT,
     theme_pref   TEXT DEFAULT 'dark',
-    last_login   TEXT
+    last_login   TEXT,
+    photo_url    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS subjects (
@@ -905,7 +906,14 @@ def init_db():
         except: pass
         print(f"[init_db] Warning on seeding TOTAL_MARKS excel: {e}")
 
-    # Migration: ensure last_login column exists in students table
+    # Migration: ensure last_login and photo_url columns exist in students table
+    try:
+        conn.execute("ALTER TABLE students ADD COLUMN photo_url TEXT")
+        conn.commit()
+    except Exception:
+        try: conn._conn.rollback()
+        except: pass
+
     try:
         conn.execute("ALTER TABLE students ADD COLUMN last_login TEXT")
         conn.commit()
