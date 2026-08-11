@@ -1375,16 +1375,17 @@ def student_dashboard():
         else:
             cgpa_note = f"{' & '.join(sem_names)} Results"
 
-    st_photo_url = student.get('photo_url') if isinstance(student, dict) else None
-    if st_photo_url:
-        avatar_html = (
-            f'<div style="width:90px; height:90px; border-radius:50%; margin:0 auto 12px auto; '
-            f'padding:2px; background: linear-gradient(135deg, #00D8C6 0%, #3B82F6 50%, #E056FD 100%); '
-            f'box-shadow: 0 0 20px rgba(0, 216, 198, 0.45); display:flex; align-items:center; justify-content:center;">'
-            f'<img src="{st_photo_url}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;" />'
-            f'</div>'
-        )
-    elif photo_b64:
+    st_name = (student['name'] if student and 'name' in student and student['name'] else roll).upper()
+    st_branch = student['branch'] if student and 'branch' in student and student['branch'] else ""
+    st_sec = student['section'] if student and 'section' in student and student['section'] else ""
+
+    st_photo_url = None
+    try:
+        st_photo_url = student['photo_url'] if student and 'photo_url' in student and student['photo_url'] else None
+    except Exception:
+        pass
+
+    if photo_b64:
         avatar_html = (
             f'<div style="width:90px; height:90px; border-radius:50%; margin:0 auto 12px auto; '
             f'padding:2px; background: linear-gradient(135deg, #00D8C6 0%, #3B82F6 50%, #E056FD 100%); '
@@ -1392,10 +1393,16 @@ def student_dashboard():
             f'<img src="data:image/jpeg;base64,{photo_b64}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;" />'
             f'</div>'
         )
-    else:
+    elif st_photo_url:
         avatar_html = (
-            '<div style="text-align:center; font-size:2.4rem; padding:6px 0 10px 0;">🎓</div>'
+            f'<div style="width:90px; height:90px; border-radius:50%; margin:0 auto 12px auto; '
+            f'padding:2px; background: linear-gradient(135deg, #00D8C6 0%, #3B82F6 50%, #E056FD 100%); '
+            f'box-shadow: 0 0 20px rgba(0, 216, 198, 0.45); display:flex; align-items:center; justify-content:center;">'
+            f'<img src="{st_photo_url}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;" />'
+            f'</div>'
         )
+    else:
+        avatar_html = '<div style="text-align:center; font-size:2.4rem; padding:6px 0 10px 0;">🎓</div>'
 
     email_card_html = (
         f'<div style="font-size: 0.74rem; color: #a78bfa; margin-top: 4px; text-align: center; '
@@ -1420,13 +1427,13 @@ def student_dashboard():
 <div style="position:absolute; bottom:-20px; left:-20px; width:100px; height:100px; background: radial-gradient(circle, rgba(0,216,198,0.12) 0%, transparent 70%); border-radius:50%; pointer-events:none;"></div>
 {avatar_html}
 <div style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.15rem; color: #FFFFFF; text-align: center; letter-spacing: 0.6px; margin-bottom: 8px; text-transform: uppercase;">
-{student['name'].upper()}
+{st_name}
 </div>
 <div style="display: flex; align-items: center; justify-content: center; width: fit-content; margin: 0 auto 8px auto; background: rgba(0, 216, 198, 0.08); border: 1px solid rgba(0, 216, 198, 0.4); border-radius: 20px; padding: 4px 16px;">
 <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 0.88rem; color: #00D8C6; letter-spacing: 0.5px;">{student['roll_no']}</span>
 </div>
 <div style="font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.78rem; color: #94a3b8; text-align: center; margin-bottom: 4px; letter-spacing: 0.5px;">
-{student['branch']} &bull; SECTION {student['section']}
+{st_branch} &bull; SECTION {st_sec}
 </div>
 {email_card_html}
 <div style="height: 1px; background: rgba(255, 255, 255, 0.08); margin: 14px 0;"></div>
@@ -1796,7 +1803,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         f"  <h1 style='font-family:Outfit;font-weight:800;font-size:2.5rem;color:#fff;margin:0;letter-spacing:-0.5px;'>{greeting}, {display_first_name}! 👋</h1>"
         f"  <div class='greeting-badge-container'>"
         f"    <span class='greeting-badge-pill badge-roll'>🆔 {student['roll_no']}</span>"
-        f"    <span class='greeting-badge-pill badge-section'>🏫 SECTION {student['section']}</span>"
+        f"    <span class='greeting-badge-pill badge-section'>🏫 SECTION {st_sec}</span>"
         f"    <span class='greeting-badge-pill badge-sem'>📅 {sem.upper()} SUMMARY</span>"
         f"  </div>"
         f"</div>",
