@@ -2363,10 +2363,14 @@ def show_marks_page(sem, marks_rows):
     earned_credits = 0.0
     passed_sub_cnt = 0
     failed_sub_cnt = 0
-    
+
     if sel_marks_rows:
+        # Prioritize Final / Regular / Supply end-semester examination rows to avoid mid exam false failures
+        final_exam_rows = [r for r in sel_marks_rows if any(k in r['exam_type'] for k in ["Final", "Regular", "Supply"])]
+        eval_rows = final_exam_rows if final_exam_rows else sel_marks_rows
         seen_subjects = set()
-        for r in sel_marks_rows:
+
+        for r in eval_rows:
             sub = r['subject']
             clean_code = get_concise_subject_code(sub)
             if clean_code in seen_subjects:
@@ -2382,9 +2386,18 @@ def show_marks_page(sem, marks_rows):
             else:
                 failed_sub_cnt += 1
 
-    if failed_sub_cnt > 0:
-        status_label = f"{failed_sub_cnt} Supplementary"
+    # Overriding rule: If sgpa_records has failed_flag == 0 and valid SGPA, student PASSED!
+    if cur_sgpa_row and failed_flag == 0 and cur_sgpa_display not in ["-", "Pending"]:
+        failed_sub_cnt = 0
+        if tot_credits > 0:
+            earned_credits = tot_credits
+        if passed_sub_cnt == 0 and sel_marks_rows:
+            passed_sub_cnt = len(set(get_concise_subject_code(r['subject']) for r in sel_marks_rows))
+
+    if failed_sub_cnt > 0 or failed_flag == 1:
+        status_label = f"{max(failed_sub_cnt, 1)} Supplementary"
         status_color = "#ef4444"
+        subtext_str = f"{passed_sub_cnt} Passed | {failed_sub_cnt} Failed"
     elif cur_sgpa_display != "-" and cur_sgpa_display != "Pending":
         try:
             sg_val_f = float(cur_sgpa_display)
@@ -2397,13 +2410,18 @@ def show_marks_page(sem, marks_rows):
         except Exception:
             status_label = "Passed"
             status_color = "#34d399"
+        subtext_str = f"{passed_sub_cnt} Passed | 0 Failed" if sel_marks_rows else "All Subjects Cleared"
     elif selected_view_sem == 'Sem 3':
         status_label = "Ongoing Semester"
         status_color = "#38bdf8"
+        subtext_str = "In Progress"
     else:
         status_label = "Pending Results"
         status_color = "#f59e0b"
+        subtext_str = "Awaiting Official Publication"
 
+    tot_cred_str = f"{tot_credits:.0f}" if tot_credits.is_integer() else f"{tot_credits:.1f}"
+    earned_cred_str = f"{earned_credits:.0f}" if earned_credits.is_integer() else f"{earned_credits:.1f}"
     tot_cred_str = f"{tot_credits:.0f}" if tot_credits.is_integer() else f"{tot_credits:.1f}"
     earned_cred_str = f"{earned_credits:.0f}" if earned_credits.is_integer() else f"{earned_credits:.1f}"
 
@@ -2427,7 +2445,7 @@ def show_marks_page(sem, marks_rows):
         <div style="background:linear-gradient(135deg, rgba(30,41,59,0.8), rgba(15,23,42,0.9)); border:1px solid rgba(0,216,198,0.25); border-radius:14px; padding:16px; text-align:center;">
             <div style="font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; letter-spacing:0.07em;">EXAM STATUS</div>
             <div style="font-size:1.4rem; font-weight:800; color:{status_color}; margin-top:6px; font-family:'Outfit';">{status_label}</div>
-            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">{passed_sub_cnt} Passed | {failed_sub_cnt} Failed</div>
+            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">{subtext_str}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)

@@ -419,6 +419,82 @@ def get_config_map(conn=None):
             conn.close()
 
 
+
+def seed_total_marks_excel(conn):
+    import glob, re
+    import pandas as pd
+
+    excel_files = glob.glob(os.path.join(BASE_DIR, "..", "results", "response_sheets_*", "*.xlsx"))
+    if not excel_files:
+        excel_files = glob.glob(os.path.join(BASE_DIR, "results", "response_sheets_*", "*.xlsx"))
+    if not excel_files:
+        return
+
+    cursor = conn.cursor()
+    for fpath in excel_files:
+        filename = os.path.basename(fpath)
+        if filename.startswith("~$"):
+            continue
+
+        folder_name = os.path.basename(os.path.dirname(fpath))
+        sec_match = re.search(r'response_sheets_(.*)', folder_name)
+        sec_name = sec_match.group(1).upper() if sec_match else "UNKNOWN"
+
+        try:
+            df = pd.read_excel(fpath)
+            cols = [str(c).strip() for c in df.columns]
+            
+            roll_col = next((c for c in cols if 'roll' in c.lower() or 'htno' in c.lower() or 'hall' in c.lower()), None)
+            name_col = next((c for c in cols if 'name' in c.lower()), None)
+            branch_col = next((c for c in cols if 'branch' in c.lower()), None)
+            sem1_reg_col = next((c for c in cols if 'i semester (regular)' in c.lower() or ('i sem' in c.lower() and 'reg' in c.lower())), None)
+            sem1_sup_col = next((c for c in cols if 'i semester (supply)' in c.lower() or ('i sem' in c.lower() and 'sup' in c.lower())), None)
+            sem2_reg_col = next((c for c in cols if 'ii semester' in c.lower() or 'sem 2' in c.lower()), None)
+
+            if not roll_col:
+                continue
+
+            for _, row in df.iterrows():
+                roll = str(row.get(roll_col, '')).strip().upper()
+                if not roll or roll.lower() in ('nan', 'none', '', 'total', 's.no'):
+                    continue
+
+                name = str(row.get(name_col, '')).strip() if name_col and pd.notna(row.get(name_col)) else ""
+                branch = str(row.get(branch_col, '')).strip().upper() if branch_col and pd.notna(row.get(branch_col)) else ""
+
+                sem1_reg = pd.to_numeric(row.get(sem1_reg_col), errors='coerce') if sem1_reg_col else None
+                sem1_sup = pd.to_numeric(row.get(sem1_sup_col), errors='coerce') if sem1_sup_col else None
+                sem2_reg = pd.to_numeric(row.get(sem2_reg_col), errors='coerce') if sem2_reg_col else None
+
+                if name and name.upper() not in ('NAN', 'NONE'):
+                    email = f"{roll.lower()}@vits.edu"
+                    dept = branch if branch else sec_name.split('_')[0]
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO students (roll_no, name, dob, email, semester, department, section, branch)
+                        VALUES (?, ?, 'PENDING', ?, 3, ?, ?, ?)
+                    ''', (roll, name, email, dept, sec_name, dept))
+
+                if pd.notna(sem1_sup):
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO sgpa_records (roll_no, semester, sgpa, failed)
+                        VALUES (?, 'Sem 1', ?, 0)
+                    ''', (roll, float(sem1_sup)))
+                elif pd.notna(sem1_reg):
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO sgpa_records (roll_no, semester, sgpa, failed)
+                        VALUES (?, 'Sem 1', ?, 0)
+                    ''', (roll, float(sem1_reg)))
+
+                if pd.notna(sem2_reg):
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO sgpa_records (roll_no, semester, sgpa, failed)
+                        VALUES (?, 'Sem 2', ?, 0)
+                    ''', (roll, float(sem2_reg)))
+        except Exception:
+            pass
+    conn.commit()
+
+
 def init_db():
     conn = get_db_connection()
     c = conn.cursor()
@@ -538,6 +614,8 @@ def init_db():
     c.execute("SELECT COUNT(*) FROM students")
     if c.fetchone()[0] == 0:
         seed_db_from_csvs(conn)
+    seed_total_marks_excel(conn)
+
 
     # Migration: Update existing unconfigured default passwords to PENDING
     conn.execute("UPDATE students SET dob = 'PENDING' WHERE dob = '2007-01-01'")
