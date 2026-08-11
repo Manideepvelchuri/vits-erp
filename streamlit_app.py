@@ -161,12 +161,20 @@ def get_student_active_backlogs(conn, roll_no):
 def get_student_photo_b64(roll_no):
     if not roll_no:
         return ""
+    import base64, glob
     r_upper = str(roll_no).strip().upper()
-    repo_img = os.path.join(os.path.dirname(__file__), 'student_photos', f"{r_upper}.jpg")
+    base_dir = os.path.dirname(__file__)
+
+    repo_img = os.path.join(base_dir, 'student_photos', f"{r_upper}.jpg")
     if os.path.exists(repo_img) and os.path.getsize(repo_img) > 0:
-        import base64
         with open(repo_img, 'rb') as f:
             return base64.b64encode(f.read()).decode('utf-8').replace('\n', '').replace('\r', '')
+
+    matches = glob.glob(os.path.join(base_dir, 'student_photos', '*', f"{r_upper}.jpg"))
+    if matches and os.path.exists(matches[0]) and os.path.getsize(matches[0]) > 0:
+        with open(matches[0], 'rb') as f:
+            return base64.b64encode(f.read()).decode('utf-8').replace('\n', '').replace('\r', '')
+
     return ""
 
 @st.cache_data(show_spinner=False)
