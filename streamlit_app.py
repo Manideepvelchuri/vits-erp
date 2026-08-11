@@ -11,6 +11,10 @@ import os, math, hashlib
 import datetime
 from datetime import datetime as dt
 import harvester
+try:
+    import pdf_generator
+except Exception:
+    pdf_generator = None
 
 # Auto-detect: use PostgreSQL (Supabase) if DATABASE_URL or st.secrets is set, else SQLite
 @st.cache_resource(ttl=300)
@@ -1811,7 +1815,7 @@ def show_home_page(student, sem, att_rows, marks_rows, cgpa_display):
         f"  <h1 style='font-family:Outfit;font-weight:800;font-size:2.5rem;color:#fff;margin:0;letter-spacing:-0.5px;'>{greeting}, {display_first_name}! 👋</h1>"
         f"  <div class='greeting-badge-container'>"
         f"    <span class='greeting-badge-pill badge-roll'>🆔 {student['roll_no']}</span>"
-        f"    <span class='greeting-badge-pill badge-section'>🏫 SECTION {st_sec}</span>"
+        f"    <span class='greeting-badge-pill badge-section'>🏫 SECTION {student['section']}</span>"
         f"    <span class='greeting-badge-pill badge-sem'>📅 {sem.upper()} SUMMARY</span>"
         f"  </div>"
         f"</div>",
