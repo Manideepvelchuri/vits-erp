@@ -167,7 +167,18 @@ def get_student_photo_b64(roll_no):
         import base64
         with open(repo_img, 'rb') as f:
             return base64.b64encode(f.read()).decode('utf-8').replace('\n', '').replace('\r', '')
-    return "" 
+    return ""
+
+@st.cache_data(show_spinner=False)
+def get_student_gmails_map():
+    g_path = os.path.join(os.path.dirname(__file__), "student_gmails.json")
+    if os.path.exists(g_path):
+        try:
+            with open(g_path, 'r', encoding='utf-8') as gf:
+                return json.load(gf)
+        except Exception:
+            pass
+    return {} 
 
 def get_image_base64(path):
     import base64
@@ -1341,7 +1352,11 @@ def student_dashboard():
     cgpa_display = "Pending" if has_failed_sem else (f"{cgpa:.2f}" if cgpa > 0 else "-")
 
     photo_b64 = get_student_photo_b64(roll)
-    st_email = student['email'] if 'email' in student and student['email'] else ""
+    st_email = student['email'] if student and 'email' in student and student['email'] else ""
+    if not st_email or "@vits.edu" in st_email.lower():
+        g_map = get_student_gmails_map()
+        if roll in g_map:
+            st_email = g_map[roll]
 
     raw_sems = conn.execute(
         'SELECT DISTINCT semester FROM sgpa_records WHERE roll_no=?', (roll,)
