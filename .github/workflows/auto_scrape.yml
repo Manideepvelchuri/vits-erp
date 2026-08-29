@@ -1,13 +1,28 @@
 name: Scheduled Portal Scrape
 
 on:
-  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
-  repository_dispatch:
-    types: [trigger-scrape]
+  schedule:
+    # Runs at IST 08:30, 13:30, 18:30, 21:30 (= UTC 03:00, 08:00, 13:00, 16:00)
+    - cron: '0 3 * * 1-6'   # 08:30 IST  Mon–Sat (morning sync)
+    - cron: '0 8 * * 1-6'   # 13:30 IST  Mon–Sat (afternoon sync)
+    - cron: '0 13 * * 1-6'  # 18:30 IST  Mon–Sat (evening sync — MAIN daily scrape)
+    - cron: '0 16 * * 1-6'  # 21:30 IST  Mon–Sat (night confirmation)
+  workflow_dispatch:         # Manual trigger from GitHub Actions tab
+    inputs:
+      force:
+        description: 'Force scrape (ignore smart-skip)'
+        required: false
+        default: 'false'
+
+# Prevent parallel runs — only one scrape at a time
+concurrency:
+  group: scrape
+  cancel-in-progress: false
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     
     steps:
       - name: Check out repository
@@ -29,4 +44,5 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PORTAL_USERNAME: ${{ secrets.PORTAL_USERNAME }}
           PORTAL_PASSWORD: ${{ secrets.PORTAL_PASSWORD }}
+          FORCE_SCRAPE: ${{ github.event.inputs.force }}
         run: python run_scrape.py
