@@ -1,6 +1,8 @@
 name: Scheduled Portal Scrape
 
 on:
+  repository_dispatch:
+    types: [trigger-scrape]
   schedule:
     # Runs at IST 08:30, 13:30, 18:30, 21:30 (= UTC 03:00, 08:00, 13:00, 16:00)
     - cron: '0 3 * * 1-6'   # 08:30 IST  Mon–Sat (morning sync)
@@ -14,7 +16,6 @@ on:
         required: false
         default: 'false'
 
-# Prevent parallel runs — only one scrape at a time
 concurrency:
   group: scrape
   cancel-in-progress: false
@@ -45,4 +46,8 @@ jobs:
           PORTAL_USERNAME: ${{ secrets.PORTAL_USERNAME }}
           PORTAL_PASSWORD: ${{ secrets.PORTAL_PASSWORD }}
           FORCE_SCRAPE: ${{ github.event.inputs.force }}
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+          HTTP_PROXY: ${{ secrets.PROXY_URL }}
+          HTTPS_PROXY: ${{ secrets.PROXY_URL }}
+          NO_PROXY: localhost,127.0.0.1,supabase.co,pooler.supabase.com
         run: python run_scrape.py

@@ -64,6 +64,12 @@ def _make_session():
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
         'Content-Type': 'application/x-www-form-urlencoded'
     })
+    proxy_url = os.environ.get('PROXY_URL') or os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
+    if proxy_url:
+        s.proxies = {
+            'http': proxy_url,
+            'https': proxy_url
+        }
     return s
 
 
