@@ -683,19 +683,36 @@ def start_scheduler(app):
         return None
 
 
+def _row_to_dict(row, cursor_description=None):
+    """Convert a DB row to dict safely — works on SQLite Row, psycopg2 tuples, and _RowWrapper."""
+    if row is None:
+        return None
+    # If it already has .keys() and [] access (SQLite Row, _RowWrapper), build dict from keys
+    if hasattr(row, 'keys'):
+        try:
+            return {k: row[k] for k in row.keys()}
+        except Exception:
+            pass
+    # psycopg2 RealDictRow supports dict()
+    try:
+        return dict(row)
+    except (TypeError, ValueError):
+        pass
+    # Tuple with cursor description
+    if cursor_description:
+        return dict(zip([d[0] for d in cursor_description], row))
+    return {}
+
+
 def fill_attendance_history_gaps(conn, section, fdt, tdt):
-    import sqlite3
-    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     # Get all students in this section
-    students = [r['roll_no'] for r in cursor.execute(
-        'SELECT roll_no FROM students WHERE section=?', (section,)
-    ).fetchall()]
-    
+    cursor.execute('SELECT roll_no FROM students WHERE section=?', (section,))
+    students = [_row_to_dict(r, cursor.description)['roll_no'] for r in cursor.fetchall()]
+
     # Get all subjects for this section
-    subjects = [r['subject_code'] for r in cursor.execute(
-        'SELECT DISTINCT subject_code FROM subjects WHERE section=?', (section,)
-    ).fetchall()]
+    cursor.execute('SELECT DISTINCT subject_code FROM subjects WHERE section=?', (section,))
+    subjects = [_row_to_dict(r, cursor.description)['subject_code'] for r in cursor.fetchall()]
     
     if not students or not subjects:
         return
