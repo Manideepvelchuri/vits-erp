@@ -267,9 +267,9 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     tdt = end_date   or ist_now.strftime('%Y-%m-%d')
     sc  = section    or 'ECE_B'
 
-    if not start_date:
-        five_days_ago = (ist_now - timedelta(days=5)).strftime('%Y-%m-%d')
-        fdt = five_days_ago
+    four_days_ago = (ist_now - timedelta(days=4)).strftime('%Y-%m-%d')
+    if not start_date or (start_date < four_days_ago and "--full" not in sys.argv and os.environ.get("FULL_SCRAPE", "").lower() not in ("true", "1", "yes")):
+        fdt = four_days_ago
     else:
         fdt = start_date
 

@@ -37,11 +37,16 @@ def main():
     conn.close()
     
     sem = cfg.get('active_semester', 'Sem 3')
-    start_date = cfg.get('start_date', '2026-01-27')
-    
     # Use current date as the end date for the scrape
     ist_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
     end_date = ist_now.strftime('%Y-%m-%d')
+
+    # By default, scrape the last 4 days for fast, lightweight daily updates (prevents portal timeouts)
+    four_days_ago = (ist_now - datetime.timedelta(days=4)).strftime('%Y-%m-%d')
+    if "--full" in sys.argv or "--all" in sys.argv or os.environ.get("FULL_SCRAPE", "").lower() in ("true", "1", "yes"):
+        start_date = cfg.get('start_date', '2026-07-06')
+    else:
+        start_date = four_days_ago
     
     # Manual runs / workflow dispatch set force_run=True, scheduled cron runs set force_run=False to apply Smart Skip logic
     force_flag = "--force" in sys.argv or "-f" in sys.argv
