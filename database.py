@@ -204,10 +204,10 @@ def get_portal_yr_br(section, semester):
         prefix = section.split('_')[0].upper() if '_' in section else section.upper()
         # Map database branch names to portal branch codes for Year >= 2
         mapping = {
-            'CIVIL': 'CE',
-            'MECH': 'ME',
-            'DS': 'CSD',
-            'AIDS': 'AI&DS',
+            'CIVIL': 'CIVIL',
+            'MECH': 'MECH',
+            'DS': 'DS',
+            'AIDS': 'AIDS',
             'AIML': 'AIML'
         }
         br = mapping.get(prefix, prefix)

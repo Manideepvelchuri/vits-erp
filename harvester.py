@@ -128,7 +128,7 @@ def _fetch_df(session, sc, semester, fdt, tdt, max_retries=3):
     for attempt in range(1, max_retries + 1):
         try:
             _login(session)
-            resp = session.post(PORTAL_REPORT, data=payload, timeout=(5, 15))
+            resp = session.post(PORTAL_REPORT, data=payload, timeout=(10, 35))
             if resp.status_code != 200:
                 raise ValueError(f'HTTP {resp.status_code}')
             html = resp.text
@@ -263,10 +263,15 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     except Exception:
         sem_num = 2
 
-    fdt = start_date or cfg.get('start_date', '2026-07-06')
     ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
     tdt = end_date   or ist_now.strftime('%Y-%m-%d')
     sc  = section    or 'ECE_B'
+
+    if not start_date:
+        five_days_ago = (ist_now - timedelta(days=5)).strftime('%Y-%m-%d')
+        fdt = five_days_ago
+    else:
+        fdt = start_date
 
     logger.info(f'Scraping {sc} | {semester} | {fdt} → {tdt}')
 
