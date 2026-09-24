@@ -50,10 +50,14 @@ if not logger.handlers:
 BASE_DIR        = os.path.dirname(__file__)
 CSV_BACKUP_DIR  = os.path.join(BASE_DIR, 'csv_backups')
 
-PORTAL_LOGIN  = 'http://103.52.36.11/Attendance/Validate.php'
-PORTAL_REPORT = 'http://103.52.36.11/Attendance/Crprint.php'
+PORTAL_BASE_URL = (os.environ.get('PORTAL_BASE_URL') or 'http://103.52.36.11').rstrip('/')
+PORTAL_LOGIN  = f'{PORTAL_BASE_URL}/Attendance/Validate.php'
+PORTAL_REPORT = f'{PORTAL_BASE_URL}/Attendance/Crprint.php'
+PORTAL_HR     = f'{PORTAL_BASE_URL}/Attendance/Hrprint.php'
+PORTAL_SR     = f'{PORTAL_BASE_URL}/Attendance/Srprint.php'
 PORTAL_USER   = os.environ.get('PORTAL_USERNAME') or '848'
 PORTAL_PASS   = os.environ.get('PORTAL_PASSWORD') or 'vits'
+
 
 SKIP_COLS = {'S.No.', 'H.T No.', 'Student Name', 'Total', 'Percentage(%)', 'Section'}
 
@@ -76,7 +80,7 @@ def _make_session():
 def _fetch_student_name_from_srprint(session, roll_no):
     """Fetch official student name from Srprint.php if missing in class report."""
     try:
-        url = 'http://103.52.36.11/Attendance/Srprint.php'
+        url = PORTAL_SR
         payload = {'rno': roll_no, 'fdt': '2026-07-06', 'tdt': '2026-08-10', 'Submit': 'Submit'}
         resp = session.post(url, data=payload, timeout=8)
         if resp.status_code == 200 and 'Name' in resp.text:
@@ -188,7 +192,7 @@ def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
     def fetch_hour_data(hr):
         try:
             payload = {'br': br, 'dt': target_date, 'hr': str(hr), 'Submit': 'Submit'}
-            resp = session.post('http://103.52.36.11/Attendance/Hrprint.php', data=payload, timeout=10)
+            resp = session.post(PORTAL_HR, data=payload, timeout=10)
             if resp.status_code != 200 or 'uname' in resp.text:
                 return []
                 
