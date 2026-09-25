@@ -461,6 +461,13 @@ class _CursorProxy:
             raise StopIteration
         return row
 
+    @property
+    def description(self):
+        return self._cur.description
+
+    def __getattr__(self, name):
+        return getattr(self._cur, name)
+
 
 def _make_conn():
     """Create a single raw psycopg2 connection (used by pool)."""

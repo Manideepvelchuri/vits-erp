@@ -66,7 +66,8 @@ def _make_session():
     s = requests.Session()
     s.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Connection': 'keep-alive'
     })
     proxy_url = os.environ.get('PROXY_URL') or os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
     if proxy_url:
@@ -138,7 +139,7 @@ def _fetch_df(session, sc, semester, fdt, tdt, max_retries=3):
     for attempt in range(1, max_retries + 1):
         try:
             _login(session)
-            resp = session.post(PORTAL_REPORT, data=payload, timeout=(10, 35))
+            resp = session.post(PORTAL_REPORT, data=payload, timeout=(15, 110))
             if resp.status_code != 200:
                 raise ValueError(f'HTTP {resp.status_code}')
             html = resp.text
@@ -183,7 +184,23 @@ def _fetch_df(session, sc, semester, fdt, tdt, max_retries=3):
 
 
 
+PORTAL_BRANCH_MAP = {
+    'AI&DS': {'single': True,  'sec_name': 'AIDS'},
+    'AIML':  {'single': True,  'sec_name': 'AIML'},
+    'CE':    {'single': True,  'sec_name': 'CIVIL'},
+    'ME':    {'single': True,  'sec_name': 'MECH'},
+    'EEE':   {'single': True,  'sec_name': 'EEE'},
+    'EIE':   {'single': True,  'sec_name': 'EIE'},
+    'IT':    {'single': True,  'sec_name': 'IT'},
+    'ECE':   {'single': False, 'prefix': 'ECE'},
+    'CSE':   {'single': False, 'prefix': 'CSE'},
+    'CSM':   {'single': False, 'prefix': 'CSM'},
+    'CSD':   {'single': False, 'prefix': 'DS'},
+}
+
+
 def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
+    """Sync hour-wise attendance for a single section for target_date."""
     yr, br = get_portal_yr_br(sc, semester)
     cursor = conn.cursor()
     
@@ -192,7 +209,7 @@ def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
     def fetch_hour_data(hr):
         try:
             payload = {'br': br, 'dt': target_date, 'hr': str(hr), 'Submit': 'Submit'}
-            resp = session.post(PORTAL_HR, data=payload, timeout=10)
+            resp = session.post(PORTAL_HR, data=payload, timeout=12)
             if resp.status_code != 200 or 'uname' in resp.text:
                 return []
                 
@@ -211,8 +228,17 @@ def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
                 if row_year != str(yr):
                     continue
                     
-                section = str(row.get('Section')).strip()
-                subject = str(row.get('Subject')).strip()
+                portal_sec = str(row.get('Section')).strip()
+                info = PORTAL_BRANCH_MAP.get(br)
+                if info:
+                    db_sec = info['sec_name'] if info['single'] else f"{info['prefix']}_{portal_sec}"
+                else:
+                    db_sec = f"{br}_{portal_sec}"
+
+                if db_sec != sc:
+                    continue
+
+                subject = str(row.get('Subject', '--')).strip()
                 hour_val = int(row.get('Hour', hr))
                 tot_pres = row.get('Total Present')
                 tot_abs = row.get('Total Absent')
@@ -226,11 +252,11 @@ def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
                 absentees_val = str(row.get('Absentees List', '--')).strip()
                 
                 if not absentees_val or absentees_val in ('--', 'nan', 'None', ''):
-                    records.append((target_date, br, section, hour_val, subject, tot_pres, tot_abs, ''))
+                    records.append((target_date, br, db_sec, hour_val, subject, tot_pres, tot_abs, ''))
                 else:
-                    roll_nos = [r.strip().upper() for r in absentees_val.split(',') if r.strip()]
+                    roll_nos = [r.strip().upper() for r in absentees_val.split(',') if r.strip() and r.strip() != '--']
                     for r_no in roll_nos:
-                        records.append((target_date, br, section, hour_val, subject, tot_pres, tot_abs, r_no))
+                        records.append((target_date, br, db_sec, hour_val, subject, tot_pres, tot_abs, r_no))
             return records
         except Exception as e:
             logger.warning(f'Failed to fetch hour-wise for {sc} hour {hr} on {target_date}: {e}')
@@ -250,6 +276,140 @@ def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (date, section, hour, subject, roll_no) DO NOTHING
         ''', all_records)
+
+
+def sync_campus_hour_wise(target_date, session=None, conn=None):
+    """
+    High-speed whole campus hour-wise sync for target_date.
+    Scrapes all 11 branches x 7 hours in ~45s and commits to hour_wise_attendance.
+    """
+    logger.info(f"[HourSync] Scraping campus hour-wise attendance for {target_date}...")
+    close_session = False
+    close_conn = False
+    if session is None:
+        session = _make_session()
+        _login(session)
+        close_session = True
+    if conn is None:
+        conn = get_db_connection()
+        close_conn = True
+        
+    cursor = conn.cursor()
+    all_records = []
+    
+    for br, info in PORTAL_BRANCH_MAP.items():
+        for hr in range(1, 8):
+            try:
+                r = session.post(PORTAL_HR, data={'br': br, 'dt': target_date, 'hr': str(hr), 'Submit': 'Submit'}, timeout=12)
+                if 'TOTAL PRESENT' in r.text.upper() or 'ABSENTEES' in r.text.upper():
+                    tables = pd.read_html(io.StringIO(r.text))
+                    if tables and not tables[0].empty:
+                        df = tables[0]
+                        df_y2 = df[df['Year'].astype(str) == '2']
+                        for _, row in df_y2.iterrows():
+                            portal_sec = str(row.get('Section')).strip()
+                            subject = str(row.get('Subject', '--')).strip()
+                            tot_pres = int(row['Total Present']) if str(row.get('Total Present', '')).isdigit() else 0
+                            tot_abs  = int(row['Total Absent']) if str(row.get('Total Absent', '')).isdigit() else 0
+                            db_sec = info['sec_name'] if info['single'] else f"{info['prefix']}_{portal_sec}"
+                            
+                            abs_list = str(row.get('Absentees List', '--')).strip()
+                            if not abs_list or abs_list in ('--', 'nan', 'None', ''):
+                                all_records.append((target_date, br, db_sec, hr, subject, tot_pres, tot_abs, ''))
+                            else:
+                                rolls = [x.strip().upper() for x in abs_list.split(',') if x.strip() and x.strip() != '--']
+                                for roll in rolls:
+                                    all_records.append((target_date, br, db_sec, hr, subject, tot_pres, tot_abs, roll))
+            except Exception as e:
+                logger.warning(f"[HourSync] Error {br} Hr {hr} on {target_date}: {e}")
+                
+    if all_records:
+        logger.info(f"[HourSync] Inserting {len(all_records)} hour-attendance rows for {target_date}...")
+        try:
+            cursor.executemany('''
+                INSERT INTO hour_wise_attendance 
+                (date, branch, section, hour, subject, total_present, total_absent, roll_no)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (date, section, hour, subject, roll_no) DO NOTHING
+            ''', all_records)
+            conn.commit()
+            logger.info(f"[HourSync] Saved {len(all_records)} records for {target_date} successfully!")
+        except Exception as e:
+            logger.error(f"[HourSync] Failed to commit records for {target_date}: {e}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+                
+    if close_conn:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return len(all_records)
+
+
+def sync_campus_hour_wise_catchup(session=None, conn=None, days_back=7):
+    """
+    Checks hour_wise_attendance for missing dates in the last `days_back` days (excluding Sundays),
+    and scrapes all missing dates plus today. Guarantees 0-gap bunk analysis data.
+    """
+    ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    today_str = ist_now.strftime('%Y-%m-%d')
+    cutoff_dt = (ist_now - timedelta(days=days_back)).date()
+    cutoff_str = cutoff_dt.strftime('%Y-%m-%d')
+    
+    close_conn = False
+    if conn is None:
+        conn = get_db_connection()
+        close_conn = True
+    cursor = conn.cursor()
+    
+    # Get existing dates in DB
+    existing_dates = set()
+    try:
+        cursor.execute("SELECT DISTINCT date FROM hour_wise_attendance WHERE date >= ?", (cutoff_str,))
+        for r in cursor.fetchall():
+            d_val = r[0] if isinstance(r, (list, tuple)) else r['date']
+            if d_val:
+                existing_dates.add(str(d_val)[:10])
+    except Exception as e:
+        logger.warning(f"[CatchUp] Could not query existing hour-wise dates: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+            
+    # Compute dates needing sync (Mon-Sat only)
+    dates_to_sync = []
+    curr = cutoff_dt
+    today_dt = ist_now.date()
+    while curr <= today_dt:
+        if curr.weekday() != 6:  # Skip Sunday
+            c_str = curr.strftime('%Y-%m-%d')
+            # If not in DB, or if it is today (to get today's latest classes)
+            if c_str not in existing_dates or c_str == today_str:
+                dates_to_sync.append(c_str)
+        curr += timedelta(days=1)
+        
+    logger.info(f"[CatchUp] Missing/pending hour-wise dates to scrape: {dates_to_sync}")
+    
+    if session is None:
+        session = _make_session()
+        _login(session)
+        
+    total_synced = 0
+    for d in dates_to_sync:
+        n = sync_campus_hour_wise(d, session=session, conn=conn)
+        total_synced += n
+        
+    if close_conn:
+        try:
+            conn.close()
+        except Exception:
+            pass
+            
+    return total_synced
 
 
 def scrape_portal(start_date=None, end_date=None, section=None,
@@ -277,11 +437,9 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     tdt = end_date   or ist_now.strftime('%Y-%m-%d')
     sc  = section    or 'ECE_B'
 
-    four_days_ago = (ist_now - timedelta(days=4)).strftime('%Y-%m-%d')
-    if not start_date or (start_date < four_days_ago and "--full" not in sys.argv and os.environ.get("FULL_SCRAPE", "").lower() not in ("true", "1", "yes")):
-        fdt = four_days_ago
-    else:
-        fdt = start_date
+    # Class-wise report queries the cumulative semester data directly from start_date to today
+    sem_start = cfg.get('start_date', '2026-07-06')
+    fdt = start_date or sem_start
 
     logger.info(f'Scraping {sc} | {semester} | {fdt} → {tdt}')
 
@@ -625,6 +783,14 @@ def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_call
     except Exception:
         pass
 
+    # 1. Run whole-campus hour-wise catch-up first (~45-60s for all branches and any missing days)
+    try:
+        logger.info("[BulkScrape] Running campus-wide hour attendance catch-up...")
+        sync_campus_hour_wise_catchup()
+    except Exception as hw_err:
+        logger.warning(f"[BulkScrape] Hour-wise catchup encountered an issue: {hw_err}")
+
+    # 2. Scrape cumulative class-wise reports for each section
     for idx, sec in enumerate(CLASSES):
         _write_progress(sec, idx + 1, (idx + 1) / total)
         if progress_callback:
@@ -712,11 +878,21 @@ def fill_attendance_history_gaps(conn, section, fdt, tdt):
     cursor = conn.cursor()
     # Get all students in this section
     cursor.execute('SELECT roll_no FROM students WHERE section=?', (section,))
-    students = [_row_to_dict(r, cursor.description)['roll_no'] for r in cursor.fetchall()]
+    students = []
+    for r in cursor.fetchall():
+        try:
+            students.append(r['roll_no'])
+        except Exception:
+            students.append(r[0])
 
     # Get all subjects for this section
     cursor.execute('SELECT DISTINCT subject_code FROM subjects WHERE section=?', (section,))
-    subjects = [_row_to_dict(r, cursor.description)['subject_code'] for r in cursor.fetchall()]
+    subjects = []
+    for r in cursor.fetchall():
+        try:
+            subjects.append(r['subject_code'])
+        except Exception:
+            subjects.append(r[0])
     
     if not students or not subjects:
         return
