@@ -1165,6 +1165,186 @@ def color_for_pct(p):
 
 
 # ══════════════════════════════════════════════════════════════
+# PUBLIC CLASS-WISE REPORT QUICK VIEWER (NO LOGIN REQUIRED)
+# ══════════════════════════════════════════════════════════════
+def render_public_class_wise_report():
+    conn = get_db_connection()
+    cfg = get_config_map(conn)
+    active_sem = cfg.get('active_semester', 'Sem 3')
+    
+    st.markdown("""
+    <div style="text-align: center; margin: 10px 0 20px 0;">
+        <div style="font-size: 1.35rem; font-weight: 700; color: #f8fafc; letter-spacing: 0.5px;">
+            VIGNAN INSTITUTE OF TECHNOLOGY AND SCIENCE
+        </div>
+        <div style="font-size: 0.85rem; color: #94a3b8; margin-top: 2px;">
+            Near Ramoji Film City, Deshmukhi Village, Pochampally Mandal, Yadadri Bhuvanagiri Dist.<br>
+            (Approved by AICTE, New Delhi, Affiliated to JNTUH, Hyderabad) &bull; <b>AN AUTONOMOUS INSTITUTION</b>
+        </div>
+        <div style="display: inline-block; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 20px; padding: 4px 16px; margin-top: 10px; font-size: 0.95rem; font-weight: 600; color: #60a5fa;">
+            Class Attendance Report &bull; AY 2026-27
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # ── Filter Controls ──────────────────────────
+    c1, c2, c3 = st.columns([2, 1.5, 2.5])
+    sel_sec = c1.selectbox("Branch / Section", CLASSES, index=0, key="public_cr_sec")
+    
+    sem_list = ['Sem 3', 'Sem 2', 'Sem 1', 'Sem 4', 'Sem 5', 'Sem 6', 'Sem 7', 'Sem 8']
+    default_sem_idx = sem_list.index(active_sem) if active_sem in sem_list else 0
+    sel_sem = c2.selectbox("Semester", sem_list, index=default_sem_idx, key="public_cr_sem")
+    
+    search_query = c3.text_input("🔍 Quick Search (Roll / Name)", placeholder="Filter by roll number or name...", key="public_cr_search")
+    
+    # Sync status banner with live sync button
+    sync_str = get_last_sync_info_str(cfg)
+    b_col1, b_col2 = st.columns([4, 1.2])
+    with b_col1:
+        st.markdown(f"""
+        <div style="background: rgba(139, 92, 246, 0.08); border: 1px dashed rgba(139, 92, 246, 0.3);
+                    border-radius: 8px; padding: 10px 14px; font-size: 0.88rem; color: #a78bfa; height: 100%; display: flex; align-items: center;">
+            📅 <b>Last Portal Attendance Sync:</b>&nbsp;{sync_str}
+        </div>
+        """, unsafe_allow_html=True)
+    with b_col2:
+        if st.button("🔄 Sync Live", key="public_cr_sync_btn", use_container_width=True, help="Fetch latest attendance directly from college portal"):
+            with st.spinner(f"Scraping portal for {sel_sec} ({sel_sem})... ~40-70s"):
+                sd_val = cfg.get('start_date', '2026-07-06')
+                ist_now_dt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
+                ed_val = cfg.get('end_date', ist_now_dt.strftime('%Y-%m-%d'))
+                ok, msg = harvester.scrape_portal(start_date=sd_val, end_date=ed_val, section=sel_sec, semester=sel_sem, force=True)
+                if ok:
+                    st.success(f"✅ Synced {sel_sec} successfully!")
+                    st.rerun()
+                else:
+                    st.error(f"Sync failed: {msg}")
+
+    # ── Fetch Data from Database ─────────────────
+    c = conn.cursor()
+    c.execute("SELECT roll_no, name FROM students WHERE section = ? ORDER BY roll_no ASC", (sel_sec,))
+    students = c.fetchall()
+    
+    c.execute("""
+        SELECT a.roll_no, a.subject, a.hours_attended, a.hours_conducted 
+        FROM attendance a
+        JOIN students s ON a.roll_no = s.roll_no
+        WHERE s.section = ? AND a.semester = ?
+    """, (sel_sec, sel_sem))
+    att_rows = c.fetchall()
+    conn.close()
+    
+    if not students or not att_rows:
+        st.info(f"🔍 No attendance records found for **{sel_sec}** ({sel_sem}) in the database yet. Click the **'🔄 Sync Live'** button above to fetch directly from the portal.")
+        return
+        
+    # Get subjects in consistent order
+    subjects = sorted(list(set(r['subject'] for r in att_rows)))
+    conducted_map = {}
+    for r in att_rows:
+        sub = r['subject']
+        cond = r['hours_conducted'] or 0
+        conducted_map[sub] = max(conducted_map.get(sub, 0), cond)
+        
+    total_conducted = sum(conducted_map.values())
+    
+    att_map = {}
+    for r in att_rows:
+        att_map[(r['roll_no'], r['subject'])] = r['hours_attended'] or 0
+        
+    # Build rows
+    row0 = {
+        'S.No.': '—',
+        'H.T No.': '—',
+        'Student Name': 'Number of Hours Conducted',
+    }
+    for sub in subjects:
+        row0[sub] = conducted_map.get(sub, 0)
+    row0['Total'] = total_conducted
+    row0['Percentage(%)'] = 100.0 if total_conducted > 0 else 0.0
+    
+    student_rows = []
+    tot_pct_sum = 0
+    safe_count = 0
+    
+    for idx, s in enumerate(students, 1):
+        roll = s['roll_no']
+        name = s['name']
+        
+        if search_query:
+            term = search_query.strip().lower()
+            if term not in roll.lower() and term not in name.lower():
+                continue
+                
+        s_row = {
+            'S.No.': str(idx),
+            'H.T No.': roll,
+            'Student Name': name,
+        }
+        st_att = 0
+        for sub in subjects:
+            a_val = att_map.get((roll, sub), 0)
+            s_row[sub] = a_val
+            st_att += a_val
+            
+        s_row['Total'] = st_att
+        pct = round((st_att / total_conducted * 100), 2) if total_conducted > 0 else 0.0
+        s_row['Percentage(%)'] = pct
+        tot_pct_sum += pct
+        if pct >= 75.0:
+            safe_count += 1
+            
+        student_rows.append(s_row)
+        
+    # ── Summary Metrics ──────────────────────────
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Total Strength", len(students))
+    m2.metric("Hours Conducted", total_conducted)
+    avg_pct = round(tot_pct_sum / max(1, len(student_rows)), 1)
+    m3.metric("Class Average", f"{avg_pct}%")
+    shortage_count = len(student_rows) - safe_count
+    m4.metric("Safe (≥75%) / Shortage", f"{safe_count} / {shortage_count}", delta=f"{safe_count} eligible", delta_color="normal")
+    
+    # ── Display Table ────────────────────────────
+    display_rows = [row0] + student_rows
+    df_display = pd.DataFrame(display_rows)
+    
+    st.dataframe(
+        df_display,
+        use_container_width=True,
+        hide_index=True,
+        height=min(600, 45 * len(df_display) + 40),
+        column_config={
+            "Percentage(%)": st.column_config.ProgressColumn(
+                "Percentage (%)",
+                help="Overall Attendance Percentage",
+                format="%.2f%%",
+                min_value=0,
+                max_value=100
+            ),
+            "Total": st.column_config.NumberColumn(
+                "Total Attended",
+                format="%d"
+            ),
+            "Student Name": st.column_config.TextColumn(
+                "Student Name",
+                width="large"
+            )
+        }
+    )
+    
+    # Download button
+    csv_data = df_display.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label=f"📥 Download {sel_sec} ({sel_sem}) Attendance CSV",
+        data=csv_data,
+        file_name=f"VITS_Attendance_{sel_sec}_{sel_sem}.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
+
+# ══════════════════════════════════════════════════════════════
 # AUTH PAGES
 # ══════════════════════════════════════════════════════════════
 def login_page():
@@ -1199,10 +1379,10 @@ h1 a, h2 a, h3 a { display: none !important; }
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        tab1, tab2 = st.tabs(["👤 Student", "🛡️ Admin"])
-        with tab1:
+    tab1, tab2, tab3 = st.tabs(["👤 Student Login", "🛡️ Admin Login", "📋 Class Attendance Report"])
+    with tab1:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
             with st.form("student_login"):
                 st.info(
                     "🔑 **Password Instructions:**\n\n"
@@ -1213,7 +1393,9 @@ h1 a, h2 a, h3 a { display: none !important; }
                 pwd  = st.text_input("Password", type="password", placeholder="Enter 'vits123' or your DOB")
                 if st.form_submit_button("Sign In", use_container_width=True):
                     handle_student_login(roll.strip().upper(), pwd.strip())
-        with tab2:
+    with tab2:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
             with st.form("admin_login"):
                 u = st.text_input("Admin Username")
                 p = st.text_input("Admin Password", type="password")
@@ -1227,6 +1409,8 @@ h1 a, h2 a, h3 a { display: none !important; }
                         st.rerun()
                     else:
                         st.error("Invalid credentials")
+    with tab3:
+        render_public_class_wise_report()
 
 
 
