@@ -1188,15 +1188,24 @@ def render_class_wise_report(default_sec=None, default_sem=None, current_roll=No
     """, unsafe_allow_html=True)
     
     # ── Filter Controls ──────────────────────────
-    c1, c2, c3 = st.columns([2, 1.5, 2.5])
+    c1, c2, c3, c4 = st.columns([1.8, 1.2, 1.8, 2.2])
     default_sec_idx = CLASSES.index(default_sec) if default_sec in CLASSES else 0
     sel_sec = c1.selectbox("Branch / Section", CLASSES, index=default_sec_idx, key=f"{key_prefix}_sec")
     
     sem_list = ['Sem 3', 'Sem 2', 'Sem 1', 'Sem 4', 'Sem 5', 'Sem 6', 'Sem 7', 'Sem 8']
     default_sem_idx = sem_list.index(active_sem) if active_sem in sem_list else 0
     sel_sem = c2.selectbox("Semester", sem_list, index=default_sem_idx, key=f"{key_prefix}_sem")
+
+    status_options = [
+        "All Students",
+        "🟢 Safe (≥75%)",
+        "⚠️ Condonation (65%–74.9%)",
+        "🚨 Shortage (<75%)",
+        "🚫 Debarred (<65%)"
+    ]
+    status_filter = c3.selectbox("Attendance Status", status_options, index=0, key=f"{key_prefix}_status")
     
-    search_query = c3.text_input("🔍 Quick Search (Roll / Name)", placeholder="Filter by roll number or name...", key=f"{key_prefix}_search")
+    search_query = c4.text_input("🔍 Quick Search (Roll / Name)", placeholder="Filter by roll number or name...", key=f"{key_prefix}_search")
     
     # Sync status banner with live sync button
     sync_str = get_last_sync_info_str(cfg)
@@ -1266,53 +1275,92 @@ def render_class_wise_report(default_sec=None, default_sem=None, current_roll=No
     for sub in subjects:
         row0[sub] = conducted_map.get(sub, 0)
     
-    student_rows = []
-    tot_pct_sum = 0
-    safe_count = 0
+    # 1. First calculate full class metrics across all students in section
+    all_student_data = []
+    class_all_pcts = []
+    class_safe_count = 0
+    class_condonation_count = 0
+    class_debarred_count = 0
     
     for idx, s in enumerate(students, 1):
         roll = s['roll_no']
         name = s['name']
         
-        if search_query:
-            term = search_query.strip().lower()
-            if term not in roll.lower() and term not in name.lower():
-                continue
-                
+        st_att = sum(att_map.get((roll, sub), 0) for sub in subjects)
+        pct = round((st_att / total_conducted * 100), 2) if total_conducted > 0 else 0.0
+        class_all_pcts.append(pct)
+        
+        if pct >= 75.0:
+            class_safe_count += 1
+            st_status = "Safe"
+        elif pct >= 65.0:
+            class_condonation_count += 1
+            st_status = "Condonation"
+        else:
+            class_debarred_count += 1
+            st_status = "Debarred"
+            
         disp_name = f"👉 {name} (You)" if current_roll and roll == current_roll else name
         s_row = {
             'S.No.': str(idx),
             'H.T No.': roll,
             'Student Name': disp_name,
+            'Total': st_att,
+            'Percentage(%)': pct,
+            '_status': st_status,
+            '_name': name,
+            '_roll': roll
         }
-        st_att = 0
-        for sub in subjects:
-            a_val = att_map.get((roll, sub), 0)
-            st_att += a_val
-            
-        pct = round((st_att / total_conducted * 100), 2) if total_conducted > 0 else 0.0
-        s_row['Total'] = st_att
-        s_row['Percentage(%)'] = pct
         for sub in subjects:
             s_row[sub] = att_map.get((roll, sub), 0)
             
-        tot_pct_sum += pct
-        if pct >= 75.0:
-            safe_count += 1
-            
-        student_rows.append(s_row)
+        all_student_data.append(s_row)
         
-    # ── Summary Metrics ──────────────────────────
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Strength", len(students))
-    m2.metric("Hours Conducted", total_conducted)
-    avg_pct = round(tot_pct_sum / max(1, len(student_rows)), 1)
-    m3.metric("Class Average", f"{avg_pct}%")
-    shortage_count = len(student_rows) - safe_count
-    m4.metric("Safe (≥75%) / Shortage", f"{safe_count} / {shortage_count}", delta=f"{safe_count} eligible", delta_color="normal")
+    total_class_strength = len(students)
+    class_shortage_count = class_condonation_count + class_debarred_count
+    class_avg_pct = round(sum(class_all_pcts) / max(1, total_class_strength), 1)
+    safe_pct_ratio = round(class_safe_count * 100 / max(1, total_class_strength), 1)
     
+    # ── Summary Metrics (reflects true section totals) ──────────
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Total Strength", total_class_strength)
+    m2.metric("Hours Conducted", total_conducted)
+    m3.metric("Class Average", f"{class_avg_pct}%")
+    m4.metric(
+        "Safe (≥75%) / Shortage",
+        f"{class_safe_count} / {class_shortage_count}",
+        delta=f"{safe_pct_ratio}% safe",
+        delta_color="normal"
+    )
+    
+    # 2. Filter rows by attendance status and search query
+    filtered_student_rows = []
+    for s_row in all_student_data:
+        # Status dropdown filter
+        if status_filter == "🟢 Safe (≥75%)" and s_row['_status'] != "Safe":
+            continue
+        elif status_filter == "⚠️ Condonation (65%–74.9%)" and s_row['_status'] != "Condonation":
+            continue
+        elif status_filter == "🚨 Shortage (<75%)" and s_row['_status'] == "Safe":
+            continue
+        elif status_filter == "🚫 Debarred (<65%)" and s_row['_status'] != "Debarred":
+            continue
+            
+        # Search query filter
+        if search_query:
+            term = search_query.strip().lower()
+            if term not in s_row['_roll'].lower() and term not in s_row['_name'].lower():
+                continue
+                
+        # Clean helper fields for table display
+        clean_row = {k: v for k, v in s_row.items() if not k.startswith('_')}
+        filtered_student_rows.append(clean_row)
+        
+    if status_filter != "All Students" or search_query:
+        st.caption(f"Showing **{len(filtered_student_rows)}** of **{total_class_strength}** students in {sel_sec}")
+        
     # ── Display Table ────────────────────────────
-    display_rows = [row0] + student_rows
+    display_rows = [row0] + filtered_student_rows
     df_display = pd.DataFrame(display_rows)
     
     st.dataframe(

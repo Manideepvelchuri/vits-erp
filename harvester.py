@@ -551,7 +551,14 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                     existing_name = existing_row[0] if existing_row else None
 
                     if not existing_row:
-                        ins_name = clean_name if is_valid_real_name(clean_name) else f"Student ({roll_no})"
+                        ins_name = clean_name
+                        if not is_valid_real_name(ins_name):
+                            sr_name = _fetch_student_name_from_srprint(session, roll_no)
+                            if is_valid_real_name(sr_name):
+                                ins_name = sr_name
+                            else:
+                                ins_name = f"Student ({roll_no})"
+                                
                         cursor.execute('''
                             INSERT INTO students(roll_no,name,dob,email,semester,department,section,branch)
                             VALUES(?,?,?,?,?,?,?,?)
@@ -560,8 +567,13 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                         student_count += 1
                     else:
                         # Existing student row found. NEVER overwrite a valid real full name!
-                        if is_valid_real_name(clean_name) and not is_valid_real_name(existing_name):
-                            cursor.execute('UPDATE students SET name=? WHERE roll_no=?', (clean_name, roll_no))
+                        target_name = clean_name
+                        if not is_valid_real_name(target_name) and not is_valid_real_name(existing_name):
+                            sr_name = _fetch_student_name_from_srprint(session, roll_no)
+                            if is_valid_real_name(sr_name):
+                                target_name = sr_name
+                        if is_valid_real_name(target_name) and not is_valid_real_name(existing_name):
+                            cursor.execute('UPDATE students SET name=? WHERE roll_no=?', (target_name, roll_no))
                 except Exception:
                     try:
                         conn.rollback()
