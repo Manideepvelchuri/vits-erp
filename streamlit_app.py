@@ -1411,6 +1411,27 @@ h1 a, h2 a, h3 a { display: none !important; }
                 pwd  = st.text_input("Password", type="password", placeholder="Enter 'vits123' or your DOB")
                 if st.form_submit_button("Sign In", use_container_width=True):
                     handle_student_login(roll.strip().upper(), pwd.strip())
+
+            # Button under student login showing last time synced & all stats
+            st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+            conn_sync = get_db_connection()
+            cfg_sync = get_config_map(conn_sync)
+            conn_sync.close()
+            sync_str = get_last_sync_info_str(cfg_sync)
+
+            st.markdown(f"""
+            <div style="background: rgba(139, 92, 246, 0.07); border: 1px dashed rgba(139, 92, 246, 0.3);
+                        border-radius: 8px; padding: 9px 12px; margin-bottom: 10px; font-size: 0.83rem; color: #a78bfa; text-align: center;">
+                📅 <b>Last Portal Attendance Sync:</b> {sync_str}
+            </div>
+            """, unsafe_allow_html=True)
+
+            is_open = st.session_state.get('login_show_cr', False)
+            btn_txt = "❌ Close Class Attendance Report" if is_open else "📋 View Class Attendance Report & All Stats"
+            if st.button(btn_txt, use_container_width=True, key="btn_login_cr"):
+                st.session_state['login_show_cr'] = not is_open
+                st.rerun()
+
         with tab2:
             with st.form("admin_login"):
                 u = st.text_input("Admin Username")
@@ -1425,6 +1446,11 @@ h1 a, h2 a, h3 a { display: none !important; }
                         st.rerun()
                     else:
                         st.error("Invalid credentials")
+
+    if st.session_state.get('login_show_cr', False):
+        st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
+        st.markdown("---")
+        render_class_wise_report(key_prefix="login_cr")
 
 
 
