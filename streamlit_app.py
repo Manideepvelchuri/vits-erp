@@ -1165,12 +1165,12 @@ def color_for_pct(p):
 
 
 # ══════════════════════════════════════════════════════════════
-# PUBLIC CLASS-WISE REPORT QUICK VIEWER (NO LOGIN REQUIRED)
+# CLASS-WISE REPORT VIEWER (REPLICATING CRPRINT.PHP)
 # ══════════════════════════════════════════════════════════════
-def render_public_class_wise_report():
+def render_class_wise_report(default_sec=None, default_sem=None, current_roll=None, key_prefix="cr"):
     conn = get_db_connection()
     cfg = get_config_map(conn)
-    active_sem = cfg.get('active_semester', 'Sem 3')
+    active_sem = default_sem or cfg.get('active_semester', 'Sem 3')
     
     st.markdown("""
     <div style="text-align: center; margin: 10px 0 20px 0;">
@@ -1189,13 +1189,14 @@ def render_public_class_wise_report():
     
     # ── Filter Controls ──────────────────────────
     c1, c2, c3 = st.columns([2, 1.5, 2.5])
-    sel_sec = c1.selectbox("Branch / Section", CLASSES, index=0, key="public_cr_sec")
+    default_sec_idx = CLASSES.index(default_sec) if default_sec in CLASSES else 0
+    sel_sec = c1.selectbox("Branch / Section", CLASSES, index=default_sec_idx, key=f"{key_prefix}_sec")
     
     sem_list = ['Sem 3', 'Sem 2', 'Sem 1', 'Sem 4', 'Sem 5', 'Sem 6', 'Sem 7', 'Sem 8']
     default_sem_idx = sem_list.index(active_sem) if active_sem in sem_list else 0
-    sel_sem = c2.selectbox("Semester", sem_list, index=default_sem_idx, key="public_cr_sem")
+    sel_sem = c2.selectbox("Semester", sem_list, index=default_sem_idx, key=f"{key_prefix}_sem")
     
-    search_query = c3.text_input("🔍 Quick Search (Roll / Name)", placeholder="Filter by roll number or name...", key="public_cr_search")
+    search_query = c3.text_input("🔍 Quick Search (Roll / Name)", placeholder="Filter by roll number or name...", key=f"{key_prefix}_search")
     
     # Sync status banner with live sync button
     sync_str = get_last_sync_info_str(cfg)
@@ -1208,7 +1209,7 @@ def render_public_class_wise_report():
         </div>
         """, unsafe_allow_html=True)
     with b_col2:
-        if st.button("🔄 Sync Live", key="public_cr_sync_btn", use_container_width=True, help="Fetch latest attendance directly from college portal"):
+        if st.button("🔄 Sync Live", key=f"{key_prefix}_sync_btn", use_container_width=True, help="Fetch latest attendance directly from college portal"):
             with st.spinner(f"Scraping portal for {sel_sec} ({sel_sem})... ~40-70s"):
                 sd_val = cfg.get('start_date', '2026-07-06')
                 ist_now_dt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
@@ -1238,8 +1239,8 @@ def render_public_class_wise_report():
         st.info(f"🔍 No attendance records found for **{sel_sec}** ({sel_sem}) in the database yet. Click the **'🔄 Sync Live'** button above to fetch directly from the portal.")
         return
         
-    # Get subjects in consistent order
-    subjects = sorted(list(set(r['subject'] for r in att_rows)))
+    # Get subjects in consistent order, omitting subjects with 0 conducted hours to keep table compact
+    raw_subjects = sorted(list(set(r['subject'] for r in att_rows)))
     conducted_map = {}
     for r in att_rows:
         sub = r['subject']
@@ -1247,21 +1248,23 @@ def render_public_class_wise_report():
         conducted_map[sub] = max(conducted_map.get(sub, 0), cond)
         
     total_conducted = sum(conducted_map.values())
+    active_subjects = [s for s in raw_subjects if conducted_map.get(s, 0) > 0]
+    subjects = active_subjects if active_subjects else raw_subjects
     
     att_map = {}
     for r in att_rows:
         att_map[(r['roll_no'], r['subject'])] = r['hours_attended'] or 0
         
-    # Build rows
+    # Build rows — place Total and Percentage(%) right after Student Name for instant visibility!
     row0 = {
         'S.No.': '—',
         'H.T No.': '—',
         'Student Name': 'Number of Hours Conducted',
+        'Total': total_conducted,
+        'Percentage(%)': 100.0 if total_conducted > 0 else 0.0,
     }
     for sub in subjects:
         row0[sub] = conducted_map.get(sub, 0)
-    row0['Total'] = total_conducted
-    row0['Percentage(%)'] = 100.0 if total_conducted > 0 else 0.0
     
     student_rows = []
     tot_pct_sum = 0
@@ -1276,20 +1279,23 @@ def render_public_class_wise_report():
             if term not in roll.lower() and term not in name.lower():
                 continue
                 
+        disp_name = f"👉 {name} (You)" if current_roll and roll == current_roll else name
         s_row = {
             'S.No.': str(idx),
             'H.T No.': roll,
-            'Student Name': name,
+            'Student Name': disp_name,
         }
         st_att = 0
         for sub in subjects:
             a_val = att_map.get((roll, sub), 0)
-            s_row[sub] = a_val
             st_att += a_val
             
-        s_row['Total'] = st_att
         pct = round((st_att / total_conducted * 100), 2) if total_conducted > 0 else 0.0
+        s_row['Total'] = st_att
         s_row['Percentage(%)'] = pct
+        for sub in subjects:
+            s_row[sub] = att_map.get((roll, sub), 0)
+            
         tot_pct_sum += pct
         if pct >= 75.0:
             safe_count += 1
@@ -1320,15 +1326,26 @@ def render_public_class_wise_report():
                 help="Overall Attendance Percentage",
                 format="%.2f%%",
                 min_value=0,
-                max_value=100
+                max_value=100,
+                width="medium"
             ),
             "Total": st.column_config.NumberColumn(
-                "Total Attended",
-                format="%d"
+                "Total",
+                help="Total hours attended across all subjects",
+                format="%d",
+                width="small"
             ),
             "Student Name": st.column_config.TextColumn(
                 "Student Name",
-                width="large"
+                width="medium"
+            ),
+            "H.T No.": st.column_config.TextColumn(
+                "Hall Ticket",
+                width="small"
+            ),
+            "S.No.": st.column_config.TextColumn(
+                "#",
+                width="small"
             )
         }
     )
@@ -1340,7 +1357,8 @@ def render_public_class_wise_report():
         data=csv_data,
         file_name=f"VITS_Attendance_{sel_sec}_{sel_sem}.csv",
         mime="text/csv",
-        use_container_width=True
+        use_container_width=True,
+        key=f"{key_prefix}_dl"
     )
 
 
@@ -1379,10 +1397,10 @@ h1 a, h2 a, h3 a { display: none !important; }
     </div>
     """, unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["👤 Student Login", "🛡️ Admin Login", "📋 Class Attendance Report"])
-    with tab1:
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        tab1, tab2 = st.tabs(["👤 Student", "🛡️ Admin"])
+        with tab1:
             with st.form("student_login"):
                 st.info(
                     "🔑 **Password Instructions:**\n\n"
@@ -1393,9 +1411,7 @@ h1 a, h2 a, h3 a { display: none !important; }
                 pwd  = st.text_input("Password", type="password", placeholder="Enter 'vits123' or your DOB")
                 if st.form_submit_button("Sign In", use_container_width=True):
                     handle_student_login(roll.strip().upper(), pwd.strip())
-    with tab2:
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
+        with tab2:
             with st.form("admin_login"):
                 u = st.text_input("Admin Username")
                 p = st.text_input("Admin Password", type="password")
@@ -1409,8 +1425,6 @@ h1 a, h2 a, h3 a { display: none !important; }
                         st.rerun()
                     else:
                         st.error("Invalid credentials")
-    with tab3:
-        render_public_class_wise_report()
 
 
 
@@ -1637,7 +1651,7 @@ def student_dashboard():
         )
         st.markdown("---")
         nav_options = [
-            "🏠 Home", "📅 Attendance", "📊 Marks", "🧮 SGPA Calculator",
+            "🏠 Home", "📅 Attendance", "📋 Class Report", "📊 Marks", "🧮 SGPA Calculator",
             "📈 Analytics", "🗓️ Timetable"
         ]
         _cur_page = st.session_state.get('_current_page', '🏠 Home')
@@ -1678,6 +1692,14 @@ def student_dashboard():
         show_home_page(student, sem, att_rows, marks_rows, cgpa_display)
     elif page == "📅 Attendance":
         show_attendance_page(roll, sem, att_rows)
+    elif page == "📋 Class Report":
+        col_back, _ = st.columns([1, 4])
+        with col_back:
+            if st.button("← Back to My Attendance", use_container_width=True):
+                st.session_state['_current_page'] = "📅 Attendance"
+                st.rerun()
+        st_sec = student['section'] if student and 'section' in student else 'ECE_B'
+        render_class_wise_report(default_sec=st_sec, default_sem=sem, current_roll=roll, key_prefix="student_nav_cr")
     elif page == "📊 Marks":
         show_marks_page(sem, marks_rows)
     elif page == "🧮 SGPA Calculator":
@@ -2314,21 +2336,27 @@ def show_attendance_page(roll, sem, att_rows):
     </div>
     """, unsafe_allow_html=True)
 
-    # Fetch Live button
-    if st.button("🔄 Fetch Live Attendance from Portal", use_container_width=True):
-        with st.spinner("Scraping portal... 30-60s"):
-            conn_cfg = get_db_connection()
-            cfg_m = get_config_map(conn_cfg)
-            conn_cfg.close()
-            sd_val = cfg_m.get('start_date', '2026-07-06')
-            ist_now_dt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
-            ed_val = cfg_m.get('end_date', ist_now_dt.strftime('%Y-%m-%d'))
-            ok, msg = harvester.scrape_portal(start_date=sd_val, end_date=ed_val, section=sec, semester=sem, force=True)
-            if ok:
-                st.success(msg)
-                st.rerun()
-            else:
-                st.error(msg)
+    # Action buttons: Fetch Live + Integrated Class-Wise Report button
+    btn_col1, btn_col2 = st.columns([1, 1])
+    with btn_col1:
+        if st.button("🔄 Fetch Live Attendance from Portal", use_container_width=True):
+            with st.spinner("Scraping portal... 30-60s"):
+                conn_cfg = get_db_connection()
+                cfg_m = get_config_map(conn_cfg)
+                conn_cfg.close()
+                sd_val = cfg_m.get('start_date', '2026-07-06')
+                ist_now_dt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)
+                ed_val = cfg_m.get('end_date', ist_now_dt.strftime('%Y-%m-%d'))
+                ok, msg = harvester.scrape_portal(start_date=sd_val, end_date=ed_val, section=sec, semester=sem, force=True)
+                if ok:
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.error(msg)
+    with btn_col2:
+        if st.button(f"📋 View Class-Wise Report ({sec})", use_container_width=True, key="student_view_cr_btn"):
+            st.session_state['_current_page'] = "📋 Class Report"
+            st.rerun()
 
     st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
@@ -2425,6 +2453,10 @@ def show_attendance_page(roll, sem, att_rows):
                             <strong style="color: {color}; font-size: 1.05rem; font-family: 'JetBrains Mono';">{np_:.1f}%</strong>
                         </div>
                     """, unsafe_allow_html=True)
+
+    st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
+    with st.expander(f"📋 Quick View: Full Class-Wise Attendance Sheet ({sec})", expanded=False):
+        render_class_wise_report(default_sec=sec, default_sem=sem, current_roll=roll, key_prefix="student_att_inline_cr")
 
 
 def show_marks_page(sem, marks_rows):

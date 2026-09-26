@@ -494,25 +494,25 @@ def scrape_portal(start_date=None, end_date=None, section=None,
         try:
             valid_df = None
             actual_date = target_date
-            ist_today_str = (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d')
-            max_fallback_days = 4 if target_date == ist_today_str else 1
-            
-            for offset in range(max_fallback_days):
-                test_date = (datetime.strptime(target_date, '%Y-%m-%d') - timedelta(days=offset)).strftime('%Y-%m-%d')
-                if test_date < fdt:
-                    break
+            dates_to_try = [target_date]
+            yesterday_str = (datetime.strptime(target_date, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
+            if yesterday_str >= fdt and yesterday_str != target_date:
+                dates_to_try.append(yesterday_str)
+                
+            last_err = None
+            for test_date in dates_to_try:
                 try:
-                    res_df = _fetch_df(session, sc, semester, fdt, test_date, max_retries)
+                    res_df = _fetch_df(session, sc, semester, fdt, test_date, max_retries=2)
                     if res_df is not None and len(res_df) > 1:
                         valid_df = res_df
                         actual_date = test_date
                         break
                 except Exception as e:
-                    if offset == max_fallback_days - 1 and valid_df is None:
-                        raise ValueError(f"All fallback dates failed for section {sc}: {e}")
+                    last_err = e
+                    continue
                         
             if valid_df is None or len(valid_df) <= 1:
-                raise ValueError(f"No valid attendance data found for {sc} in last {max_fallback_days} days.")
+                raise ValueError(f"No valid attendance data found for {sc}: {last_err}")
 
             df = valid_df
             target_date = actual_date
@@ -790,20 +790,45 @@ def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_call
     except Exception as hw_err:
         logger.warning(f"[BulkScrape] Hour-wise catchup encountered an issue: {hw_err}")
 
-    # 2. Scrape cumulative class-wise reports for each section
-    for idx, sec in enumerate(CLASSES):
-        _write_progress(sec, idx + 1, (idx + 1) / total)
-        if progress_callback:
-            try:
-                progress_callback(sec, idx + 1, total)
-            except Exception:
-                pass
+    # 2. Scrape cumulative class-wise reports for each section concurrently (max 3 workers)
+    completed_count = 0
+    results_dict = {}
+    import threading
+    import concurrent.futures
+    lock = threading.Lock()
+
+    def _worker(sec):
+        nonlocal completed_count
         ok, msg = scrape_portal(
             start_date=start_date, end_date=end_date,
             section=sec, semester=semester, dynamic_conn=None, force=force
         )
-        results.append({'section': sec, 'ok': ok, 'msg': msg})
-        logger.info(msg)
+        with lock:
+            completed_count += 1
+            cur_idx = completed_count
+            results_dict[sec] = {'section': sec, 'ok': ok, 'msg': msg}
+            _write_progress(sec, cur_idx, cur_idx / total)
+            if progress_callback:
+                try:
+                    progress_callback(sec, cur_idx, total)
+                except Exception:
+                    pass
+        logger.info(f"[{cur_idx}/{total}] {sec}: {msg}")
+        return {'section': sec, 'ok': ok, 'msg': msg}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(_worker, sec): sec for sec in CLASSES}
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                sec = futures[future]
+                logger.error(f"[{sec}] Worker thread failed: {e}")
+                with lock:
+                    if sec not in results_dict:
+                        results_dict[sec] = {'section': sec, 'ok': False, 'msg': str(e)}
+
+    results = [results_dict.get(sec, {'section': sec, 'ok': False, 'msg': 'Unknown error'}) for sec in CLASSES]
 
     # Mark as done
     try:
