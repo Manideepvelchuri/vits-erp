@@ -12,9 +12,9 @@ on:
   workflow_dispatch:         # Manual trigger from GitHub Actions tab
     inputs:
       force:
-        description: 'Force scrape (ignore smart-skip)'
+        description: 'Force scrape all sections'
         required: false
-        default: 'false'
+        default: 'true'
 
 concurrency:
   group: scrape
@@ -46,10 +46,10 @@ jobs:
           PORTAL_USERNAME: ${{ secrets.PORTAL_USERNAME }}
           PORTAL_PASSWORD: ${{ secrets.PORTAL_PASSWORD }}
           PORTAL_BASE_URL: ${{ secrets.PORTAL_BASE_URL }}
-          FORCE_SCRAPE: ${{ github.event.inputs.force }}
+          FORCE_SCRAPE: 'true'
           PROXY_URL: ${{ secrets.PROXY_URL }}
           HTTP_PROXY: ${{ secrets.PROXY_URL }}
           HTTPS_PROXY: ${{ secrets.PROXY_URL }}
           NO_PROXY: localhost,127.0.0.1,supabase.co,pooler.supabase.com
-        run: python run_scrape.py
+        run: python run_scrape.py --force
 

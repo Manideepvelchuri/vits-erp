@@ -44,17 +44,14 @@ def main():
     # Class-wise reports query the full semester up to today
     start_date = cfg.get('start_date', '2026-07-06')
     
-    # Manual runs / workflow dispatch set force_run=True, scheduled cron runs set force_run=False to apply Smart Skip logic
-    force_flag = "--force" in sys.argv or "-f" in sys.argv
-    force_env = os.environ.get("FORCE_SCRAPE", "").lower() in ("true", "1", "yes")
-    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
-    force_run = force_flag or force_env or (event_name == "workflow_dispatch")
-    if "--no-force" in sys.argv:
-        force_run = False
+    # Scrape all 21 sections on every run (manual or scheduled) without skipping
+    force_run = "--no-force" not in sys.argv
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "manual")
         
+    print(f"[*] Trigger Event   : {event_name}")
     print(f"[*] Active Semester : {sem}")
     print(f"[*] Date Range      : {start_date} to {end_date}")
-    print(f"[*] Force Scrape     : {force_run} ({'Manual/Dispatched Run' if force_run else 'Scheduled Cron Run'})")
+    print(f"[*] Force Scrape    : {force_run} (Scraping all 21 sections)")
     print(f"[*] Starting bulk scrape of all sections...")
     
     results = harvester.bulk_scrape_all(
