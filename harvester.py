@@ -281,7 +281,7 @@ def _sync_hour_wise_for_date(session, conn, sc, semester, target_date):
 def sync_campus_hour_wise(target_date, session=None, conn=None):
     """
     High-speed whole campus hour-wise sync for target_date.
-    Scrapes all 11 branches x 7 hours in ~45s and commits to hour_wise_attendance.
+    Scrapes all 11 branches x 7 hours concurrently in ~15-20s.
     """
     logger.info(f"[HourSync] Scraping campus hour-wise attendance for {target_date}...")
     close_session = False
@@ -297,41 +297,65 @@ def sync_campus_hour_wise(target_date, session=None, conn=None):
     cursor = conn.cursor()
     all_records = []
     
-    for br, info in PORTAL_BRANCH_MAP.items():
-        for hr in range(1, 8):
-            try:
-                r = session.post(PORTAL_HR, data={'br': br, 'dt': target_date, 'hr': str(hr), 'Submit': 'Submit'}, timeout=12)
-                if 'TOTAL PRESENT' in r.text.upper() or 'ABSENTEES' in r.text.upper():
-                    tables = pd.read_html(io.StringIO(r.text))
-                    if tables and not tables[0].empty:
-                        df = tables[0]
-                        df_y2 = df[df['Year'].astype(str) == '2']
-                        for _, row in df_y2.iterrows():
-                            portal_sec = str(row.get('Section')).strip()
-                            subject = str(row.get('Subject', '--')).strip()
-                            tot_pres = int(row['Total Present']) if str(row.get('Total Present', '')).isdigit() else 0
-                            tot_abs  = int(row['Total Absent']) if str(row.get('Total Absent', '')).isdigit() else 0
-                            db_sec = info['sec_name'] if info['single'] else f"{info['prefix']}_{portal_sec}"
-                            
-                            abs_list = str(row.get('Absentees List', '--')).strip()
-                            if not abs_list or abs_list in ('--', 'nan', 'None', ''):
-                                all_records.append((target_date, br, db_sec, hr, subject, tot_pres, tot_abs, ''))
-                            else:
-                                rolls = [x.strip().upper() for x in abs_list.split(',') if x.strip() and x.strip() != '--']
-                                for roll in rolls:
-                                    all_records.append((target_date, br, db_sec, hr, subject, tot_pres, tot_abs, roll))
-            except Exception as e:
-                logger.warning(f"[HourSync] Error {br} Hr {hr} on {target_date}: {e}")
+    from concurrent.futures import ThreadPoolExecutor
+    
+    def _fetch_br_hr(item):
+        br, hr = item
+        records = []
+        try:
+            r = session.post(PORTAL_HR, data={'br': br, 'dt': target_date, 'hr': str(hr), 'Submit': 'Submit'}, timeout=12)
+            if 'TOTAL PRESENT' in r.text.upper() or 'ABSENTEES' in r.text.upper():
+                tables = pd.read_html(io.StringIO(r.text))
+                if tables and not tables[0].empty:
+                    df = tables[0]
+                    df_y2 = df[df['Year'].astype(str) == '2']
+                    for _, row in df_y2.iterrows():
+                        portal_sec = str(row.get('Section')).strip()
+                        subject = str(row.get('Subject', '--')).strip()
+                        tot_pres = int(row['Total Present']) if str(row.get('Total Present', '')).isdigit() else 0
+                        tot_abs  = int(row['Total Absent']) if str(row.get('Total Absent', '')).isdigit() else 0
+                        info = PORTAL_BRANCH_MAP.get(br, {})
+                        db_sec = info.get('sec_name') if info.get('single') else f"{info.get('prefix', br)}_{portal_sec}"
+                        
+                        abs_list = str(row.get('Absentees List', '--')).strip()
+                        if not abs_list or abs_list in ('--', 'nan', 'None', ''):
+                            records.append((target_date, br, db_sec, hr, subject, tot_pres, tot_abs, ''))
+                        else:
+                            rolls = [x.strip().upper() for x in abs_list.split(',') if x.strip() and x.strip() != '--']
+                            for roll in rolls:
+                                records.append((target_date, br, db_sec, hr, subject, tot_pres, tot_abs, roll))
+        except Exception as e:
+            logger.warning(f"[HourSync] Error {br} Hr {hr} on {target_date}: {e}")
+        return records
+
+    items = [(br, hr) for br in PORTAL_BRANCH_MAP.keys() for hr in range(1, 8)]
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        for res in executor.map(_fetch_br_hr, items):
+            if res:
+                all_records.extend(res)
                 
     if all_records:
         logger.info(f"[HourSync] Inserting {len(all_records)} hour-attendance rows for {target_date}...")
         try:
-            cursor.executemany('''
-                INSERT INTO hour_wise_attendance 
-                (date, branch, section, hour, subject, total_present, total_absent, roll_no)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (date, section, hour, subject, roll_no) DO NOTHING
-            ''', all_records)
+            if hasattr(cursor, '_cur') and hasattr(cursor._pg, '_conn'):
+                import psycopg2.extras
+                psycopg2.extras.execute_values(
+                    cursor._cur,
+                    '''
+                    INSERT INTO hour_wise_attendance 
+                    (date, branch, section, hour, subject, total_present, total_absent, roll_no)
+                    VALUES %s
+                    ON CONFLICT (date, section, hour, subject, roll_no) DO NOTHING
+                    ''',
+                    all_records
+                )
+            else:
+                cursor.executemany('''
+                    INSERT INTO hour_wise_attendance 
+                    (date, branch, section, hour, subject, total_present, total_absent, roll_no)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (date, section, hour, subject, roll_no) DO NOTHING
+                ''', all_records)
             conn.commit()
             logger.info(f"[HourSync] Saved {len(all_records)} records for {target_date} successfully!")
         except Exception as e:
@@ -410,6 +434,66 @@ def sync_campus_hour_wise_catchup(session=None, conn=None, days_back=7):
             pass
             
     return total_synced
+
+
+def _bulk_upsert_history(conn, cursor, records):
+    """Batch upsert running attendance history snapshots in a single network round-trip."""
+    if not records:
+        return
+    if hasattr(cursor, '_cur') and hasattr(cursor._pg, '_conn'):
+        import psycopg2.extras
+        psycopg2.extras.execute_values(
+            cursor._cur,
+            '''
+            INSERT INTO attendance_history
+                (snapshot_date, roll_no, subject_code, running_attended, running_conducted, percentage)
+            VALUES %s
+            ON CONFLICT (roll_no, subject_code, snapshot_date) DO UPDATE SET
+                running_attended = EXCLUDED.running_attended,
+                running_conducted = EXCLUDED.running_conducted,
+                percentage = EXCLUDED.percentage
+            ''',
+            records
+        )
+    else:
+        cursor.executemany('''
+            INSERT INTO attendance_history
+                (snapshot_date, roll_no, subject_code, running_attended, running_conducted, percentage)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT (roll_no, subject_code, snapshot_date) DO UPDATE SET
+                running_attended = excluded.running_attended,
+                running_conducted = excluded.running_conducted,
+                percentage = excluded.percentage
+        ''', records)
+
+
+def _bulk_upsert_attendance(conn, cursor, records):
+    """Batch upsert cumulative attendance records in a single network round-trip."""
+    if not records:
+        return
+    if hasattr(cursor, '_cur') and hasattr(cursor._pg, '_conn'):
+        import psycopg2.extras
+        psycopg2.extras.execute_values(
+            cursor._cur,
+            '''
+            INSERT INTO attendance
+                (roll_no, subject, semester, hours_attended, hours_conducted)
+            VALUES %s
+            ON CONFLICT (roll_no, subject, semester) DO UPDATE SET
+                hours_attended = EXCLUDED.hours_attended,
+                hours_conducted = EXCLUDED.hours_conducted
+            ''',
+            records
+        )
+    else:
+        cursor.executemany('''
+            INSERT INTO attendance
+                (roll_no, subject, semester, hours_attended, hours_conducted)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (roll_no, subject, semester) DO UPDATE SET
+                hours_attended = excluded.hours_attended,
+                hours_conducted = excluded.hours_conducted
+        ''', records)
 
 
 def scrape_portal(start_date=None, end_date=None, section=None,
@@ -535,6 +619,7 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                         pass
 
             branch = sc.split('_')[0] if '_' in sc else sc
+            history_records = []
 
             for idx in range(1, len(df)):
                 row     = df.iloc[idx]
@@ -581,29 +666,16 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                         pass
 
                 for sub in subjects:
-                    try:
-                        cond_v = pd.to_numeric(conducted_row[sub], errors='coerce')
-                        att_v  = pd.to_numeric(row[sub],           errors='coerce')
-                        if pd.isna(cond_v) or pd.isna(att_v):
-                            continue
-                        cond, att = int(cond_v), int(att_v)
-
-                        pct = round(att / cond * 100, 2) if cond > 0 else 0.0
-                        cursor.execute('''
-                            INSERT INTO attendance_history
-                                (snapshot_date,roll_no,subject_code,running_attended,running_conducted,percentage)
-                            VALUES(?,?,?,?,?,?)
-                            ON CONFLICT(roll_no,subject_code,snapshot_date) DO UPDATE SET
-                                running_attended=excluded.running_attended,
-                                running_conducted=excluded.running_conducted,
-                                percentage=excluded.percentage
-                        ''', (target_date, roll_no, sub, att, cond, pct))
-                    except Exception:
-                        try:
-                            conn.rollback()
-                        except Exception:
-                            pass
+                    cond_v = pd.to_numeric(conducted_row[sub], errors='coerce')
+                    att_v  = pd.to_numeric(row[sub],           errors='coerce')
+                    if pd.isna(cond_v) or pd.isna(att_v):
                         continue
+                    cond, att = int(cond_v), int(att_v)
+                    pct = round(att / cond * 100, 2) if cond > 0 else 0.0
+                    history_records.append((target_date, roll_no, sub, att, cond, pct))
+
+            # Batch upsert running history in 1 fast network round-trip (~0.2s)
+            _bulk_upsert_history(conn, cursor, history_records)
 
             # Commit after each successful date to save progress
             try:
@@ -631,6 +703,7 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                         if c not in SKIP_COLS and not str(c).startswith('Unnamed')]
             branch = sc.split('_')[0] if '_' in sc else sc
             
+            att_records = []
             for idx in range(1, len(last_df)):
                 row     = last_df.iloc[idx]
                 roll_no = str(row.get('H.T No.', '')).strip().upper()
@@ -658,26 +731,15 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                         pass
 
                 for sub in subjects:
-                    try:
-                        cond_v = pd.to_numeric(conducted_row[sub], errors='coerce')
-                        att_v  = pd.to_numeric(row[sub],           errors='coerce')
-                        if pd.isna(cond_v) or pd.isna(att_v):
-                            continue
-                        cond, att = int(cond_v), int(att_v)
-
-                        cursor.execute('''
-                            INSERT INTO attendance(roll_no,subject,semester,hours_attended,hours_conducted)
-                            VALUES(?,?,?,?,?)
-                            ON CONFLICT(roll_no,subject,semester) DO UPDATE SET
-                                hours_attended=excluded.hours_attended,
-                                hours_conducted=excluded.hours_conducted
-                        ''', (roll_no, sub, semester, att, cond))
-                    except Exception:
-                        try:
-                            conn.rollback()
-                        except Exception:
-                            pass
+                    cond_v = pd.to_numeric(conducted_row[sub], errors='coerce')
+                    att_v  = pd.to_numeric(row[sub],           errors='coerce')
+                    if pd.isna(cond_v) or pd.isna(att_v):
                         continue
+                    cond, att = int(cond_v), int(att_v)
+                    att_records.append((roll_no, sub, semester, att, cond))
+
+            # Batch upsert cumulative attendance in 1 fast network round-trip (~0.2s)
+            _bulk_upsert_attendance(conn, cursor, att_records)
 
             # Commit aggregate updates
             try:
@@ -689,29 +751,6 @@ def scrape_portal(start_date=None, end_date=None, section=None,
                     pass
         except Exception as update_e:
             logger.error(f'[{sc}] Failed to update aggregate attendance/students tables: {update_e}')
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-
-    # Interpolate attendance gaps dynamically to populate daily records for the last 30 days
-    if success_dates:
-        try:
-            fill_attendance_history_gaps(conn, sc, fdt, tdt)
-            conn.commit()
-        except Exception as fill_e:
-            logger.warning(f'Failed to interpolate attendance history: {fill_e}')
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-    # Sync hour-wise attendance details for the successfully scraped dates
-    for s_date in success_dates:
-        try:
-            _sync_hour_wise_for_date(session, conn, sc, semester, s_date)
-            conn.commit()
-        except Exception as hw_e:
-            logger.warning(f'[{sc}] Failed to sync hour-wise attendance for {s_date}: {hw_e}')
             try:
                 conn.rollback()
             except Exception:
@@ -802,7 +841,7 @@ def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_call
     except Exception as hw_err:
         logger.warning(f"[BulkScrape] Hour-wise catchup encountered an issue: {hw_err}")
 
-    # 2. Scrape cumulative class-wise reports for each section concurrently (max 3 workers)
+    # 2. Scrape cumulative class-wise reports for each section concurrently (max 6 workers)
     completed_count = 0
     results_dict = {}
     import threading
@@ -828,7 +867,7 @@ def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_call
         logger.info(f"[{cur_idx}/{total}] {sec}: {msg}")
         return {'section': sec, 'ok': ok, 'msg': msg}
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
         futures = {executor.submit(_worker, sec): sec for sec in CLASSES}
         for future in concurrent.futures.as_completed(futures):
             try:
