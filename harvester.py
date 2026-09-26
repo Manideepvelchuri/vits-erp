@@ -314,6 +314,11 @@ def sync_campus_hour_wise(target_date, session=None, conn=None):
                         subject = str(row.get('Subject', '--')).strip()
                         tot_pres = int(row['Total Present']) if str(row.get('Total Present', '')).isdigit() else 0
                         tot_abs  = int(row['Total Absent']) if str(row.get('Total Absent', '')).isdigit() else 0
+                        
+                        # Only record real conducted classes — ignore holidays, empty hours, or dummy rows
+                        if not subject or subject in ('--', 'nan', 'None', '') or (tot_pres == 0 and tot_abs == 0):
+                            continue
+
                         info = PORTAL_BRANCH_MAP.get(br, {})
                         db_sec = info.get('sec_name') if info.get('single') else f"{info.get('prefix', br)}_{portal_sec}"
                         
@@ -337,10 +342,11 @@ def sync_campus_hour_wise(target_date, session=None, conn=None):
     if all_records:
         logger.info(f"[HourSync] Inserting {len(all_records)} hour-attendance rows for {target_date}...")
         try:
-            if hasattr(cursor, '_cur') and hasattr(cursor._pg, '_conn'):
+            if _check_pg_available():
                 import psycopg2.extras
+                raw_cur = cursor._cur if hasattr(cursor, '_cur') else cursor
                 psycopg2.extras.execute_values(
-                    cursor._cur,
+                    raw_cur,
                     '''
                     INSERT INTO hour_wise_attendance 
                     (date, branch, section, hour, subject, total_present, total_absent, roll_no)
@@ -389,10 +395,10 @@ def sync_campus_hour_wise_catchup(session=None, conn=None, days_back=7):
         close_conn = True
     cursor = conn.cursor()
     
-    # Get existing dates in DB
+    # Get existing dates in DB that have real conducted classes
     existing_dates = set()
     try:
-        cursor.execute("SELECT DISTINCT date FROM hour_wise_attendance WHERE date >= ?", (cutoff_str,))
+        cursor.execute("SELECT date FROM hour_wise_attendance WHERE date >= ? AND subject != '--' GROUP BY date HAVING count(*) > 50", (cutoff_str,))
         for r in cursor.fetchall():
             d_val = r[0] if isinstance(r, (list, tuple)) else r['date']
             if d_val:
@@ -497,8 +503,12 @@ def _bulk_upsert_attendance(conn, cursor, records):
 
 
 def scrape_portal(start_date=None, end_date=None, section=None,
-                  semester=None, dynamic_conn=None, max_retries=3, force=True):
-    """Main scrape function. Returns (success, message). Always scrapes without skipping."""
+                  semester=None, dynamic_conn=None, max_retries=3, force=False):
+    """
+    Main scrape function. Returns (success, message).
+    - If force=True (manual dispatch, CLI, button): Always scrapes, never skips.
+    - If force=False (automated cron): Skips morning run if yesterday's evening run succeeded within 18 hrs.
+    """
     if _check_pg_available():
         from database_pg import get_config_map
     else:
@@ -530,6 +540,40 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     session       = _make_session()
     conn          = dynamic_conn if dynamic_conn is not None else get_db_connection()
     cursor        = conn.cursor()
+
+    # 1. Evening Scrape (after 16:00 IST / 4:00 PM IST) OR Manual force=True:
+    #    -> 100% MANDATORY DAILY SCRAPE. NEVER SKIPS!
+    # 2. Automated Morning Scrape (before 16:00 IST / 4:00 PM IST) on cron (force=False):
+    #    -> Precautionary check. Skip ONLY if yesterday's mandatory evening scrape (after 4:00 PM IST)
+    #       already succeeded within the last 18 hours.
+    if not force:
+        try:
+            curr_hour = ist_now.hour
+            is_evening_slot = (curr_hour >= 16)
+
+            if not is_evening_slot:
+                cutoff_dt = ist_now - timedelta(hours=18)
+                cutoff_time = cutoff_dt.strftime('%Y-%m-%d %H:%M:%S')
+                skip_msg = "Recent evening attendance already synced within last 18 hours"
+
+                cursor.execute('''
+                    SELECT scraped_at FROM scrape_log 
+                    WHERE section = ? AND status = 'success' AND scraped_at >= ?
+                    ORDER BY id DESC LIMIT 1
+                ''', (sc, cutoff_time))
+
+                res = cursor.fetchone()
+                if res:
+                    scraped_time = res[0]
+                    logger.info(f'[{sc}] {skip_msg} (at {scraped_time}). Skipping automated morning cron run.')
+                    if dynamic_conn is None:
+                        conn.close()
+                    return True, f'[{sc}] {skip_msg} (at {scraped_time}).'
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     # Target today's date [tdt] (with last 3 days fallback) for fast 3-minute scrape!
     target_dates = [tdt]
@@ -772,7 +816,7 @@ def scrape_portal(start_date=None, end_date=None, section=None,
     return True, f'[{sc}] Synced {student_count} students | {len(success_dates)} snapshots | {duration}s'
 
 
-def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_callback=None, force=True):
+def bulk_scrape_all(semester=None, start_date=None, end_date=None, progress_callback=None, force=False):
     """Scrape all sections sequentially."""
     total = len(CLASSES)
     results = []

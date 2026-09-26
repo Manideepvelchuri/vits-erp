@@ -44,14 +44,28 @@ def main():
     # Class-wise reports query the full semester up to today
     start_date = cfg.get('start_date', '2026-07-06')
     
-    # Scrape all 21 sections on every run (manual or scheduled) without skipping
-    force_run = "--no-force" not in sys.argv
-    event_name = os.environ.get("GITHUB_EVENT_NAME", "manual")
+    # Distinguish manual triggers vs automated scheduled cron triggers:
+    # - Manual triggers (workflow_dispatch, repository_dispatch, manual run, or --force):
+    #   ALWAYS force scrape all 21 sections! NEVER skip!
+    # - Automated scheduled cron runs (schedule):
+    #   Apply 18-hour smart skip logic so morning cron runs can skip if evening ran within 18 hrs.
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "").strip().lower()
+    force_flag = "--force" in sys.argv or "-f" in sys.argv
+    force_env = os.environ.get("FORCE_SCRAPE", "").lower() in ("true", "1", "yes")
+
+    if "--no-force" in sys.argv:
+        force_run = False
+    elif force_flag or force_env:
+        force_run = True
+    elif event_name == "schedule":
+        force_run = False  # Automated cron run: apply 18-hr skip logic
+    else:
+        force_run = True   # Manual trigger: ALWAYS scrape all 21 sections without skipping!
         
-    print(f"[*] Trigger Event   : {event_name}")
+    print(f"[*] Trigger Event   : {event_name or 'manual'}")
     print(f"[*] Active Semester : {sem}")
     print(f"[*] Date Range      : {start_date} to {end_date}")
-    print(f"[*] Force Scrape    : {force_run} (Scraping all 21 sections)")
+    print(f"[*] Force Scrape    : {force_run} ({'Force Scrape All 21 Sections' if force_run else 'Automated Cron (18-hr Smart Skip active)'})")
     print(f"[*] Starting bulk scrape of all sections...")
     
     results = harvester.bulk_scrape_all(

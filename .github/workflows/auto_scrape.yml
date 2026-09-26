@@ -46,10 +46,10 @@ jobs:
           PORTAL_USERNAME: ${{ secrets.PORTAL_USERNAME }}
           PORTAL_PASSWORD: ${{ secrets.PORTAL_PASSWORD }}
           PORTAL_BASE_URL: ${{ secrets.PORTAL_BASE_URL }}
-          FORCE_SCRAPE: 'true'
+          FORCE_SCRAPE: ${{ github.event_name != 'schedule' }}
           PROXY_URL: ${{ secrets.PROXY_URL }}
           HTTP_PROXY: ${{ secrets.PROXY_URL }}
           HTTPS_PROXY: ${{ secrets.PROXY_URL }}
           NO_PROXY: localhost,127.0.0.1,supabase.co,pooler.supabase.com
-        run: python run_scrape.py --force
+        run: python run_scrape.py
 
