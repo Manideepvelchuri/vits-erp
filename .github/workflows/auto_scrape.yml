@@ -3,9 +3,6 @@ name: Scheduled Portal Scrape
 on:
   repository_dispatch:
     types: [trigger-scrape]
-  schedule:
-    # Daily sync at 18:30 IST (= 13:00 UTC) Mon–Sat after all college classes conclude
-    - cron: '0 13 * * 1-6'
   workflow_dispatch:         # Manual trigger from GitHub Actions tab
     inputs:
       force:
@@ -43,7 +40,7 @@ jobs:
           PORTAL_USERNAME: ${{ secrets.PORTAL_USERNAME }}
           PORTAL_PASSWORD: ${{ secrets.PORTAL_PASSWORD }}
           PORTAL_BASE_URL: ${{ secrets.PORTAL_BASE_URL }}
-          FORCE_SCRAPE: ${{ github.event_name != 'schedule' }}
+          FORCE_SCRAPE: ${{ github.event.inputs.force || 'false' }}
           PROXY_URL: ${{ secrets.PROXY_URL }}
           HTTP_PROXY: ${{ secrets.PROXY_URL }}
           HTTPS_PROXY: ${{ secrets.PROXY_URL }}

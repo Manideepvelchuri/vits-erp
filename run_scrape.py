@@ -45,10 +45,10 @@ def main():
     start_date = cfg.get('start_date', '2026-07-06')
     
     # Distinguish manual triggers vs automated scheduled cron triggers:
-    # - Manual triggers (workflow_dispatch, repository_dispatch, manual run, or --force):
+    # - Manual triggers (workflow_dispatch, CLI, or explicit --force):
     #   ALWAYS force scrape all 21 sections! NEVER skip!
-    # - Automated scheduled cron runs (schedule):
-    #   Apply 18-hour smart skip logic so morning cron runs can skip if evening ran within 18 hrs.
+    # - Automated cron runs (external cron-job website via repository_dispatch, or schedule):
+    #   Apply 18-hour smart skip logic so morning cron runs skip if evening ran within 18 hrs.
     event_name = os.environ.get("GITHUB_EVENT_NAME", "").strip().lower()
     force_flag = "--force" in sys.argv or "-f" in sys.argv
     force_env = os.environ.get("FORCE_SCRAPE", "").lower() in ("true", "1", "yes")
@@ -57,10 +57,12 @@ def main():
         force_run = False
     elif force_flag or force_env:
         force_run = True
-    elif event_name == "schedule":
-        force_run = False  # Automated cron run: apply 18-hr skip logic
+    elif event_name in ("schedule", "repository_dispatch"):
+        force_run = False  # Automated cron run from external cron website: apply 18-hr smart skip
+    elif event_name == "workflow_dispatch":
+        force_run = True   # Manual trigger from GitHub UI: ALWAYS scrape all 21 sections!
     else:
-        force_run = True   # Manual trigger: ALWAYS scrape all 21 sections without skipping!
+        force_run = True
         
     print(f"[*] Trigger Event   : {event_name or 'manual'}")
     print(f"[*] Active Semester : {sem}")
